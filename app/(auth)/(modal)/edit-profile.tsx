@@ -78,7 +78,7 @@ const Page = () => {
         options={{
           headerRight: () => (
             <TouchableOpacity onPress={onDone}>
-              <Text style={styles.doneButtonText}>Done</Text>
+              <Text style={styles.doneButtonText}>Lưu</Text>
             </TouchableOpacity>
           ),
         }}
@@ -91,7 +91,7 @@ const Page = () => {
         )}
       </TouchableOpacity>
       <View style={styles.section}>
-        <Text style={styles.label}>Bio</Text>
+        <Text style={styles.label}>Tiểu sử</Text>
         <TextInput
           value={bio}
           onChangeText={setBio}
@@ -103,8 +103,8 @@ const Page = () => {
         />
       </View>
       <View style={styles.section}>
-        <Text style={styles.label}>Link</Text>
-        <TextInput value={link} onChangeText={setLink} placeholder="Link" autoCapitalize="none" />
+        <Text style={styles.label}>Liên kết</Text>
+        <TextInput value={link} onChangeText={setLink} placeholder="Liên kết..." autoCapitalize="none" />
       </View>
     </View>
   );

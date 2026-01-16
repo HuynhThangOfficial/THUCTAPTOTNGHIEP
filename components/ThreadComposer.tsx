@@ -1,292 +1,328 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View,
-  TextInput,
-  Image,
-  TouchableOpacity,
   StyleSheet,
   Text,
-  Alert,
-  InputAccessoryView,
+  View,
+  Image,
+  TextInput,
+  TouchableOpacity,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
-import { FontAwesome6, Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { useUserProfile } from '@/hooks/useUserProfile';
-import { Stack, useRouter } from 'expo-router';
-import { Colors } from '@/constants/Colors';
-import { useMutation } from 'convex/react';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { Colors } from '@/constants/Colors';
+import { Ionicons, MaterialIcons, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Id } from '@/convex/_generated/dataModel';
 
 type ThreadComposerProps = {
   isPreview?: boolean;
   isReply?: boolean;
-  threadId?: Id<'messages'>;
+  threadId?: string;
 };
 
-const ThreadComposer: React.FC<ThreadComposerProps> = ({ isPreview, isReply, threadId }) => {
+type MediaPreviewItem = {
+  type: 'existing' | 'new';
+  uri: string;
+  originalIdOrUri: string;
+};
+
+const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) => {
   const router = useRouter();
-  const [threadContent, setThreadContent] = useState('');
+  const { editId } = useLocalSearchParams();
   const { userProfile } = useUserProfile();
-  const inputAccessoryViewID = 'uniqueID';
+
+  const [threadContent, setThreadContent] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+
+  const [existingMediaIds, setExistingMediaIds] = useState<string[]>([]);
+  const [newMediaUris, setNewMediaUris] = useState<string[]>([]);
+
+  // API Mutations/Queries
   const addThread = useMutation(api.messages.addThread);
-  const [mediaFiles, setMediaFiles] = useState<ImagePicker.ImagePickerAsset[]>([]);
+  const updateThread = useMutation(api.messages.updateThread);
   const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
 
-  const handleSubmit = async () => {
-    const mediaStorageIds = await Promise.all(mediaFiles.map((file) => uploadMediaFile(file)));
-    addThread({ threadId, content: threadContent, mediaFiles: mediaStorageIds });
-    setThreadContent('');
-    setMediaFiles([]);
-    router.dismiss();
-  };
+  const threadToEdit = useQuery(api.messages.getThreadById, editId ? { messageId: editId as Id<'messages'> } : 'skip');
 
-  const handleCancel = () => {
-    setThreadContent('');
-    Alert.alert('Discard thread?', '', [
-      {
-        text: 'Discard',
-        onPress: () => router.dismiss(),
-        style: 'destructive',
-      },
-      {
-        text: 'Save Draft',
-        style: 'cancel',
-      },
-      {
-        text: 'Cancel',
-        style: 'cancel',
-      },
-    ]);
-  };
+  const defaultAvatar = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
 
-  const removeThread = () => {
-    setThreadContent('');
-    setMediaFiles([]);
-  };
+  useEffect(() => {
+    if (threadToEdit) {
+      setThreadContent(threadToEdit.content);
+    }
+  }, [threadToEdit]);
 
-  const selectImage = async (source: 'camera' | 'library') => {
-    const options: ImagePicker.ImagePickerOptions = {
-      allowsEditing: true,
-      aspect: [4, 3],
+  const mediaPreviewList: MediaPreviewItem[] = useMemo(() => {
+    const existing: MediaPreviewItem[] = (threadToEdit?.mediaFiles || []).map((url) => ({
+      type: 'existing',
+      uri: url,
+      originalIdOrUri: url,
+    }));
+
+    const newItems: MediaPreviewItem[] = newMediaUris.map((uri) => ({
+      type: 'new',
+      uri: uri,
+      originalIdOrUri: uri,
+    }));
+
+    const filteredExisting = existing.filter(item => existingMediaIds.includes(item.originalIdOrUri));
+
+    return [...filteredExisting, ...newItems];
+  }, [threadToEdit?.mediaFiles, newMediaUris, existingMediaIds]);
+
+
+  useEffect(() => {
+    if (threadToEdit?.mediaFiles) {
+      setExistingMediaIds(threadToEdit.mediaFiles);
+    }
+  }, [threadToEdit]);
+
+  const handleSelectImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    };
-
-    let result;
-
-    if (source === 'camera') {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-
-      result = await ImagePicker.launchCameraAsync(options);
-    } else {
-      result = await ImagePicker.launchImageLibraryAsync(options);
-    }
-
-    if (!result.canceled) {
-      setMediaFiles([result.assets[0], ...mediaFiles]);
-    }
-  };
-
-  const removeImage = (index: number) => {
-    setMediaFiles(mediaFiles.filter((_, i) => i !== index));
-  };
-
-  const uploadMediaFile = async (image: ImagePicker.ImagePickerAsset) => {
-    // Step 1: Get a short-lived upload URL
-    const postUrl = await generateUploadUrl();
-
-    // Convert URI to blob
-    const response = await fetch(image!.uri);
-    const blob = await response.blob();
-
-    // Step 2: POST the file to the URL
-    const result = await fetch(postUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': image!.mimeType! },
-      body: blob,
+      allowsMultipleSelection: true,
+      quality: 0.5,
     });
-    const { storageId } = await result.json();
-    return storageId;
+    if (!result.canceled) {
+      setNewMediaUris([...newMediaUris, ...result.assets.map((asset) => asset.uri)]);
+    }
   };
+
+  const handleCamera = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (permission.status !== 'granted') {
+      Alert.alert('Cấp quyền', 'Cần quyền camera.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.5 });
+    if (!result.canceled) {
+      setNewMediaUris([...newMediaUris, result.assets[0].uri]);
+    }
+  };
+
+  const removeMedia = (item: MediaPreviewItem) => {
+    if (item.type === 'new') {
+      setNewMediaUris(newMediaUris.filter(uri => uri !== item.originalIdOrUri));
+    } else {
+      setExistingMediaIds(existingMediaIds.filter(id => id !== item.originalIdOrUri));
+    }
+  };
+
+  const handleGif = () => Alert.alert('GIF', 'Tính năng đang phát triển');
+  const handleMic = () => Alert.alert('Mic', 'Tính năng đang phát triển');
+  const handleHashtag = () => setThreadContent(prev => prev + " #");
+  const handlePoll = () => setThreadContent(prev => prev + "\n📊 Poll:\n1. \n2. ");
+
+  const handleSubmit = async () => {
+    if (threadContent.trim() === '' && mediaPreviewList.length === 0) return;
+    setIsUploading(true);
+
+    try {
+      const newUploadedIds = await Promise.all(
+        newMediaUris.map(async (uri) => {
+          const postUrl = await generateUploadUrl();
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          const result = await fetch(postUrl, {
+            method: "POST",
+            headers: { "Content-Type": "image/jpeg" },
+            body: blob,
+          });
+          const { storageId } = await result.json();
+          return storageId;
+        })
+      );
+
+      if (editId) {
+        if (existingMediaIds.length > 0 && newUploadedIds.length === 0 && threadContent !== threadToEdit?.content) {
+           await updateThread({
+            messageId: editId as Id<'messages'>,
+            content: threadContent,
+          });
+        } else {
+           await updateThread({
+            messageId: editId as Id<'messages'>,
+            content: threadContent,
+            mediaFiles: newUploadedIds,
+          });
+        }
+      } else {
+        await addThread({
+          // SỬA LỖI TẠI ĐÂY: Ép kiểu string sang Id<'messages'>
+          threadId: threadId as Id<'messages'>, 
+          content: threadContent,
+          mediaFiles: newUploadedIds,
+        });
+      }
+
+      router.dismiss();
+    } catch (error) {
+      console.error("Lỗi:", error);
+      Alert.alert('Lỗi', 'Có lỗi xảy ra. Vui lòng thử lại.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  if (isPreview) {
+    return (
+      <View style={styles.previewContainer}>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <Image
+            source={{ uri: userProfile?.imageUrl || defaultAvatar }}
+            style={styles.avatar}
+          />
+          <View style={{ flex: 1, justifyContent: 'center' }}>
+            <Text style={styles.placeholderText}>Bạn đang nghĩ gì?</Text>
+            <View style={[styles.mediaIcons, { marginTop: 8 }]}>
+               <Ionicons name="images-outline" size={20} color={Colors.border} />
+               <Ionicons name="camera-outline" size={20} color={Colors.border} />
+               <MaterialIcons name="gif" size={24} color={Colors.border} />
+               <Ionicons name="mic-outline" size={20} color={Colors.border} />
+               <FontAwesome name="hashtag" size={18} color={Colors.border} />
+               <MaterialCommunityIcons name="chart-bar" size={20} color={Colors.border} />
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  if (editId && !threadToEdit) {
+    return <View style={[styles.container, { justifyContent: 'center' }]}><ActivityIndicator /></View>;
+  }
 
   return (
-    <TouchableOpacity
-      onPress={() => {
-        router.push('/(auth)/(modal)/create');
-      }}
-      style={
-        isPreview && {
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 1000,
-          height: 100,
-          pointerEvents: 'box-only',
-        }
-      }>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}>
+
       <Stack.Screen
         options={{
+          headerTitle: editId ? 'Chỉnh Sửa' : (isReply ? 'Phản hồi' : 'Bài Viết Mới'),
+          headerTitleAlign: 'center',
           headerLeft: () => (
-            <TouchableOpacity onPress={handleCancel}>
-              <Text>Cancel</Text>
+            <TouchableOpacity onPress={() => router.dismiss()}>
+              <Text style={{ fontSize: 16 }}>Hủy</Text>
+            </TouchableOpacity>
+          ),
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={handleSubmit}
+              disabled={isUploading || (threadContent.trim().length === 0 && mediaPreviewList.length === 0)}
+              style={{ opacity: isUploading ? 0.5 : 1 }}>
+              <Text style={styles.postButtonText}>
+                {isUploading ? '...' : (editId ? 'Lưu' : 'Đăng')}
+              </Text>
             </TouchableOpacity>
           ),
         }}
       />
-      <View style={styles.topRow}>
-        <Image source={{ uri: userProfile?.imageUrl as string }} style={styles.avatar} />
-        <View style={styles.centerContainer}>
-          <Text style={styles.name}>
-            {userProfile?.first_name} {userProfile?.last_name}
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder={isReply ? 'Reply to thread' : "What's new?"}
-            value={threadContent}
-            onChangeText={setThreadContent}
-            multiline
-            autoFocus={!isPreview}
-            inputAccessoryViewID={inputAccessoryViewID}
+
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <Image
+            source={{ uri: userProfile?.imageUrl || defaultAvatar }}
+            style={styles.avatar}
           />
-          {mediaFiles.length > 0 && (
-            <ScrollView horizontal>
-              {mediaFiles.map((file, index) => (
-                <View key={index} style={styles.mediaContainer}>
-                  <Image source={{ uri: file.uri }} style={styles.mediaImage} />
-                  <TouchableOpacity
-                    style={styles.deleteIconContainer}
-                    onPress={() => removeImage(index)}>
-                    <Ionicons name="close" size={16} color="white" />
-                  </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.username}>
+              {userProfile?.first_name} {userProfile?.last_name}
+            </Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Bạn đang nghĩ gì?"
+              value={threadContent}
+              onChangeText={setThreadContent}
+              multiline
+              autoFocus={!isPreview && !editId}
+              editable={!isUploading}
+              placeholderTextColor={Colors.border}
+            />
+
+            {mediaPreviewList.length > 0 && (
+              <ScrollView horizontal style={styles.mediaScroll} showsHorizontalScrollIndicator={false}>
+                {mediaPreviewList.map((item, index) => (
+                  <View key={index} style={styles.mediaItem}>
+                    <Image source={{ uri: item.uri }} style={styles.mediaImage} />
+                    <TouchableOpacity
+                      style={styles.deleteIconContainer}
+                      onPress={() => removeMedia(item)}
+                    >
+                      <Ionicons name="close" size={16} color="white" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
+            <View style={styles.mediaIcons}>
+              <TouchableOpacity onPress={handleSelectImage}>
+                <Ionicons name="images-outline" size={24} color={Colors.border} />
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={handleCamera}>
+                <Ionicons name="camera-outline" size={24} color={Colors.border} />
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={handleGif}>
+                <View style={styles.gifIcon}>
+                   <Text style={styles.gifText}>GIF</Text>
                 </View>
-              ))}
-            </ScrollView>
-          )}
-          <View style={styles.iconRow}>
-            <TouchableOpacity style={styles.iconButton} onPress={() => selectImage('library')}>
-              <Ionicons name="images-outline" size={24} color={Colors.border} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton} onPress={() => selectImage('camera')}>
-              <Ionicons name="camera-outline" size={24} color={Colors.border} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
-              <MaterialIcons name="gif" size={24} color={Colors.border} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
-              <Ionicons name="mic-outline" size={24} color={Colors.border} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
-              <FontAwesome6 name="hashtag" size={24} color={Colors.border} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
-              <Ionicons name="stats-chart-outline" size={24} color={Colors.border} />
-            </TouchableOpacity>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={handleMic}>
+                <Ionicons name="mic-outline" size={24} color={Colors.border} />
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={handleHashtag}>
+                <FontAwesome name="hashtag" size={20} color={Colors.border} />
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={handlePoll}>
+                <MaterialCommunityIcons name="chart-bar" size={24} color={Colors.border} />
+              </TouchableOpacity>
+            </View>
+
           </View>
         </View>
-
-        <TouchableOpacity
-          onPress={removeThread}
-          style={[styles.cancelButton, { opacity: isPreview ? 0 : 1 }]}>
-          <Ionicons name="close" size={24} color={Colors.border} />
-        </TouchableOpacity>
-      </View>
-
-      <InputAccessoryView nativeID={inputAccessoryViewID}>
-        <View style={[styles.keyboardAccessory]}>
-          <Text style={styles.keyboardAccessoryText}>
-            {isReply
-              ? 'Everyone can reply and quote'
-              : ' Profiles that you follow can reply and quote'}
-          </Text>
-          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-            <Text style={styles.submitButtonText}>Post</Text>
-          </TouchableOpacity>
-        </View>
-      </InputAccessoryView>
-    </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
+export default ThreadComposer;
+
 const styles = StyleSheet.create({
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    padding: 12,
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-  },
-  centerContainer: {
-    flex: 1,
-  },
-  name: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  input: {
-    fontSize: 16,
-    maxHeight: 100,
-  },
-  cancelButton: {
-    marginLeft: 12,
-    alignSelf: 'flex-start',
-  },
-  iconRow: {
-    flexDirection: 'row',
-    paddingVertical: 12,
-  },
-  iconButton: {
-    marginRight: 16,
-  },
-  keyboardAccessory: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    paddingLeft: 64,
-    gap: 12,
-  },
-  keyboardAccessoryText: {
-    flex: 1,
-    color: Colors.border,
-  },
-  submitButton: {
-    backgroundColor: '#000',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  mediaContainer: {
-    position: 'relative',
-    marginRight: 10,
-    marginTop: 10,
-  },
+  container: { flex: 1, backgroundColor: 'white' },
+  previewContainer: { padding: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: Colors.border, backgroundColor: 'white' },
+  avatar: { width: 40, height: 40, borderRadius: 20 },
+  placeholderText: { color: Colors.border, fontSize: 16 },
+  username: { fontWeight: 'bold', fontSize: 16, marginBottom: 4 },
+  input: { fontSize: 16, color: 'black', textAlignVertical: 'top', minHeight: 40 },
+  postButtonText: { color: Colors.submit, fontWeight: 'bold', fontSize: 16 },
+
+  mediaScroll: { marginTop: 10, marginBottom: 10 },
+  mediaItem: { position: 'relative', marginRight: 10 },
+  mediaImage: { width: 100, height: 150, borderRadius: 10 },
   deleteIconContainer: {
     position: 'absolute',
-    top: 15,
-    right: 15,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    top: 5,
+    right: 5,
+    backgroundColor: 'rgba(0,0,0,0.6)',
     borderRadius: 12,
     padding: 4,
   },
-  mediaImage: {
-    width: 100,
-    height: 200,
-    borderRadius: 6,
-    marginRight: 10,
-    marginTop: 10,
-  },
-});
 
-export default ThreadComposer;
+  mediaIcons: { flexDirection: 'row', gap: 20, marginTop: 10, alignItems: 'center' },
+  gifIcon: { borderWidth: 1.5, borderColor: Colors.border, borderRadius: 4, paddingHorizontal: 2 },
+  gifText: { fontSize: 10, fontWeight: 'bold', color: Colors.border },
+});

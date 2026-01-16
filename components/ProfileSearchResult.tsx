@@ -14,7 +14,7 @@ const ProfileSearchResult = ({ user }: ProfileSearchResultProps) => {
           {user.first_name} {user.last_name}
         </Text>
         <Text style={styles.username}>@{user.username}</Text>
-        <Text style={styles.followers}>{user.followersCount} followers</Text>
+        <Text style={styles.followers}>{user.followersCount} người theo dõi</Text>
       </View>
       <TouchableOpacity style={styles.followButton}>
         <Text style={styles.followButtonText}>Follow</Text>

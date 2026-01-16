@@ -41,11 +41,11 @@ const Layout = () => {
         }}
       />
       <Tabs.Screen
-        name="search"
+        name="messages"
         options={{
-          title: 'Search',
+          title: 'Messages',
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'search' : 'search-outline'} size={size} color={color} />
+            <Ionicons name={focused ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'} size={size} color={color} />
           ),
           headerShown: false,
         }}
@@ -67,7 +67,7 @@ const Layout = () => {
       <Tabs.Screen
         name="favorites"
         options={{
-          title: 'Favorites',
+          title: 'Yêu thích',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? 'heart' : 'heart-outline'} size={size} color={color} />
           ),

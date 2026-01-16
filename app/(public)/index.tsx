@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useOAuth } from '@clerk/clerk-expo';
 import { UserFeedback } from '@sentry/react-native';
 import * as Sentry from '@sentry/react-native';
+import * as Linking from 'expo-linking';
 
 const LoginScreen = () => {
   const { startOAuthFlow } = useOAuth({ strategy: 'oauth_facebook' });
@@ -12,7 +13,9 @@ const LoginScreen = () => {
 
   const handleFacebookLogin = async () => {
     try {
-      const { createdSessionId, setActive } = await startOAuthFlow();
+      const { createdSessionId, setActive } = await startOAuthFlow({
+      redirectUrl: Linking.createURL('/(auth)/(tabs)/feed', {scheme: 'myapp' }) //ok
+      });
 
       if (createdSessionId) {
         setActive!({ session: createdSessionId });
@@ -24,7 +27,9 @@ const LoginScreen = () => {
 
   const handleGoogleLogin = async () => {
     try {
-      const { createdSessionId, setActive } = await googleAuth();
+      const { createdSessionId, setActive } = await googleAuth({
+            redirectUrl: Linking.createURL('/(auth)/(tabs)/feed', {scheme: 'myapp' }) //ok
+      });
 
       if (createdSessionId) {
         setActive!({ session: createdSessionId });
@@ -55,45 +60,45 @@ const LoginScreen = () => {
     <View style={styles.container}>
       <Image source={require('@/assets/images/login.png')} style={styles.loginImage} />
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>How would you like to use Threads?</Text>
+        <Text style={styles.title}>Chọn phương thức đăng nhập để vào KonKet</Text>
 
         <View style={styles.buttonContainer}>
           <TouchableOpacity style={styles.loginButton} onPress={handleFacebookLogin}>
             <View style={styles.loginButtonContent}>
               <Image
-                source={require('@/assets/images/instagram_icon.webp')}
+                source={require('@/assets/images/facebook_icon.png')}
                 style={styles.loginButtonImage}
               />
-              <Text style={styles.loginButtonText}>Continue with Instagram</Text>
+              <Text style={styles.loginButtonText}>Tiếp tục với Facebook</Text>
               <Ionicons name="chevron-forward" size={24} color={Colors.border} />
             </View>
-            <Text style={styles.loginButtonSubtitle}>
-              Log in or create a THreads profile with your Instagram account. With a profile, you
-              can post, interact and get personalised recommendations.
-            </Text>
           </TouchableOpacity>
 
           {/* For tetstingh with a different account */}
           <TouchableOpacity style={styles.loginButton} onPress={handleGoogleLogin}>
             <View style={styles.loginButtonContent}>
-              <Text style={styles.loginButtonText}>Continue with Google</Text>
+              <Image
+                source={require('@/assets/images/google_icon.png')}
+                style={styles.loginButtonImage}
+              />
+              <Text style={styles.loginButtonText}>Tiếp tục với Google</Text>
               <Ionicons name="chevron-forward" size={24} color={Colors.border} />
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.loginButton}>
             <View style={styles.loginButtonContent}>
-              <Text style={styles.loginButtonText}>Use without a profile</Text>
+              <Text style={styles.loginButtonText}>Tiếp tục với tư cách khách</Text>
               <Ionicons name="chevron-forward" size={24} color={Colors.border} />
             </View>
             <Text style={styles.loginButtonSubtitle}>
-              You can browse Threads without a profile, but won't be able to post, interact or get
-              personalised recommendations.
+              Bạn có thể vào KonKet mà không cần hồ sơ, nhưng sẽ không thể đăng bài, 
+            tương tác hoặc nhận các đề xuất cá nhân hóa.
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={triggerError}>
-            <Text style={styles.switchAccountButtonText}>Switch accounts</Text>
+            <Text style={styles.switchAccountButtonText}>Đổi tài khoản</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

@@ -1,10 +1,25 @@
 import { v } from 'convex/values';
 import { mutation, query, QueryCtx } from './_generated/server';
 import { paginationOptsValidator } from 'convex/server';
-import { getCurrentUserOrThrow } from './users';
 import { Id } from './_generated/dataModel';
 import { internal } from './_generated/api';
 
+async function getCurrentUserId(ctx: QueryCtx) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) return null;
+
+  const user = await ctx.db
+    .query("users")
+    .withIndex("byClerkId", (q) =>
+
+      q.eq("clerkId", identity.subject)
+    )
+    .unique();
+
+  return user?._id;
+}
+
+// ADD THREAD
 export const addThread = mutation({
   args: {
     content: v.string(),
@@ -13,45 +28,128 @@ export const addThread = mutation({
     threadId: v.optional(v.id('messages')),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUserOrThrow(ctx);
+    const userId = await getCurrentUserId(ctx);
+    if (!userId) throw new Error("Unauthorized");
 
-    const message = await ctx.db.insert('messages', {
-      ...args,
-      userId: user._id,
+    const messageId = await ctx.db.insert('messages', {
+      userId,
+      content: args.content,
+      mediaFiles: args.mediaFiles,
+      websiteUrl: args.websiteUrl,
+      threadId: args.threadId,
       likeCount: 0,
       commentCount: 0,
       retweetCount: 0,
     });
 
-    // Trigger push notification
     if (args.threadId) {
       const originalThread = await ctx.db.get(args.threadId);
-      await ctx.db.patch(args.threadId, {
-        commentCount: (originalThread?.commentCount || 0) + 1,
-      });
-
-      if (originalThread?.userId) {
-        const user = await ctx.db.get(originalThread?.userId);
-        const pushToken = user?.pushToken;
-
-        if (!pushToken) return;
-
-        await ctx.scheduler.runAfter(500, internal.push.sendPushNotification, {
-          pushToken,
-          messageTitle: 'New comment',
-          messageBody: args.content,
-          threadId: args.threadId,
+      if (originalThread) {
+        await ctx.db.patch(args.threadId, {
+          commentCount: (originalThread.commentCount || 0) + 1,
         });
+
+        if (originalThread.userId) {
+          const author = await ctx.db.get(originalThread.userId);
+          if (author?.pushToken) {
+            await ctx.scheduler.runAfter(500, internal.push.sendPushNotification, {
+              pushToken: author.pushToken,
+              messageTitle: 'New comment',
+              messageBody: args.content,
+              threadId: args.threadId,
+            });
+          }
+        }
       }
     }
-
-    return message;
+    return messageId;
   },
 });
 
+// DELETE THREAD
+export const deleteThread = mutation({
+  args: { messageId: v.id('messages') },
+  handler: async (ctx, args) => {
+    const userId = await getCurrentUserId(ctx);
+    if (!userId) throw new Error("Unauthorized");
+
+    const message = await ctx.db.get(args.messageId);
+
+    if (!message) throw new Error("Không tìm thấy bài viết");
+    if (message.userId !== userId) throw new Error("Bạn không có quyền xóa bài viết này");
+
+    await ctx.db.delete(args.messageId);
+
+    const relatedLikes = await ctx.db
+      .query('likes')
+      .withIndex('by_user_message', (q) =>
+        q.eq('userId', userId).eq('messageId', args.messageId)
+      )
+      .collect();
+
+    for (const like of relatedLikes) {
+      await ctx.db.delete(like._id);
+    }
+
+    return { success: true };
+  },
+});
+
+// UPDATE THREAD
+export const updateThread = mutation({
+  args: {
+    messageId: v.id('messages'),
+    content: v.string(),
+    mediaFiles: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getCurrentUserId(ctx);
+    if (!userId) throw new Error("Unauthorized");
+
+    const message = await ctx.db.get(args.messageId);
+    if (!message || message.userId !== userId) throw new Error("Unauthorized");
+
+    let changeLog = "";
+    if (args.mediaFiles !== undefined) {
+      const diff = args.mediaFiles.length - (message.mediaFiles?.length || 0);
+      if (diff < 0) changeLog = `(Đã xóa ${Math.abs(diff)} ảnh)`;
+      else if (diff > 0) changeLog = `(Đã thêm ${diff} ảnh)`;
+    }
+
+    const isTextModified = args.content.trim() !== message.content.trim();
+
+    await ctx.db.insert('edit_history', {
+      messageId: args.messageId,
+      oldContent: message.content,
+      imageChangeLog: changeLog,
+      isTextModified: isTextModified,
+    });
+
+    await ctx.db.patch(args.messageId, {
+      content: args.content,
+      mediaFiles: args.mediaFiles !== undefined ? args.mediaFiles : message.mediaFiles,
+    });
+  },
+});
+
+// GET EDIT HISTORY
+export const getEditHistory = query({
+  args: { messageId: v.id('messages') },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query('edit_history')
+      .withIndex('by_messageId', (q) => q.eq('messageId', args.messageId))
+      .order('desc')
+      .collect();
+  },
+});
+
+// GET THREADS
 export const getThreads = query({
   args: { paginationOpts: paginationOptsValidator, userId: v.optional(v.id('users')) },
   handler: async (ctx, args) => {
+    const currentUserId = await getCurrentUserId(ctx);
+
     let threads;
     if (args.userId) {
       threads = await ctx.db
@@ -72,10 +170,23 @@ export const getThreads = query({
         const creator = await getMessageCreator(ctx, thread.userId);
         const mediaUrls = await getMediaUrls(ctx, thread.mediaFiles);
 
+        // CHECK LIKE STATUS
+        let isLiked = false;
+        if (currentUserId) {
+          const like = await ctx.db
+            .query('likes')
+            .withIndex('by_user_message', (q) =>
+              q.eq('userId', currentUserId).eq('messageId', thread._id)
+            )
+            .unique();
+          isLiked = !!like;
+        }
+
         return {
           ...thread,
           mediaFiles: mediaUrls,
           creator,
+          isLiked,
         };
       })
     );
@@ -87,21 +198,75 @@ export const getThreads = query({
   },
 });
 
+// LIKE / UNLIKE
 export const likeThread = mutation({
-  args: {
-    messageId: v.id('messages'),
-  },
+  args: { messageId: v.id('messages') },
   handler: async (ctx, args) => {
-    await getCurrentUserOrThrow(ctx);
+    const userId = await getCurrentUserId(ctx);
+    if (!userId) throw new Error("Unauthorized");
+
+    const existingLike = await ctx.db
+      .query('likes')
+      .withIndex('by_user_message', (q) =>
+        q.eq('userId', userId).eq('messageId', args.messageId)
+      )
+      .unique();
 
     const message = await ctx.db.get(args.messageId);
+    if (!message) throw new Error("Message not found");
 
-    await ctx.db.patch(args.messageId, {
-      likeCount: (message?.likeCount || 0) + 1,
-    });
+    if (existingLike) {
+      await ctx.db.delete(existingLike._id);
+      await ctx.db.patch(args.messageId, {
+        likeCount: Math.max(0, (message.likeCount || 0) - 1),
+      });
+      return { liked: false };
+    } else {
+      await ctx.db.insert('likes', { userId: userId, messageId: args.messageId });
+      await ctx.db.patch(args.messageId, {
+        likeCount: (message.likeCount || 0) + 1,
+      });
+      return { liked: true };
+    }
   },
 });
 
+// GET FAVORITES
+export const getFavoriteThreads = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const userId = await getCurrentUserId(ctx);
+    if (!userId) return { page: [], isDone: true, continueCursor: "" };
+
+    const favorites = await ctx.db
+      .query('likes')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .order('desc')
+      .paginate(args.paginationOpts);
+
+    const threads = await Promise.all(
+      favorites.page.map(async (fav) => {
+        const thread = await ctx.db.get(fav.messageId);
+        if (!thread) return null;
+
+        const creator = await getMessageCreator(ctx, thread.userId);
+
+        const mediaUrls = await getMediaUrls(ctx, thread.mediaFiles);
+
+        return {
+          ...thread,
+          mediaFiles: mediaUrls,
+          creator,
+          isLiked: true
+        };
+      })
+    );
+
+    return { ...favorites, page: threads.filter((t) => t !== null) };
+  },
+});
+
+// GET THREAD BY ID
 export const getThreadById = query({
   args: {
     messageId: v.id('messages'),
@@ -113,19 +278,33 @@ export const getThreadById = query({
     const creator = await getMessageCreator(ctx, message.userId);
     const mediaUrls = await getMediaUrls(ctx, message.mediaFiles);
 
+    // Check like for single thread detail
+    const currentUserId = await getCurrentUserId(ctx);
+    let isLiked = false;
+    if (currentUserId) {
+      const like = await ctx.db.query('likes')
+        .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', args.messageId))
+        .unique();
+      isLiked = !!like;
+    }
+
     return {
       ...message,
       mediaFiles: mediaUrls,
       creator,
+      isLiked,
     };
   },
 });
 
+// GET COMMENTS
 export const getThreadComments = query({
   args: {
     messageId: v.id('messages'),
   },
   handler: async (ctx, args) => {
+    const currentUserId = await getCurrentUserId(ctx);
+
     const comments = await ctx.db
       .query('messages')
       .filter((q) => q.eq(q.field('threadId'), args.messageId))
@@ -137,10 +316,22 @@ export const getThreadComments = query({
         const creator = await getMessageCreator(ctx, comment.userId);
         const mediaUrls = await getMediaUrls(ctx, comment.mediaFiles);
 
+        let isLiked = false;
+        if (currentUserId) {
+           const like = await ctx.db
+            .query('likes')
+            .withIndex('by_user_message', (q) =>
+              q.eq('userId', currentUserId).eq('messageId', comment._id)
+            )
+            .unique();
+          isLiked = !!like;
+        }
+
         return {
           ...comment,
           mediaFiles: mediaUrls,
           creator,
+          isLiked,
         };
       })
     );
@@ -154,20 +345,12 @@ const getMessageCreator = async (ctx: QueryCtx, userId: Id<'users'>) => {
   if (!user?.imageUrl || user.imageUrl.startsWith('http')) {
     return user;
   }
-
   const url = await ctx.storage.getUrl(user.imageUrl as Id<'_storage'>);
-
-  return {
-    ...user,
-    imageUrl: url,
-  };
+  return { ...user, imageUrl: url };
 };
 
 const getMediaUrls = async (ctx: QueryCtx, mediaFiles: string[] | undefined) => {
-  if (!mediaFiles || mediaFiles.length === 0) {
-    return [];
-  }
-
+  if (!mediaFiles || mediaFiles.length === 0) return [];
   const urlPromises = mediaFiles.map((file) => ctx.storage.getUrl(file as Id<'_storage'>));
   const results = await Promise.allSettled(urlPromises);
   return results
@@ -176,7 +359,7 @@ const getMediaUrls = async (ctx: QueryCtx, mediaFiles: string[] | undefined) => 
 };
 
 export const generateUploadUrl = mutation(async (ctx) => {
-  await getCurrentUserOrThrow(ctx);
-
+  const userId = await getCurrentUserId(ctx);
+  if (!userId) throw new Error("Unauthorized");
   return await ctx.storage.generateUploadUrl();
 });

@@ -41,7 +41,7 @@ const Page = () => {
             source={{ uri: userProfile?.imageUrl as string }}
             style={styles.replyButtonImage}
           />
-          <Text>Reply to {thread?.creator?.first_name}</Text>
+          <Text>Thêm câu trả lời đến {thread?.creator?.first_name}</Text>
         </TouchableOpacity>
       </Link>
     </View>

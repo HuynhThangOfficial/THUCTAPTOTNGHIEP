@@ -13,7 +13,7 @@ const Layout = () => {
         name="(modal)/create"
         options={{
           presentation: 'modal',
-          title: 'New thread',
+          title: 'Tạo bài đăng',
           headerRight: () => (
             <TouchableOpacity>
               <Ionicons name="ellipsis-horizontal-circle" size={24} color="#000" />
@@ -25,10 +25,10 @@ const Layout = () => {
         name="(modal)/edit-profile"
         options={{
           presentation: 'modal',
-          title: 'Edit profile',
+          title: 'Chỉnh sửa trang cá nhân',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.dismiss()}>
-              <Text>Cancel</Text>
+              <Text>Huỷ</Text>
             </TouchableOpacity>
           ),
         }}
@@ -40,7 +40,7 @@ const Layout = () => {
           title: 'Reply',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.dismiss()}>
-              <Text>Cancel</Text>
+              <Text>Huỷ</Text>
             </TouchableOpacity>
           ),
         }}

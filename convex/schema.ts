@@ -27,8 +27,25 @@ export const Message = {
 };
 
 export default defineSchema({
-  users: defineTable(User).index('byClerkId', ['clerkId']).searchIndex('searchUsers', {
-    searchField: 'username',
-  }),
+  users: defineTable(User)
+    .index('byClerkId', ['clerkId'])
+    .searchIndex('searchUsers', {
+      searchField: 'username',
+    }),
+
   messages: defineTable(Message),
+
+  edit_history: defineTable({
+    messageId: v.id('messages'),
+    oldContent: v.string(),
+    imageChangeLog: v.optional(v.string()),
+    isTextModified: v.optional(v.boolean()),
+  }).index('by_messageId', ['messageId']),
+
+  likes: defineTable({
+    userId: v.id('users'),
+    messageId: v.id('messages'),
+  })
+    .index('by_user_message', ['userId', 'messageId']) // kiểm tra user đã like chưa
+    .index('by_user', ['userId']), // lấy danh sách favorites
 });

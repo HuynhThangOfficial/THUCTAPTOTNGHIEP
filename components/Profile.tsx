@@ -3,8 +3,7 @@ import { UserProfile } from '@/components/UserProfile';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import Tabs from '@/components/Tabs'; // Import the Tabs component
-import { useState } from 'react';
+// ĐÃ XOÁ IMPORT TABS
 import { Colors } from '@/constants/Colors';
 import { usePaginatedQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -14,6 +13,7 @@ import { Doc, Id } from '@/convex/_generated/dataModel';
 import { Link } from 'expo-router';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@clerk/clerk-expo';
+
 type ProfileProps = {
   userId?: Id<'users'>;
   showBackButton?: boolean;
@@ -21,20 +21,18 @@ type ProfileProps = {
 
 export default function Profile({ userId, showBackButton = false }: ProfileProps) {
   const { top } = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState('Threads');
+  // ĐÃ XOÁ useState activeTab
   const { userProfile } = useUserProfile();
   const router = useRouter();
   const { signOut } = useAuth();
 
   const { results, status, loadMore } = usePaginatedQuery(
-    api.messages.getThreads,
+    api.messages.getThreads, // Đảm bảo API này chỉ trả về Threads (không bao gồm replies)
     { userId: userId || userProfile?._id },
     { initialNumItems: 10 }
   );
 
-  const handleTabChange = (tab: any) => {
-    setActiveTab(tab);
-  };
+  // ĐÃ XOÁ hàm handleTabChange
 
   return (
     <View style={[styles.container, { paddingTop: top }]}>
@@ -48,32 +46,33 @@ export default function Profile({ userId, showBackButton = false }: ProfileProps
           </Link>
         )}
         ListEmptyComponent={
-          <Text style={styles.tabContentText}>You haven't posted anything yet.</Text>
+          <Text style={styles.tabContentText}>Bạn chưa đăng gì cả.</Text>
         }
         ItemSeparatorComponent={() => (
           <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: Colors.border }} />
         )}
         ListHeaderComponent={
           <>
-            <View style={styles.header}>
-              {showBackButton ? (
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                  <Ionicons name="chevron-back" size={24} color="#000" />
-                  <Text style={styles.backText}>Back</Text>
-                </TouchableOpacity>
-              ) : (
-                <MaterialCommunityIcons name="web" size={24} color="black" />
-              )}
-              <View style={styles.headerIcons}>
-                <Ionicons name="logo-instagram" size={24} color="black" />
-                <TouchableOpacity onPress={() => signOut()}>
-                  <Ionicons name="log-out-outline" size={24} color="black" />
-                </TouchableOpacity>
-              </View>
+            {/* --- USER PROFILE COMPONENT --- */}
+            {userId ? (
+              <UserProfile 
+                userId={userId} 
+                onLogout={() => signOut()} 
+                showBackButton={showBackButton} 
+              />
+            ) : (
+              <UserProfile 
+                userId={userProfile?._id} 
+                onLogout={() => signOut()} 
+                showBackButton={showBackButton}
+              />
+            )}
+            
+            {/* ĐÃ XOÁ <Tabs /> Ở ĐÂY */}
+            
+            {/* (Tuỳ chọn) Thêm một dòng tiêu đề nhỏ để phân cách nếu muốn */}
+            <View style={styles.sectionHeader}>
             </View>
-            {userId ? <UserProfile userId={userId} /> : <UserProfile userId={userProfile?._id} />}
-
-            <Tabs onTabChange={handleTabChange} />
           </>
         }
       />
@@ -86,29 +85,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  },
-  headerIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
   tabContentText: {
     fontSize: 16,
     marginVertical: 16,
     color: Colors.border,
     alignSelf: 'center',
   },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  // Style tuỳ chọn cho tiêu đề Threads
+  sectionHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  backText: {
+  sectionTitle: {
+    fontWeight: 'bold',
     fontSize: 16,
-  },
+  }
 });
