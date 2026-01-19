@@ -7,7 +7,7 @@ export const User = {
   imageUrl: v.optional(v.string()),
   first_name: v.optional(v.string()),
   last_name: v.optional(v.string()),
-  username: v.union(v.string(), v.null()),
+  username: v.string(),
   bio: v.optional(v.string()),
   location: v.optional(v.string()),
   websiteUrl: v.optional(v.string()),
@@ -16,14 +16,14 @@ export const User = {
 };
 
 export const Message = {
-  userId: v.id('users'), // Foreign key to users table
+  userId: v.id('users'),
   threadId: v.optional(v.string()),
   content: v.string(),
-  likeCount: v.number(), // Default value 0
-  commentCount: v.number(), // Default value 0
-  retweetCount: v.number(), // Default value 0
-  mediaFiles: v.optional(v.array(v.string())), // Array of media file URLs
-  websiteUrl: v.optional(v.string()), // Optional website URL
+  likeCount: v.number(),
+  commentCount: v.number(),
+  retweetCount: v.number(),
+  mediaFiles: v.optional(v.array(v.string())),
+  websiteUrl: v.optional(v.string()),
 };
 
 export default defineSchema({
@@ -46,6 +46,15 @@ export default defineSchema({
     userId: v.id('users'),
     messageId: v.id('messages'),
   })
-    .index('by_user_message', ['userId', 'messageId']) // kiểm tra user đã like chưa
-    .index('by_user', ['userId']), // lấy danh sách favorites
+    .index('by_user_message', ['userId', 'messageId'])
+    .index('by_user', ['userId']),
+
+  categories: defineTable({
+    name: v.string(),
+    slug: v.string(),
+    icon: v.optional(v.string()),
+    type: v.string(),         // 'university', 'category', 'channel'
+    parentId: v.optional(v.id('categories')),
+    sortOrder: v.number(),
+  }).index('by_type', ['type']),
 });

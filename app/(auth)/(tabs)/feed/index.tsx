@@ -1,4 +1,4 @@
-import { StyleSheet, TouchableOpacity, View, Image, RefreshControl, Text } from 'react-native';
+import { StyleSheet, TouchableOpacity, View, Image, RefreshControl, Text, Alert } from 'react-native';
 import { usePaginatedQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Link, useNavigation, useRouter } from 'expo-router';
@@ -16,6 +16,7 @@ import { useCallback, useState } from 'react';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
+import { useMenu } from '@/context/MenuContext';
 
 const Page = () => {
   const { results, status, loadMore } = usePaginatedQuery(
@@ -24,11 +25,13 @@ const Page = () => {
     { initialNumItems: 5 }
   );
 
+  const { toggleMenu } = useMenu();
+
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const { top } = useSafeAreaInsets();
   const navigation = useNavigation();
-  
+
   const scrollOffset = useSharedValue(0);
   const tabBarHeight = useBottomTabBarHeight();
   const isFocused = useIsFocused();
@@ -40,7 +43,6 @@ const Page = () => {
     } else if (scrollOffset.value > tabBarHeight) {
       newMarginBottom = -tabBarHeight;
     }
-    // Kiểm tra navigation.getParent() tồn tại trước khi setOptions để tránh lỗi crash
     const parent = navigation.getParent();
     if (parent) {
       parent.setOptions({ tabBarStyle: { marginBottom: newMarginBottom } });
@@ -78,11 +80,13 @@ const Page = () => {
     }, [])
   );
 
-  // --- XỬ LÝ SỰ KIỆN TÌM KIẾM ---
   const handleSearchPress = () => {
-    // Điều hướng đến file search mới tạo ở thư mục (public)
-    // Dùng 'as any' để bypass lỗi TypeScript nếu Expo chưa kịp cập nhật types
-    router.push('/(public)/search' as any); 
+    router.push('/(public)/search' as any);
+  };
+
+  // --- HÀM XỬ LÝ KHI ẤN MENU ---
+  const handleMenuPress = () => {
+    toggleMenu();
   };
 
   return (
@@ -102,21 +106,27 @@ const Page = () => {
       onEndReachedThreshold={0.5}
       ListHeaderComponent={
         <View style={{ paddingBottom: 16 }}>
-          
-          {/* --- HEADER CHỨA LOGO VÀ NÚT SEARCH --- */}
+
+          {/* --- HEADER --- */}
           <View style={styles.headerContainer}>
-            {/* View rỗng bên trái để cân bằng layout (giúp Logo nằm giữa) */}
-            <View style={styles.headerSpacer} />
-            
+
+            {/* THAY THẾ headerSpacer BẰNG NÚT MENU BÊN TRÁI */}
+            <TouchableOpacity
+              onPress={handleMenuPress}
+              style={styles.leftIconButton}
+            >
+              <Ionicons name="menu-outline" size={28} color="gray" />
+            </TouchableOpacity>
+
             <Image
               source={require('@/assets/images/KonKet-logo.png')}
               style={styles.logo}
             />
 
             {/* Nút Tìm kiếm bên phải */}
-            <TouchableOpacity 
-              onPress={handleSearchPress} 
-              style={styles.iconButton}
+            <TouchableOpacity
+              onPress={handleSearchPress}
+              style={styles.rightIconButton}
             >
               <Ionicons name="search-outline" size={28} color="gray" />
             </TouchableOpacity>
@@ -145,24 +155,30 @@ export default Page;
 const styles = StyleSheet.create({
   headerContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between', // Đẩy các phần tử ra xa nhau
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
     marginBottom: 10,
     height: 50,
   },
   logo: {
-    width: 45, // Tăng kích thước logo một chút cho cân đối
+    width: 45,
     height: 45,
     resizeMode: 'contain',
   },
-  iconButton: {
-    width: 40, 
+  // Style cho nút bên trái (Menu) - Căn trái
+  leftIconButton: {
+    width: 40,
     height: 40,
     justifyContent: 'center',
-    alignItems: 'flex-end', // Căn icon về phía bên phải
+    alignItems: 'flex-start',
   },
-  headerSpacer: {
-    width: 40, // Bằng kích thước nút iconButton để Logo luôn ở giữa
-  }
+  // Đổi tên iconButton cũ thành rightIconButton cho rõ nghĩa - Căn phải
+  rightIconButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+  },
+  // headerSpacer: Đã xóa vì không cần dùng nữa
 });

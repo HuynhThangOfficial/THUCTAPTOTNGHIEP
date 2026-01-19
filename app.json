@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "myapp",
+    "name": "Konket",
     "slug": "ThucTapTotNghiep",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -39,8 +39,8 @@
       [
         "@sentry/react-native/expo",
         {
-          "organization": "galaxies",
-          "project": "threads",
+          "organization": "chat-app-j4",
+          "project": "react-native",
           "url": "https://sentry.io/"
         }
       ],
