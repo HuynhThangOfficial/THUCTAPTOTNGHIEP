@@ -44,31 +44,45 @@ const Thread = ({ thread }: ThreadProps) => {
   };
 
   const showHistory = () => {
-    if (!editHistory || editHistory.length === 0) {
-      Alert.alert('Lịch sử chỉnh sửa', 'Bài viết này chưa từng được chỉnh sửa.');
-      return;
-    }
+      if (!editHistory || editHistory.length === 0) {
+        Alert.alert('Lịch sử chỉnh sửa', 'Bài viết này chưa từng được chỉnh sửa.');
+        return;
+      }
 
-    const historyText = editHistory
-      .map((h, index) => {
-        const date = new Date(h._creationTime);
-        const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const dateString = date.toLocaleDateString();
+      const historyList = editHistory.map((h, index) => {
+          const date = new Date(h._creationTime);
+          const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const dateString = date.toLocaleDateString();
 
-        const timeLabel = `🕒 Phiên bản ${editHistory.length - index} (${timeString} - ${dateString}):`;
-        const imageLog = h.imageChangeLog ? `🖼️ ${h.imageChangeLog}` : '';
+          // 1. XỬ LÝ TIÊU ĐỀ PHIÊN BẢN
+          let versionLabel;
+          if (index === 0) {
+            versionLabel = `🌟 Phiên bản mới nhất`;
+          } else {
+            const versionNumber = editHistory.length - index;
+            versionLabel = `🕒 Phiên bản ${versionNumber}`;
+          }
 
-        if (h.isTextModified !== false) {
-          return `${timeLabel}\n"${h.oldContent}"\n${imageLog}`;
-        }
-        else {
-          return `${timeLabel}\n(Nội dung văn bản giữ nguyên)\n${imageLog || '(Không có thay đổi)'}`;
-        }
-      })
-      .join('\n\n\n');
+          // 2. XỬ LÝ NỘI DUNG HIỂN THỊ (LOGIC MỚI)
+          let details = "";
 
-    Alert.alert('Lịch sử chỉnh sửa', historyText);
-  };
+          // Chỉ hiện dòng nội dung nếu CÓ sửa văn bản
+          if (h.isTextModified) {
+            const oldContentDisplay = h.oldContent ? `"${h.oldContent}"` : '""';
+            details += `\nNội dung đã chỉnh sửa: ${oldContentDisplay}`;
+          }
+
+          // Chỉ hiện dòng ảnh nếu CÓ thay đổi ảnh (imageChangeLog không rỗng)
+          if (h.imageChangeLog && h.imageChangeLog.length > 0) {
+            details += `\n🖼️ ${h.imageChangeLog}`;
+          }
+
+          return `${versionLabel} (${timeString} - ${dateString}):${details}`;
+        })
+        .join('\n\n----------------\n\n');
+
+      Alert.alert('Lịch sử thay đổi', historyList);
+    };
 
   const onActionPress = () => {
     const options = isOwner
@@ -104,13 +118,7 @@ const Thread = ({ thread }: ThreadProps) => {
         if (isOwner) {
           switch (selectedIndex) {
             case 0:
-              router.push({
-                pathname: '/(auth)/(modal)/create',
-                params: {
-                  editId: thread._id,
-                  initialContent: content
-                }
-              });
+              router.push(`/(auth)/(modal)/edit/${thread._id}`);
               break;
             case 1:
               showHistory();

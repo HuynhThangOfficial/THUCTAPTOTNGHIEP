@@ -79,7 +79,7 @@ export const UserProfile = ({ userId, onLogout, showBackButton = false }: UserPr
             asChild>
             <TouchableOpacity style={styles.editButtonTop}>
               {/* Icon cây bút */}
-              <Ionicons name="create-outline" size={20} color="black" /> 
+              <Ionicons name="create-outline" size={20} color="black" />
               <Text style={styles.editButtonText}>Chỉnh sửa</Text>
             </TouchableOpacity>
           </Link>
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 15,
   },
-  
+
   // --- STYLES MỚI CHO PROFILE ---
   profileContainer: {
     flexDirection: 'row',
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'gray',
   },
-  
+
   // Style cho nút Edit mới nằm ở góc phải
   editButtonTop: {
     flexDirection: 'row',

@@ -15,25 +15,45 @@ export const User = {
   pushToken: v.optional(v.string()),
 };
 
-export const Message = {
-  userId: v.id('users'),
-  threadId: v.optional(v.string()),
-  content: v.string(),
-  likeCount: v.number(),
-  commentCount: v.number(),
-  retweetCount: v.number(),
-  mediaFiles: v.optional(v.array(v.string())),
-  websiteUrl: v.optional(v.string()),
-};
-
 export default defineSchema({
   users: defineTable(User)
     .index('byClerkId', ['clerkId'])
-    .searchIndex('searchUsers', {
-      searchField: 'username',
-    }),
+    .searchIndex('searchUsers', { searchField: 'username' }),
 
-  messages: defineTable(Message),
+  universities: defineTable({
+    name: v.string(),
+    slug: v.string(),
+    icon: v.string(),
+    sortOrder: v.number(),
+  }),
+
+  channels: defineTable({
+    name: v.string(),
+    type: v.string(),
+    universityId: v.id('universities'),
+    parentId: v.optional(v.id('channels')),
+    sortOrder: v.number(),
+  }).index('by_university', ['universityId']),
+
+  messages: defineTable({
+    userId: v.id('users'),
+    content: v.string(),
+    likeCount: v.number(),
+    commentCount: v.number(),
+    retweetCount: v.number(),
+    mediaFiles: v.optional(v.array(v.string())),
+    websiteUrl: v.optional(v.string()),
+
+    channelId: v.optional(v.id('channels')), // Kênh
+    threadId: v.optional(v.id('messages')),  // <--- THÊM MỚI: ID bài gốc (nếu là cmt)
+  })
+  .index('by_channel', ['channelId'])
+  .index('by_threadId', ['threadId']),       // <--- THÊM INDEX ĐỂ TÌM CMT NHANH
+
+  likes: defineTable({
+    userId: v.id('users'),
+    messageId: v.id('messages'),
+  }).index('by_user_message', ['userId', 'messageId']),
 
   edit_history: defineTable({
     messageId: v.id('messages'),
@@ -41,20 +61,4 @@ export default defineSchema({
     imageChangeLog: v.optional(v.string()),
     isTextModified: v.optional(v.boolean()),
   }).index('by_messageId', ['messageId']),
-
-  likes: defineTable({
-    userId: v.id('users'),
-    messageId: v.id('messages'),
-  })
-    .index('by_user_message', ['userId', 'messageId'])
-    .index('by_user', ['userId']),
-
-  categories: defineTable({
-    name: v.string(),
-    slug: v.string(),
-    icon: v.optional(v.string()),
-    type: v.string(),         // 'university', 'category', 'channel'
-    parentId: v.optional(v.id('categories')),
-    sortOrder: v.number(),
-  }).index('by_type', ['type']),
 });
