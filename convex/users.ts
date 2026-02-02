@@ -164,10 +164,6 @@ export const followUser = mutation({
       )
       .unique();
 
-      if (currentUser._id === args.targetUserId) {
-            throw new Error("Bạn không thể tự theo dõi chính mình!");
-          }
-
     if (!existingFollow) {
       await ctx.db.insert('follows', {
         followerId: currentUser._id,
@@ -277,10 +273,10 @@ export const getPostCount = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
     const posts = await ctx.db
-      .query("messages")
+      .query("messages") 
       .filter((q) => q.eq(q.field("userId"), args.userId))
       .collect();
-
+    
     return posts.length;
   },
 });
@@ -296,7 +292,7 @@ export const checkRelationship = query({
     // 1. Kiểm tra: Mình có đang follow họ không?
     const followTx = await ctx.db
       .query("follows")
-      .withIndex("by_both", (q) =>
+      .withIndex("by_both", (q) => 
         q.eq("followerId", currentUserId._id).eq("followingId", args.targetUserId)
       )
       .unique();
@@ -304,7 +300,7 @@ export const checkRelationship = query({
     // 2. Kiểm tra: Họ có đang follow mình không?
     const followedByTx = await ctx.db
       .query("follows")
-      .withIndex("by_both", (q) =>
+      .withIndex("by_both", (q) => 
         q.eq("followerId", args.targetUserId).eq("followingId", currentUserId._id)
       )
       .unique();
@@ -338,7 +334,7 @@ export const getFriends = query({
       // 3. Lấy thông tin user
       const user = await ctx.db.get(f.followingId);
       if (!user) return null;
-
+      
       if (user.imageUrl && !user.imageUrl.startsWith("http")) {
          user.imageUrl = await ctx.storage.getUrl(user.imageUrl as Id<"_storage">) ?? user.imageUrl;
       }
@@ -349,4 +345,3 @@ export const getFriends = query({
     return results.filter((u) => u !== null);
   },
 });
-

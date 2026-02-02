@@ -1,4 +1,3 @@
-// convex/schema.ts
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
@@ -12,7 +11,7 @@ export const User = {
   bio: v.optional(v.string()),
   location: v.optional(v.string()),
   websiteUrl: v.optional(v.string()),
-  linkTitle: v.optional(v.string()), // Giữ lại tính năng Link Title
+  linkTitle: v.optional(v.string()), // <--- THÊM DÒNG NÀY
   followersCount: v.number(),
   pushToken: v.optional(v.string()),
 };
@@ -22,13 +21,15 @@ export default defineSchema({
     .index('byClerkId', ['clerkId'])
     .searchIndex('searchUsers', { searchField: 'username' }),
 
+    // --- THÊM BẢNG NÀY ---
   follows: defineTable({
-    followerId: v.id('users'),
-    followingId: v.id('users'),
+    followerId: v.id('users'), // Người đi theo dõi (Là bạn)
+    followingId: v.id('users'), // Người được theo dõi (Idol)
   })
   .index('by_follower', ['followerId'])
   .index('by_following', ['followingId'])
-  .index('by_both', ['followerId', 'followingId']),
+  .index('by_both', ['followerId', 'followingId']), // Để kiểm tra xem đã follow chưa
+  // ---------------------
 
   universities: defineTable({
     name: v.string(),
@@ -37,7 +38,6 @@ export default defineSchema({
     sortOrder: v.number(),
   }),
 
-  // Cấu trúc Channel chuẩn
   channels: defineTable({
     name: v.string(),
     type: v.string(),
@@ -55,12 +55,11 @@ export default defineSchema({
     mediaFiles: v.optional(v.array(v.string())),
     websiteUrl: v.optional(v.string()),
 
-    // Giữ lại channelId và logic thread
-    channelId: v.optional(v.id('channels')),
-    threadId: v.optional(v.id('messages')),
+    channelId: v.optional(v.id('channels')), // Kênh
+    threadId: v.optional(v.id('messages')),  // <--- THÊM MỚI: ID bài gốc (nếu là cmt)
   })
   .index('by_channel', ['channelId'])
-  .index('by_threadId', ['threadId']),
+  .index('by_threadId', ['threadId']),       // <--- THÊM INDEX ĐỂ TÌM CMT NHANH
 
   likes: defineTable({
     userId: v.id('users'),

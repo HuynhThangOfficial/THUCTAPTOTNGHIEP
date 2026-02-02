@@ -132,6 +132,6 @@ export const seedAndMigrate = mutation({
             await ctx.db.patch(msg._id, { channelId: generalChannel!._id });
         }
     }
-    return "Hoàn tất revert Channels!";
+    return "Hoàn tất";
   },
 });
