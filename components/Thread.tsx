@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, Image, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { StyleSheet, Text, View, Image, TouchableOpacity, ScrollView, Alert, SafeAreaView } from 'react-native'; // <--- Đã thêm SafeAreaView
 import { Feather, Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
@@ -13,12 +13,11 @@ import ImageView from "react-native-image-viewing";
 type ThreadProps = {
   thread: Doc<'messages'> & {
     creator: Doc<'users'>;
-    isLiked?: boolean; // THÊM BIẾN NÀY ĐỂ NHẬN TRẠNG THÁI LIKE
+    isLiked?: boolean;
   };
 };
 
 const Thread = ({ thread }: ThreadProps) => {
-  // Lấy isLiked từ props
   const { content, mediaFiles, likeCount, commentCount, retweetCount, creator, isLiked } = thread;
 
   const { userProfile } = useUserProfile();
@@ -54,7 +53,6 @@ const Thread = ({ thread }: ThreadProps) => {
           const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           const dateString = date.toLocaleDateString();
 
-          // 1. XỬ LÝ TIÊU ĐỀ PHIÊN BẢN
           let versionLabel;
           if (index === 0) {
             versionLabel = `🌟 Phiên bản mới nhất`;
@@ -63,16 +61,12 @@ const Thread = ({ thread }: ThreadProps) => {
             versionLabel = `🕒 Phiên bản ${versionNumber}`;
           }
 
-          // 2. XỬ LÝ NỘI DUNG HIỂN THỊ (LOGIC MỚI)
           let details = "";
-
-          // Chỉ hiện dòng nội dung nếu CÓ sửa văn bản
           if (h.isTextModified) {
             const oldContentDisplay = h.oldContent ? `"${h.oldContent}"` : '""';
             details += `\nNội dung đã chỉnh sửa: ${oldContentDisplay}`;
           }
 
-          // Chỉ hiện dòng ảnh nếu CÓ thay đổi ảnh (imageChangeLog không rỗng)
           if (h.imageChangeLog && h.imageChangeLog.length > 0) {
             details += `\n🖼️ ${h.imageChangeLog}`;
           }
@@ -158,6 +152,19 @@ const Thread = ({ thread }: ThreadProps) => {
     ]);
   };
 
+  // --- COMPONENT HEADER CHO ẢNH (MỚI THÊM) ---
+  const ImageHeader = ({ imageIndex }: { imageIndex: number }) => (
+    <SafeAreaView style={styles.imageHeader}>
+      <TouchableOpacity
+        style={styles.closeImageButton}
+        onPress={() => setVisible(false)} // Đóng viewer
+        hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+      >
+        <Ionicons name="close" size={28} color="white" />
+      </TouchableOpacity>
+    </SafeAreaView>
+  );
+
   return (
     <View style={styles.container}>
       <Image
@@ -208,7 +215,6 @@ const Thread = ({ thread }: ThreadProps) => {
         )}
 
         <View style={styles.actions}>
-          {/* NÚT TIM ĐÃ ĐƯỢC CẬP NHẬT LOGIC MÀU SẮC */}
           <TouchableOpacity style={styles.actionButton} onPress={() => likeThread({ messageId: thread._id })}>
             <Ionicons
               name={isLiked ? "heart" : "heart-outline"}
@@ -240,6 +246,7 @@ const Thread = ({ thread }: ThreadProps) => {
           onRequestClose={() => setVisible(false)}
           swipeToCloseEnabled={true}
           doubleTapToZoomEnabled={true}
+          HeaderComponent={ImageHeader} // <--- ĐÃ THÊM HEADER VÀO ĐÂY
           FooterComponent={({ imageIndex }) => (
             <View style={styles.imageFooter}>
               <Text style={styles.imageFooterText}>
@@ -268,6 +275,22 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', marginTop: 10, gap: 16 },
   actionButton: { flexDirection: 'row', alignItems: 'center' },
   actionText: { marginLeft: 5 },
+
+  // --- STYLE MỚI CHO HEADER VÀ NÚT ĐÓNG ---
+  imageHeader: {
+    position: 'absolute',
+    top: 0,
+    width: '100%',
+    zIndex: 1,
+    alignItems: 'flex-end', // Căn phải
+    paddingHorizontal: 20,
+  },
+  closeImageButton: {
+    padding: 10,
+    marginTop: 10,
+  },
+  // ----------------------------------------
+
   imageFooter: {
     height: 50,
     alignItems: 'center',

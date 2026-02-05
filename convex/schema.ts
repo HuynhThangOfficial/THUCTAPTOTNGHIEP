@@ -44,6 +44,7 @@ export default defineSchema({
     universityId: v.id('universities'),
     parentId: v.optional(v.id('channels')),
     sortOrder: v.number(),
+    description: v.optional(v.string())
   }).index('by_university', ['universityId']),
 
   messages: defineTable({

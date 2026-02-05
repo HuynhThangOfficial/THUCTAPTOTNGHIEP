@@ -135,3 +135,19 @@ export const seedAndMigrate = mutation({
     return "Hoàn tất";
   },
 });
+
+export const getChannelDetails = query({
+  args: { channelId: v.id("channels") },
+  handler: async (ctx, args) => {
+    const channel = await ctx.db.get(args.channelId);
+    if (!channel) return null;
+
+    const university = await ctx.db.get(channel.universityId);
+
+    return {
+      ...channel,
+      universityName: university?.name || "Unknown University",
+      universitySlug: university?.slug || "UNK",
+    };
+  },
+});

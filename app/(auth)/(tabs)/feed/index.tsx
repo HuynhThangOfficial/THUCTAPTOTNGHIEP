@@ -16,6 +16,7 @@ import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useMenu } from '@/context/MenuContext';
 import { useChannel } from '@/context/ChannelContext';
+import ChannelDetailsModal from '@/components/ChannelDetailsModal';
 
 const Page = () => {
   const { toggleMenu } = useMenu();
@@ -31,7 +32,9 @@ const Page = () => {
   const [refreshing, setRefreshing] = useState(false);
   const { top } = useSafeAreaInsets();
 
-  // Scroll handler giữ lại nếu bạn muốn dùng animation sau này
+  // State quản lý Modal
+  const [isChannelDetailVisible, setChannelDetailVisible] = useState(false);
+
   const scrollOffset = useSharedValue(0);
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -45,7 +48,6 @@ const Page = () => {
 
   const onRefresh = () => {
     setRefreshing(true);
-    // Thực tế nên gọi refetch nếu convex hỗ trợ, hoặc chờ update
     setTimeout(() => {
       setRefreshing(false);
     }, 2000);
@@ -57,9 +59,9 @@ const Page = () => {
 
   return (
     <View style={styles.container}>
-      {/* === PHẦN CỐ ĐỊNH (STICKY HEADER) ===
-        Nằm ngoài FlatList nên sẽ luôn hiển thị ở trên cùng
-      */}
+
+      {/* === PHẦN HEADER CỐ ĐỊNH (STICKY) === */}
+      {/* Tăng zIndex lên 1000 để chắc chắn nó luôn nhận cảm ứng */}
       <View style={[styles.stickyHeader, { paddingTop: top + 10 }]}>
 
         {/* Hàng 1: Menu - Logo - Search */}
@@ -83,15 +85,21 @@ const Page = () => {
 
         {/* Hàng 2: Tên Kênh */}
         {activeChannelName && (
-           <View style={{alignItems: 'center', marginBottom: 8}}>
+           <TouchableOpacity
+             style={styles.channelNameBtn} // Tach style ra
+             onPress={() => {
+                 setChannelDetailVisible(true);
+             }}
+             activeOpacity={0.6}
+             hitSlop={{top: 10, bottom: 10, left: 50, right: 50}} // Mở rộng vùng bấm
+           >
               <Text style={styles.channelNameText}>
-                 #{activeChannelName}
+                 #{activeChannelName} <Ionicons name="chevron-forward" size={12} color="#007aff" />
               </Text>
-           </View>
+           </TouchableOpacity>
         )}
 
         {/* Hàng 3: Composer Preview (Nút đăng bài) */}
-        {/* Giữ nguyên logic cũ: Bọc TouchableOpacity để push sang modal create */}
         <TouchableOpacity
             activeOpacity={0.9}
             onPress={() => router.push('/(auth)/(modal)/create')}
@@ -101,8 +109,7 @@ const Page = () => {
         </TouchableOpacity>
       </View>
 
-      {/* === PHẦN DANH SÁCH CUỘN (SCROLLABLE) ===
-      */}
+      {/* === PHẦN DANH SÁCH CUỘN (SCROLLABLE) === */}
       <Animated.FlatList
         showsVerticalScrollIndicator={false}
         onScroll={scrollHandler}
@@ -120,7 +127,6 @@ const Page = () => {
         ItemSeparatorComponent={() => (
           <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: Colors.border }} />
         )}
-        // Bỏ paddingVertical: top vì Header đã handle việc này
         contentContainerStyle={{ paddingBottom: 20 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={
@@ -129,6 +135,16 @@ const Page = () => {
           </View>
         }
       />
+
+      {/* === DI CHUYỂN MODAL XUỐNG CUỐI CÙNG === */}
+      {/* Để đảm bảo không bị che khuất về mặt Logic View */}
+      {activeChannelId && (
+        <ChannelDetailsModal
+           visible={isChannelDetailVisible}
+           onClose={() => setChannelDetailVisible(false)}
+           channelId={activeChannelId}
+        />
+      )}
     </View>
   );
 };
@@ -138,13 +154,14 @@ export default Page;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff', // Hoặc màu nền xám nhẹ nếu muốn tách biệt bài viết
+    backgroundColor: '#fff',
   },
-  // Style cho phần Header dính
+  // Style cho Header dính
   stickyHeader: {
     backgroundColor: '#fff',
     borderBottomColor: '#eee',
-    zIndex: 100,
+    zIndex: 1000,
+    position: 'relative',
   },
   headerContainer: {
     flexDirection: 'row',
@@ -171,12 +188,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-start',
   },
+  channelNameBtn: {
+    alignItems: 'center',
+    marginBottom: 8,
+    zIndex: 1001,
+    paddingVertical: 5,
+  },
   channelNameText: {
     fontWeight: 'bold',
     fontSize: 14,
-    color: '#007aff', // Màu xanh nổi bật hơn chút
+    color: '#007aff',
     backgroundColor: '#f0f8ff',
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
     overflow: 'hidden'

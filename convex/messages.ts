@@ -35,8 +35,6 @@ export const addThread = mutation({
       threadId: args.threadId,
 
       channelId: args.channelId,
-      // --- LƯU VÀO DATABASE ---
-      universityId: args.universityId,
 
       likeCount: 0,
       commentCount: 0,
@@ -146,6 +144,7 @@ export const getThreads = query({
     if (args.channelId) {
         threads = await ctx.db.query('messages')
             .withIndex('by_channel', q => q.eq('channelId', args.channelId))
+            .filter(q =>q.eq(q.field('threadId'), undefined))
             .order('desc').paginate(args.paginationOpts);
     } else if (args.userId) {
         threads = await ctx.db.query('messages')
@@ -268,4 +267,54 @@ export const generateUploadUrl = mutation(async (ctx) => {
   const userId = await getCurrentUserId(ctx);
   if (!userId) throw new Error("Unauthorized");
   return await ctx.storage.generateUploadUrl();
+});
+
+export const getChannelAttachments = query({
+  args: { channelId: v.id("channels") },
+  handler: async (ctx, args) => {
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_channel", q => q.eq("channelId", args.channelId))
+      .order("desc")
+      .collect();
+
+    const mediaIds: string[] = [];
+    const mediaList: string[] = [];
+    const linkList: { url: string; title: string; date: number }[] = [];
+
+    for (const msg of messages) {
+      if (msg.threadId) continue;
+
+      if (msg.mediaFiles?.length) {
+        mediaIds.push(...msg.mediaFiles);
+      }
+
+      if (msg.websiteUrl) {
+        linkList.push({
+          url: msg.websiteUrl,
+          title:
+            msg.content.length > 50
+              ? msg.content.substring(0, 50) + "..."
+              : msg.content,
+          date: msg._creationTime,
+        });
+      }
+    }
+
+    // Resolve media URLs 1 lần
+    const resolved = await Promise.allSettled(
+      mediaIds.map((fileId) => {
+        if (fileId.startsWith("http")) return Promise.resolve(fileId);
+        return ctx.storage.getUrl(fileId as Id<"_storage">);
+      })
+    );
+
+    resolved.forEach((r) => {
+      if (r.status === "fulfilled" && r.value) {
+        mediaList.push(r.value);
+      }
+    });
+
+    return { mediaList, linkList };
+  },
 });
