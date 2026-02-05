@@ -157,6 +157,10 @@ export const followUser = mutation({
   handler: async (ctx, args) => {
     const currentUser = await getCurrentUserOrThrow(ctx);
 
+    if (currentUser._id === args.targetUserId) {
+      throw new Error("Bạn không thể tự theo dõi chính mình!");
+    }
+
     const existingFollow = await ctx.db
       .query('follows')
       .withIndex('by_both', (q) => // Lưu ý: Nếu lỗi index, sửa thành 'by_follower_following' tùy schema của bạn

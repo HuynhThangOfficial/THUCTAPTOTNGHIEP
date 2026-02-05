@@ -54,6 +54,7 @@ export default defineSchema({
     retweetCount: v.number(),
     mediaFiles: v.optional(v.array(v.string())),
     websiteUrl: v.optional(v.string()),
+    universityId: v.optional(v.id("universities")),
 
     channelId: v.optional(v.id('channels')), // Kênh
     threadId: v.optional(v.id('messages')),  // <--- THÊM MỚI: ID bài gốc (nếu là cmt)

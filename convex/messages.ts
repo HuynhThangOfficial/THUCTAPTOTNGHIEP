@@ -11,14 +11,17 @@ async function getCurrentUserId(ctx: QueryCtx) {
   return user?._id;
 }
 
-// 1. UPDATE: Thêm channelId
+// 1. UPDATE: Thêm universityId vào args và handler
 export const addThread = mutation({
   args: {
     content: v.string(),
     mediaFiles: v.optional(v.array(v.string())),
     websiteUrl: v.optional(v.string()),
     threadId: v.optional(v.id('messages')),
-    channelId: v.optional(v.id('channels')), // <--- THÊM
+    channelId: v.optional(v.id('channels')),
+
+    // --- THÊM DÒNG NÀY ---
+    universityId: v.optional(v.id('universities')),
   },
   handler: async (ctx, args) => {
     const userId = await getCurrentUserId(ctx);
@@ -30,7 +33,11 @@ export const addThread = mutation({
       mediaFiles: args.mediaFiles,
       websiteUrl: args.websiteUrl,
       threadId: args.threadId,
-      channelId: args.channelId, // <--- LƯU CHANNEL
+
+      channelId: args.channelId,
+      // --- LƯU VÀO DATABASE ---
+      universityId: args.universityId,
+
       likeCount: 0,
       commentCount: 0,
       retweetCount: 0,
@@ -57,7 +64,7 @@ export const addThread = mutation({
   },
 });
 
-// ... (Giữ nguyên deleteThread, updateThread, getEditHistory ...)
+// ... (Các hàm deleteThread, updateThread giữ nguyên như cũ của bạn)
 export const deleteThread = mutation({
   args: { messageId: v.id('messages') },
   handler: async (ctx, args) => {
@@ -81,42 +88,27 @@ export const updateThread = mutation({
   handler: async (ctx, args) => {
     const userId = await getCurrentUserId(ctx);
     if (!userId) throw new Error("Unauthorized");
-
     const message = await ctx.db.get(args.messageId);
     if (!message || message.userId !== userId) throw new Error("Unauthorized");
 
     let changeLog = "";
-
-    // --- LOGIC MỚI: SO SÁNH NỘI DUNG ẢNH ---
     if (args.mediaFiles !== undefined) {
       const oldMedia = message.mediaFiles || [];
       const newMedia = args.mediaFiles;
-
-      // Tìm số ảnh được thêm mới (Có trong Mới nhưng không có trong Cũ)
       const addedCount = newMedia.filter(id => !oldMedia.includes(id)).length;
-
-      // Tìm số ảnh bị xóa đi (Có trong Cũ nhưng không có trong Mới)
       const removedCount = oldMedia.filter(id => !newMedia.includes(id)).length;
-
       if (addedCount > 0 && removedCount > 0 && addedCount === removedCount) {
-        // Trường hợp thay thế: Xóa bao nhiêu, thêm bấy nhiêu (Ví dụ: Đổi 1 ảnh này thành 1 ảnh khác)
         changeLog = `(Đã thay đổi ${addedCount} ảnh)`;
       } else if (addedCount > 0 && removedCount === 0) {
-        // Chỉ thêm
         changeLog = `(Đã thêm ${addedCount} ảnh)`;
       } else if (removedCount > 0 && addedCount === 0) {
-        // Chỉ xóa
         changeLog = `(Đã xóa ${removedCount} ảnh)`;
       } else if (addedCount !== removedCount && (addedCount > 0 || removedCount > 0)) {
-        // Trường hợp hỗn hợp (Ví dụ: Xóa 1 ảnh cũ, thêm 2 ảnh mới)
         changeLog = `(Đã cập nhật danh sách ảnh)`;
       }
     }
-    // ---------------------------------------
 
     const isTextModified = args.content.trim() !== message.content.trim();
-
-    // Chỉ lưu lịch sử nếu có thay đổi về Text hoặc Ảnh
     if (isTextModified || changeLog !== "") {
         await ctx.db.insert('edit_history', {
           messageId: args.messageId,
@@ -140,29 +132,26 @@ export const getEditHistory = query({
   },
 });
 
-// 2. UPDATE: Thêm channelId và logic lọc
+// 2. UPDATE: getThreads (Cũng thêm universityId nếu cần lọc sau này, hiện tại thì chưa cần nhưng giữ cấu trúc cũ của bạn)
 export const getThreads = query({
   args: {
       paginationOpts: paginationOptsValidator,
       userId: v.optional(v.id('users')),
-      channelId: v.optional(v.id('channels')) // <--- THÊM
+      channelId: v.optional(v.id('channels'))
   },
   handler: async (ctx, args) => {
     const currentUserId = await getCurrentUserId(ctx);
     let threads;
 
     if (args.channelId) {
-        // Lọc theo kênh
         threads = await ctx.db.query('messages')
             .withIndex('by_channel', q => q.eq('channelId', args.channelId))
             .order('desc').paginate(args.paginationOpts);
     } else if (args.userId) {
-        // Lọc theo user
         threads = await ctx.db.query('messages')
             .filter((q) => q.eq(q.field('userId'), args.userId))
             .order('desc').paginate(args.paginationOpts);
     } else {
-        // Trang chủ chung
         threads = await ctx.db.query('messages')
             .filter((q) => q.eq(q.field('threadId'), undefined))
             .order('desc').paginate(args.paginationOpts);
@@ -184,7 +173,6 @@ export const getThreads = query({
   },
 });
 
-// ... (Giữ nguyên likeThread, getFavoriteThreads, getThreadById, getThreadComments...)
 export const likeThread = mutation({
   args: { messageId: v.id('messages') },
   handler: async (ctx, args) => {

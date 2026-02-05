@@ -1,144 +1,159 @@
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
-import { Colors } from '@/constants/Colors';
-import ProfileSearchResult from '@/components/ProfileSearchResult'; // Tái sử dụng component hiển thị user
+import { Ionicons } from '@expo/vector-icons';
+import ProfileSearchResult from '@/components/ProfileSearchResult';
 
-// Định nghĩa các loại Tab
-type TabType = 'followers' | 'following' | 'friends';
-
-const FollowListPage = () => {
-  const { userId, initialTab } = useLocalSearchParams<{ userId: string, initialTab: TabType }>();
-  const [activeTab, setActiveTab] = useState<TabType>(initialTab || 'followers');
+export default function FollowListScreen() {
+  const { userId, initialTab } = useLocalSearchParams();
   const router = useRouter();
 
-  // 1. Gọi cả 3 API (Convex sẽ tự cache, không lo chậm)
+  // 1. Cập nhật State để chấp nhận 3 giá trị: followers, following, friends
+  const [activeTab, setActiveTab] = useState<'followers' | 'following' | 'friends'>(
+    (initialTab as 'followers' | 'following' | 'friends') || 'followers'
+  );
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // 2. Gọi 3 API (bao gồm cả getFriends mới)
   const followers = useQuery(api.users.getFollowers, { userId: userId as Id<'users'> });
   const following = useQuery(api.users.getFollowing, { userId: userId as Id<'users'> });
-  const friends = useQuery(api.users.getFriends, { userId: userId as Id<'users'> }); // <--- Query mới
+  const friends = useQuery(api.users.getFriends, { userId: userId as Id<'users'> });
 
-  // 2. Chọn dữ liệu hiển thị dựa trên Tab
-  const data = 
+  // 3. Chọn danh sách hiển thị dựa trên Tab
+  const dataList =
     activeTab === 'followers' ? followers :
     activeTab === 'following' ? following :
     friends;
 
-  const isLoading = data === undefined;
+  // 4. Logic tìm kiếm
+  const filteredData = dataList?.filter(user =>
+    user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.last_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ headerTitle: userTitle(activeTab), headerShadowVisible: false }} />
-      
-      {/* --- THANH TAB --- */}
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* --- HEADER --- */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+        >
+          <Ionicons name="arrow-back" size={26} color="black" />
+        </TouchableOpacity>
+
+        <Text style={styles.headerTitle}>
+           {activeTab === 'followers' ? 'Người theo dõi' :
+            activeTab === 'following' ? 'Đang theo dõi' : 'Bạn bè'}
+        </Text>
+        <View style={{ width: 26 }} />
+      </View>
+
+      {/* --- TABS (3 CỘT) --- */}
       <View style={styles.tabContainer}>
-        <TabButton 
-          title="Người theo dõi" 
-          count={followers?.length} 
-          isActive={activeTab === 'followers'} 
-          onPress={() => setActiveTab('followers')} 
-        />
-        <TabButton 
-          title="Đang theo dõi" 
-          count={following?.length} 
-          isActive={activeTab === 'following'} 
-          onPress={() => setActiveTab('following')} 
-        />
-        <TabButton 
-          title="Bạn bè" 
-          count={friends?.length} 
-          isActive={activeTab === 'friends'} 
-          onPress={() => setActiveTab('friends')} 
+        {/* Tab 1: Followers */}
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'followers' && styles.activeTab]}
+          onPress={() => setActiveTab('followers')}
+        >
+          <Text style={[styles.tabCount, activeTab === 'followers' && styles.activeTabText]}>
+            {followers ? followers.length : 0}
+          </Text>
+          <Text style={[styles.tabLabel, activeTab === 'followers' && styles.activeTabText]}>
+            Người theo dõi
+          </Text>
+        </TouchableOpacity>
+
+        {/* Tab 2: Following */}
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'following' && styles.activeTab]}
+          onPress={() => setActiveTab('following')}
+        >
+          <Text style={[styles.tabCount, activeTab === 'following' && styles.activeTabText]}>
+            {following ? following.length : 0}
+          </Text>
+          <Text style={[styles.tabLabel, activeTab === 'following' && styles.activeTabText]}>
+            Đang theo dõi
+          </Text>
+        </TouchableOpacity>
+
+        {/* Tab 3: Friends (MỚI) */}
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'friends' && styles.activeTab]}
+          onPress={() => setActiveTab('friends')}
+        >
+          <Text style={[styles.tabCount, activeTab === 'friends' && styles.activeTabText]}>
+            {friends ? friends.length : 0}
+          </Text>
+          <Text style={[styles.tabLabel, activeTab === 'friends' && styles.activeTabText]}>
+            Bạn bè
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* --- SEARCH BAR --- */}
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color="gray" style={styles.searchIcon} />
+        <TextInput
+          placeholder="Tìm kiếm..."
+          style={styles.searchInput}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
         />
       </View>
 
       {/* --- DANH SÁCH --- */}
-      {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#000" />
-        </View>
+      {dataList === undefined ? (
+        <ActivityIndicator style={{ marginTop: 20 }} size="large" color="black" />
       ) : (
         <FlatList
-          data={data}
+          data={filteredData}
           keyExtractor={(item) => item._id}
-          renderItem={({ item }) => (
-            <ProfileSearchResult user={item} />
-          )}
+          renderItem={({ item }) => <ProfileSearchResult user={item} />}
           ListEmptyComponent={
-            <View style={styles.center}>
-              <Text style={styles.emptyText}>Chưa có ai trong danh sách này</Text>
-            </View>
+            <Text style={styles.emptyText}>
+              {activeTab === 'friends'
+                ? 'Chưa có bạn bè nào (Follow chéo).'
+                : 'Danh sách trống.'}
+            </Text>
           }
           contentContainerStyle={{ paddingBottom: 20 }}
         />
       )}
     </View>
   );
-};
-
-// Component con: Nút Tab
-const TabButton = ({ title, count, isActive, onPress }: { title: string, count?: number, isActive: boolean, onPress: () => void }) => (
-  <TouchableOpacity 
-    style={[styles.tabButton, isActive && styles.activeTabButton]} 
-    onPress={onPress}
-  >
-    <Text style={[styles.tabText, isActive && styles.activeTabText]}>
-      {title} <Text style={{ fontSize: 12, opacity: 0.7 }}>{count !== undefined ? `(${count})` : ''}</Text>
-    </Text>
-  </TouchableOpacity>
-);
-
-// Helper: Đổi tiêu đề Header
-const userTitle = (tab: TabType) => {
-  switch (tab) {
-    case 'followers': return 'Người theo dõi';
-    case 'following': return 'Đang theo dõi';
-    case 'friends': return 'Bạn bè';
-    default: return 'Danh sách';
-  }
-};
-
-export default FollowListPage;
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
+  container: { flex: 1, backgroundColor: '#fff' },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee',
+    marginTop: 30, // Hoặc dùng SafeAreaView
   },
-  tabContainer: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+  headerTitle: { fontSize: 18, fontWeight: 'bold' },
+  backBtn: { padding: 5 },
+
+  tabContainer: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#eee' },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 10, justifyContent: 'center' },
+  activeTab: { borderBottomWidth: 2, borderBottomColor: 'black' },
+
+  // Style chữ cho Tab gọn gàng hơn
+  tabCount: { fontSize: 16, fontWeight: 'bold', color: 'gray', marginBottom: 2 },
+  tabLabel: { fontSize: 12, color: 'gray', fontWeight: '500' },
+  activeTabText: { color: 'black' },
+
+  searchContainer: {
+    margin: 16, flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#f0f0f0', borderRadius: 10, paddingHorizontal: 10, height: 40
   },
-  tabButton: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  activeTabButton: {
-    borderBottomColor: '#000', // Gạch chân màu đen khi active
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'gray',
-  },
-  activeTabText: {
-    color: '#000',
-    fontWeight: 'bold',
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 50,
-  },
-  emptyText: {
-    color: 'gray',
-    fontSize: 15,
-  },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1 },
+  emptyText: { textAlign: 'center', marginTop: 30, color: 'gray' }
 });

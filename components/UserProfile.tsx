@@ -164,9 +164,6 @@ export const UserProfile = ({ userId, onLogout, showBackButton = false }: UserPr
                 {isFollowing ? 'Đang theo dõi' : 'Theo dõi'}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.button}>
-              <Text style={styles.buttonText}>Nhắn tin</Text>
-            </TouchableOpacity>
         </View>
       )}
     </View>

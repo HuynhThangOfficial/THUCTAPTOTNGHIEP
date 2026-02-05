@@ -13,42 +13,40 @@ import { LogBox } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ConvexReactClient } from 'convex/react';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
-import * as Sentry from '@sentry/react-native';
+import * as Sentry from '@sentry/react-native'; // Import Sentry
 import { ActionSheetProvider } from '@expo/react-native-action-sheet';
+import { ChannelProvider } from '@/context/ChannelContext';
+import { MenuProvider } from '@/context/MenuContext';
 
 SplashScreen.preventAutoHideAsync();
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
 
 if (!publishableKey) {
-  throw new Error(
-    'Missing Publishable Key. Please set EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in your .env'
-  );
+  throw new Error('Missing Publishable Key');
 }
-LogBox.ignoreLogs(['Clerk: Clerk has been loaded with development keys']);
+LogBox.ignoreLogs(['Clerk:']);
 
 const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
   unsavedChangesWarning: false,
 });
 
+// --- CẤU HÌNH SENTRY AN TOÀN ---
+// 1. Tạo công cụ theo dõi điều hướng
 const routingInstrumentation = new Sentry.ReactNavigationInstrumentation();
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
   attachScreenshot: true,
-  debug: false,
+  debug: false, // Tắt debug để đỡ lag console
   tracesSampleRate: 1.0,
-  _experiments: {
-    profilesSampleRate: 1.0,
-    replaysSessionSampleRate: 1.0,
-    replaysOnErrorSampleRate: 1.0,
-  },
+
+  // 2. Chỉ dùng Integration cơ bản (Bỏ mobileReplayIntegration để tránh lỗi)
   integrations: [
     new Sentry.ReactNativeTracing({
       routingInstrumentation,
-      enableNativeFramesTracking: true,
+      enableNativeFramesTracking: false, // Tắt cái này nếu gặp lỗi build trên Android cũ
     }),
-    Sentry.mobileReplayIntegration(),
   ],
 });
 
@@ -71,19 +69,21 @@ const InitialLayout = () => {
 
   useEffect(() => {
     if (!isLoaded) return;
-
     const inTabsGroup = segments[0] === '(auth)';
-
     if (isSignedIn && !inTabsGroup) {
       router.replace('/(auth)/(tabs)/feed');
     } else if (!isSignedIn && inTabsGroup) {
       router.replace('/(public)');
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, isLoaded]);
 
+  // Gửi thông tin User lên Sentry để biết ai bị lỗi
   useEffect(() => {
     if (user && user.user) {
-      Sentry.setUser({ email: user.user.emailAddresses[0].emailAddress, id: user.user.id });
+      Sentry.setUser({
+        email: user.user.emailAddresses[0].emailAddress,
+        id: user.user.id
+      });
     } else {
       Sentry.setUser(null);
     }
@@ -95,6 +95,7 @@ const InitialLayout = () => {
 const RootLayoutNav = () => {
   const ref = useNavigationContainerRef();
 
+  // Kết nối Sentry với Expo Router
   useEffect(() => {
     if (ref) {
       routingInstrumentation.registerNavigationContainer(ref);
@@ -106,7 +107,11 @@ const RootLayoutNav = () => {
       <ClerkLoaded>
         <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
           <ActionSheetProvider>
-            <InitialLayout />
+            <ChannelProvider>
+              <MenuProvider>
+                <InitialLayout />
+              </MenuProvider>
+            </ChannelProvider>
           </ActionSheetProvider>
         </ConvexProviderWithClerk>
       </ClerkLoaded>
@@ -114,4 +119,5 @@ const RootLayoutNav = () => {
   );
 };
 
+// Bọc App bằng Sentry.wrap để bắt lỗi từ gốc
 export default Sentry.wrap(RootLayoutNav);
