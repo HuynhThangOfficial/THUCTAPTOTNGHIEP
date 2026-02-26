@@ -12,7 +12,7 @@ export const getUniversities = query({
 });
 
 // =====================================================
-// SỬA: getChannels hỗ trợ cả university và server
+// getChannels hỗ trợ cả university và server (GIỮ NGUYÊN)
 // =====================================================
 export const getChannels = query({
   args: {
@@ -55,7 +55,7 @@ export const getChannels = query({
 });
 
 // =====================================================
-// seedAndMigrate (GIỮ NGUYÊN)
+// seedAndMigrate (GIỮ NGUYÊN TOÀN BỘ LOGIC CŨ)
 // =====================================================
 export const seedAndMigrate = mutation({
   handler: async (ctx) => {
@@ -127,7 +127,6 @@ export const seedAndMigrate = mutation({
       }
     };
 
-    // Kênh đại sảnh
     let generalChannel = await ctx.db
       .query('channels')
       .withIndex('by_university', (q) =>
@@ -147,60 +146,21 @@ export const seedAndMigrate = mutation({
     }
 
     await ensureCategoryWithChannels('CỘNG ĐỒNG', 1, [
-      'làm-quen-kết-nối',
-      'phòng-trọ',
-      'chia-sẻ-tài-liệu',
-      'mua-bán',
-      'đồ-thất-lạc',
-      'kí-túc-xá',
-      'tổng-hợp-sự-kiện',
-      'đăng-ký-học-phần',
-      'review-giảng-viên',
-      'việc-làm',
-      'quân-sự',
+      'làm-quen-kết-nối', 'phòng-trọ', 'chia-sẻ-tài-liệu', 'mua-bán', 'đồ-thất-lạc', 'kí-túc-xá', 'tổng-hợp-sự-kiện', 'đăng-ký-học-phần', 'review-giảng-viên', 'việc-làm', 'quân-sự',
     ]);
-
-    await ensureCategoryWithChannels('KHOÁ', 2, [
-      'k17',
-      'k18',
-      'k19',
-      'k20',
-    ]);
-
+    await ensureCategoryWithChannels('KHOÁ', 2, ['k17', 'k18', 'k19', 'k20']);
     await ensureCategoryWithChannels('KHOA', 3, [
-      'khoa-công-nghệ-thông-tin',
-      'khoa-kinh-tế-hàng-không',
-      'khoa-cơ-bản',
-      'khoa-quản-trị-kinh-doanh',
-      'khoa-xây-dựng',
-      'khoa-khai-khác-hàng-không',
-      'khoa-kỹ-thuật-hàng-không',
-      'khoa-điện-điện-tử',
-      'khoa-du-lịch-và-dịch-vụ-hàng-không',
-      'khoa-ngoại-ngữ',
+      'khoa-công-nghệ-thông-tin', 'khoa-kinh-tế-hàng-không', 'khoa-cơ-bản', 'khoa-quản-trị-kinh-doanh', 'khoa-xây-dựng', 'khoa-khai-khác-hàng-không', 'khoa-kỹ-thuật-hàng-không', 'khoa-điện-điện-tử', 'khoa-du-lịch-và-dịch-vụ-hàng-không', 'khoa-ngoại-ngữ',
     ]);
+    await ensureCategoryWithChannels('CLB', 4, ['clb-bóng-chuyền', 'clb-tổ-chức-sự-kiện', 'clb-khoa-học-trẻ']);
+    await ensureCategoryWithChannels('CƠ SỞ', 5, ['cơ-sở-1', 'cơ-sở-2']);
 
-    await ensureCategoryWithChannels('CLB', 4, [
-      'clb-bóng-chuyền',
-      'clb-tổ-chức-sự-kiện',
-      'clb-khoa-học-trẻ',
-    ]);
-
-    await ensureCategoryWithChannels('CƠ SỞ', 5, [
-      'cơ-sở-1',
-      'cơ-sở-2',
-    ]);
-
-    // migrate message cũ
     const allMessages = await ctx.db.query('messages').collect();
     for (const msg of allMessages) {
       if (!msg.channelId) {
-        await ctx.db.patch(msg._id, {
-          channelId: generalChannel!._id,
-        });
+        await ctx.db.patch(msg._id, { channelId: generalChannel!._id });
       }
     }
-
     return 'Hoàn tất';
   },
 });
@@ -217,13 +177,11 @@ export const getChannelDetails = query({
     let workspaceName = "Unknown Workspace";
     let workspaceSlug = "UNK";
 
-    // 1. Nếu kênh này thuộc về Trường (University)
     if (channel.universityId) {
       const university = await ctx.db.get(channel.universityId);
       workspaceName = university?.name || "Unknown University";
       workspaceSlug = university?.slug || "UNK";
     }
-    // 2. Nếu kênh này thuộc về Máy chủ riêng (Server)
     else if (channel.serverId) {
       const server = await ctx.db.get(channel.serverId);
       workspaceName = server?.name || "Unknown Server";
@@ -232,7 +190,6 @@ export const getChannelDetails = query({
 
     return {
       ...channel,
-      // Giữ nguyên tên biến trả về là universityName/universitySlug để không làm lỗi giao diện cũ
       universityName: workspaceName,
       universitySlug: workspaceSlug,
     };
@@ -267,8 +224,13 @@ export const getMyServers = query({
   },
 });
 
+// SỬA: Thêm iconStorageId và thay đổi kết quả trả về
 export const createServer = mutation({
-  args: { name: v.string(), template: v.string() },
+  args: {
+    name: v.string(),
+    template: v.string(),
+    iconStorageId: v.optional(v.id("_storage")) // THÊM MỚI
+  },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error('Chưa đăng nhập');
@@ -288,19 +250,23 @@ export const createServer = mutation({
       .first();
 
     if (existing) {
-      // Trả về success: false thay vì throw new Error
       return {
         success: false,
         message: "Bạn đã tạo một máy chủ rồi! Mỗi người dùng chỉ được tạo tối đa 1 máy chủ."
       };
     }
 
-    const firstLetter = args.name.charAt(0).toUpperCase() || 'S';
+    // XỬ LÝ ICON
+    let finalIcon = `https://ui-avatars.com/api/?name=${args.name.charAt(0)}&background=random&color=fff`;
+    if (args.iconStorageId) {
+      const url = await ctx.storage.getUrl(args.iconStorageId);
+      if (url) finalIcon = url;
+    }
 
     const newServerId = await ctx.db.insert('servers', {
       name: args.name,
       slug: args.name.toLowerCase().replace(/ /g, '-'),
-      icon: `https://ui-avatars.com/api/?name=${firstLetter}&background=random&color=fff`,
+      icon: finalIcon, // SỬA: dùng ảnh đã upload hoặc avatar mặc định
       creatorId: user._id,
       memberIds: [user._id],
     });
@@ -343,7 +309,7 @@ export const createServer = mutation({
       });
     }
 
-    return { success: true, serverId: newServerId};
+    return { success: true, serverId: newServerId }; // SỬA: Trả về object success
   },
 });
 
@@ -383,7 +349,7 @@ export const addFriendToServer = mutation({
     const server = await ctx.db.get(args.serverId);
     if (!server) throw new Error('Lỗi máy chủ');
 
-    const members = server.memberIds;
+    const members = [...server.memberIds];
 
     if (!members.includes(args.friendId)) {
       members.push(args.friendId);
@@ -413,14 +379,14 @@ export const deleteServer = mutation({
 });
 
 // =========================================================
-// TẠO DANH MỤC & KÊNH TRONG MÁY CHỦ
+// TẠO DANH MỤC & KÊNH TRONG MÁY CHỦ (GIỮ NGUYÊN)
 // =========================================================
 export const createChannel = mutation({
   args: {
     serverId: v.id('servers'),
     name: v.string(),
-    type: v.string(), // 'category' hoặc 'channel'
-    parentId: v.optional(v.id('channels')) // Kênh nằm trong Danh mục nào
+    type: v.string(),
+    parentId: v.optional(v.id('channels'))
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -428,13 +394,11 @@ export const createChannel = mutation({
     const user = await ctx.db.query("users").withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject)).unique();
     if (!user) throw new Error("Không tìm thấy user");
 
-    // Xác thực quyền: Chỉ chủ máy chủ mới được tạo
     const server = await ctx.db.get(args.serverId);
     if (!server || server.creatorId !== user._id) {
       throw new Error("Chỉ chủ máy chủ mới được quyền tạo kênh!");
     }
 
-    // Lấy danh sách kênh hiện tại để tính toán số thứ tự (sortOrder)
     const existing = await ctx.db.query('channels')
       .withIndex('by_server', q => q.eq('serverId', args.serverId))
       .collect();
@@ -448,12 +412,10 @@ export const createChannel = mutation({
         newOrder = siblings.length > 0 ? Math.max(...siblings.map(c => c.sortOrder)) + 1 : 0;
     }
 
-    // Format tên: Danh mục in HOA, Kênh thì có-dấu-gạch-ngang
     const formattedName = args.type === 'channel'
       ? args.name.toLowerCase().replace(/ /g, '-')
       : args.name.toUpperCase();
 
-    // Lưu vào database
     const newChannelId = await ctx.db.insert('channels', {
       name: formattedName,
       type: args.type,
@@ -467,7 +429,7 @@ export const createChannel = mutation({
 });
 
 // =========================================================
-// XÓA KÊNH VÀ DANH MỤC
+// XÓA KÊNH VÀ DANH MỤC (GIỮ NGUYÊN)
 // =========================================================
 export const deleteChannel = mutation({
   args: { channelId: v.id('channels') },
@@ -481,23 +443,19 @@ export const deleteChannel = mutation({
     const channel = await ctx.db.get(args.channelId);
     if (!channel) throw new Error("Không tìm thấy kênh");
 
-    // Bảo vệ: Chỉ cho phép xóa kênh của máy chủ riêng
     if (!channel.serverId) {
       throw new Error("Không thể xóa kênh của trường hệ thống!");
     }
 
-    // Bảo vệ: Không cho phép xóa kênh "đại sảnh" mặc định
     if (channel.name === 'đại-sảnh') {
       throw new Error("Không thể xóa kênh đại sảnh mặc định!");
     }
 
-    // Xác thực quyền chủ máy chủ
     const server = await ctx.db.get(channel.serverId);
     if (!server || server.creatorId !== user._id) {
       throw new Error("Chỉ chủ máy chủ mới được quyền xóa kênh!");
     }
 
-    // 1. NẾU LÀ DANH MỤC: Xóa tất cả kênh con & tin nhắn bên trong
     if (channel.type === 'category') {
       const childChannels = await ctx.db.query('channels')
         .withIndex('by_server', q => q.eq('serverId', channel.serverId))
@@ -505,21 +463,17 @@ export const deleteChannel = mutation({
 
       for (const child of childChannels) {
         if (child.parentId === args.channelId) {
-          // Xóa tin nhắn của kênh con
           const messages = await ctx.db.query('messages').withIndex('by_channel', q => q.eq('channelId', child._id)).collect();
           for (const msg of messages) await ctx.db.delete(msg._id);
-          // Xóa kênh con
           await ctx.db.delete(child._id);
         }
       }
     }
-    // 2. NẾU LÀ KÊNH BÌNH THƯỜNG: Chỉ xóa tin nhắn của nó
     else {
       const messages = await ctx.db.query('messages').withIndex('by_channel', q => q.eq('channelId', args.channelId)).collect();
       for (const msg of messages) await ctx.db.delete(msg._id);
     }
 
-    // Cuối cùng: Xóa kênh/danh mục gốc
     await ctx.db.delete(args.channelId);
   }
 });

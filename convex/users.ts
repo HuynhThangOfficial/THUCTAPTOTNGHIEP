@@ -349,3 +349,24 @@ export const getFriends = query({
     return results.filter((u) => u !== null);
   },
 });
+
+export const getUsers = query({
+  args: { search: v.optional(v.string()) }, // Thêm tham số search
+  handler: async (ctx, args) => {
+    if (args.search) {
+      // Tìm kiếm người dùng có tên chứa từ khóa (không phân biệt hoa thường)
+      return await ctx.db
+        .query("users")
+        .withSearchIndex("searchUsers", (q) =>
+          q.search("username", args.search!)
+        )
+        .take(20); // Lấy tối đa 20 kết quả khớp nhất
+    }
+
+    // Nếu không search, mặc định lấy 10 người mới nhất
+    return await ctx.db
+      .query("users")
+      .order("desc")
+      .take(10);
+  },
+});
