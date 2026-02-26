@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, Image, TouchableOpacity, ScrollView, Alert, SafeAreaView } from 'react-native'; // <--- Đã thêm SafeAreaView
+import { StyleSheet, Text, View, Image, TouchableOpacity, ScrollView, Alert, SafeAreaView } from 'react-native';
 import { Feather, Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useMutation, useQuery } from 'convex/react';
@@ -17,6 +17,39 @@ type ThreadProps = {
   };
 };
 
+// --- HÀM XỬ LÝ HIỂN THỊ THỜI GIAN THEO YÊU CẦU ---
+const formatTimeAgo = (timestamp: number) => {
+  const now = new Date();
+  const postDate = new Date(timestamp);
+  const diffMs = now.getTime() - postDate.getTime();
+  
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  // 1. Dưới 60 phút
+  if (diffMins < 1) return 'Vừa xong';
+  if (diffMins < 60) return `${diffMins} phút`;
+  
+  // 2. Từ 1 giờ đến dưới 24 giờ
+  if (diffHours < 24) return `${diffHours} giờ`;
+  
+  // 3. Từ 24 giờ đến dưới 7 ngày
+  if (diffDays < 7) return `${diffDays} ngày`;
+
+  // 4. Trên 7 ngày (Hiển thị ngày tháng)
+  const day = postDate.getDate();
+  const month = postDate.getMonth() + 1;
+  const year = postDate.getFullYear();
+  const currentYear = now.getFullYear();
+
+  if (year === currentYear) {
+    return `${day} thg ${month}`;
+  } else {
+    return `${day} thg ${month}, ${year}`;
+  }
+};
+
 const Thread = ({ thread }: ThreadProps) => {
   const { content, mediaFiles, likeCount, commentCount, retweetCount, creator, isLiked } = thread;
 
@@ -30,6 +63,8 @@ const Thread = ({ thread }: ThreadProps) => {
   const likeThread = useMutation(api.messages.likeThread);
   const deleteThread = useMutation(api.messages.deleteThread);
   const editHistory = useQuery(api.messages.getEditHistory, { messageId: thread._id });
+  
+  const channelInfo = useQuery(api.university.getChannelDetails, thread.channelId ? { channelId: thread.channelId } : "skip");
 
   const isOwner = userProfile?._id === thread.userId;
 
@@ -40,6 +75,13 @@ const Thread = ({ thread }: ThreadProps) => {
   const openImageViewer = (index: number) => {
     setCurrentImageIndex(index);
     setVisible(true);
+  };
+
+  const handleViewLikesList = () => {
+    router.push({
+      pathname: '/(public)/likes-list' as any,
+      params: { messageId: thread._id }
+    });
   };
 
   const showHistory = () => {
@@ -53,24 +95,15 @@ const Thread = ({ thread }: ThreadProps) => {
           const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           const dateString = date.toLocaleDateString();
 
-          let versionLabel;
-          if (index === 0) {
-            versionLabel = `🌟 Phiên bản mới nhất`;
-          } else {
-            const versionNumber = editHistory.length - index;
-            versionLabel = `🕒 Phiên bản ${versionNumber}`;
-          }
-
+          let versionLabel = index === 0 ? `🌟 Phiên bản mới nhất` : `🕒 Phiên bản ${editHistory.length - index}`;
           let details = "";
           if (h.isTextModified) {
             const oldContentDisplay = h.oldContent ? `"${h.oldContent}"` : '""';
             details += `\nNội dung đã chỉnh sửa: ${oldContentDisplay}`;
           }
-
           if (h.imageChangeLog && h.imageChangeLog.length > 0) {
             details += `\n🖼️ ${h.imageChangeLog}`;
           }
-
           return `${versionLabel} (${timeString} - ${dateString}):${details}`;
         })
         .join('\n\n----------------\n\n');
@@ -138,10 +171,7 @@ const Thread = ({ thread }: ThreadProps) => {
   const handleDelete = () => {
     Alert.alert('Xóa bài viết', 'Bạn có chắc chắn muốn xóa bài viết này?', [
       { text: 'Hủy', style: 'cancel' },
-      {
-        text: 'Xóa',
-        style: 'destructive',
-        onPress: async () => {
+      { text: 'Xóa', style: 'destructive', onPress: async () => {
           try {
             await deleteThread({ messageId: thread._id });
           } catch (err) {
@@ -152,12 +182,11 @@ const Thread = ({ thread }: ThreadProps) => {
     ]);
   };
 
-  // --- COMPONENT HEADER CHO ẢNH (MỚI THÊM) ---
   const ImageHeader = ({ imageIndex }: { imageIndex: number }) => (
     <SafeAreaView style={styles.imageHeader}>
       <TouchableOpacity
         style={styles.closeImageButton}
-        onPress={() => setVisible(false)} // Đóng viewer
+        onPress={() => setVisible(false)}
         hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
       >
         <Ionicons name="close" size={28} color="white" />
@@ -167,10 +196,7 @@ const Thread = ({ thread }: ThreadProps) => {
 
   return (
     <View style={styles.container}>
-      <Image
-        source={{ uri: creator?.imageUrl || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y' }}
-        style={styles.avatar}
-      />
+      <Image source={{ uri: creator?.imageUrl || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y' }} style={styles.avatar} />
 
       <View style={{ flex: 1 }}>
         <View style={styles.header}>
@@ -180,12 +206,21 @@ const Thread = ({ thread }: ThreadProps) => {
                 {creator?.first_name} {creator?.last_name}
               </Text>
             </Link>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+               {/* 👇 GỌI HÀM FORMAT THỜI GIAN TẠI ĐÂY 👇 */}
                <Text style={styles.timestamp}>
-                {new Date(thread._creationTime).toLocaleDateString()}
+                {formatTimeAgo(thread._creationTime)}
                </Text>
+               
+               {channelInfo && channelInfo.name !== 'đại-sảnh' && (
+                 <Text style={{ fontSize: 12, color: '#5865F2', fontWeight: 'bold' }}>
+                   • #{channelInfo.name}
+                 </Text>
+               )}
+
                {editHistory && editHistory.length > 0 && (
-                 <Text style={{ fontSize: 10, color: '#999' }}>(Đã chỉnh sửa)</Text>
+                 <Text style={{ fontSize: 10, color: '#999' }}>(Đã sửa)</Text>
                )}
             </View>
           </View>
@@ -202,11 +237,7 @@ const Thread = ({ thread }: ThreadProps) => {
             {mediaFiles.map((imageUrl, index) => {
               if (!imageUrl) return null;
               return (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => openImageViewer(index)}
-                  activeOpacity={0.9}
-                >
+                <TouchableOpacity key={index} onPress={() => openImageViewer(index)} activeOpacity={0.9}>
                   <Image source={{ uri: imageUrl }} style={styles.mediaImage} />
                 </TouchableOpacity>
               );
@@ -215,16 +246,21 @@ const Thread = ({ thread }: ThreadProps) => {
         )}
 
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.actionButton} onPress={() => likeThread({ messageId: thread._id })}>
-            <Ionicons
-              name={isLiked ? "heart" : "heart-outline"}
-              size={24}
-              color={isLiked ? "red" : "black"}
-            />
-            <Text style={[styles.actionText, { color: isLiked ? "red" : "black" }]}>
-              {likeCount}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.actionButton}>
+            <TouchableOpacity 
+              onPress={() => likeThread({ messageId: thread._id })}
+              onLongPress={handleViewLikesList}
+              delayLongPress={300}
+            >
+              <Ionicons name={isLiked ? "heart" : "heart-outline"} size={24} color={isLiked ? "red" : "black"} />
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={handleViewLikesList} hitSlop={{ top: 10, bottom: 10, left: 5, right: 10 }}>
+              <Text style={[styles.actionText, { color: isLiked ? "red" : "black" }]}>
+                {likeCount}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity style={styles.actionButton}>
             <Ionicons name="chatbubble-outline" size={24} color="black" />
@@ -246,12 +282,10 @@ const Thread = ({ thread }: ThreadProps) => {
           onRequestClose={() => setVisible(false)}
           swipeToCloseEnabled={true}
           doubleTapToZoomEnabled={true}
-          HeaderComponent={ImageHeader} // <--- ĐÃ THÊM HEADER VÀO ĐÂY
+          HeaderComponent={ImageHeader}
           FooterComponent={({ imageIndex }) => (
             <View style={styles.imageFooter}>
-              <Text style={styles.imageFooterText}>
-                {imageIndex + 1} / {images.length}
-              </Text>
+              <Text style={styles.imageFooterText}>{imageIndex + 1} / {images.length}</Text>
             </View>
           )}
         />
@@ -275,32 +309,8 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', marginTop: 10, gap: 16 },
   actionButton: { flexDirection: 'row', alignItems: 'center' },
   actionText: { marginLeft: 5 },
-
-  // --- STYLE MỚI CHO HEADER VÀ NÚT ĐÓNG ---
-  imageHeader: {
-    position: 'absolute',
-    top: 0,
-    width: '100%',
-    zIndex: 1,
-    alignItems: 'flex-end', // Căn phải
-    paddingHorizontal: 20,
-  },
-  closeImageButton: {
-    padding: 10,
-    marginTop: 10,
-  },
-  // ----------------------------------------
-
-  imageFooter: {
-    height: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    width: '100%',
-  },
-  imageFooterText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  imageHeader: { position: 'absolute', top: 0, width: '100%', zIndex: 1, alignItems: 'flex-end', paddingHorizontal: 20 },
+  closeImageButton: { padding: 10, marginTop: 10 },
+  imageFooter: { height: 50, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)', width: '100%' },
+  imageFooterText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
 });

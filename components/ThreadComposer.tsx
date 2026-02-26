@@ -1,19 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  StyleSheet,
-  Text,
-  View,
-  Image,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-  Modal,
-  FlatList
-} from 'react-native';
+import { StyleSheet, Text, View, Image, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Modal, FlatList } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -41,7 +27,6 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
   const { editId } = useLocalSearchParams();
   const { userProfile } = useUserProfile();
 
-  // 1. Lấy thông tin mặc định từ Context
   const { activeChannelId, activeChannelName, activeUniversityId } = useChannel();
 
   const [threadContent, setThreadContent] = useState('');
@@ -49,36 +34,37 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
   const [existingMediaIds, setExistingMediaIds] = useState<string[]>([]);
   const [newMediaUris, setNewMediaUris] = useState<string[]>([]);
 
-  // --- STATE QUẢN LÝ CHỌN KÊNH & TRƯỜNG (MỚI) ---
   const [selectedUniId, setSelectedUniId] = useState<Id<'universities'> | null>(activeUniversityId);
-  const [selectedUniName, setSelectedUniName] = useState<string>('VAA'); // Mặc định
+  const [selectedUniName, setSelectedUniName] = useState<string>('VAA'); 
 
   const [selectedChannelId, setSelectedChannelId] = useState<Id<'channels'> | null>(activeChannelId);
-  const [selectedChannelName, setSelectedChannelName] = useState<string>(activeChannelName || 'Đại sảnh');
+  const [selectedChannelName, setSelectedChannelName] = useState<string>(activeChannelName || 'Chọn kênh...');
 
   const [isPickerVisible, setPickerVisible] = useState(false);
 
-  // Sync state khi context thay đổi (chỉ khi đang đăng mới)
+  // 👇 ĐÃ SỬA: Chặn không cho chọn đại sảnh làm mặc định
   useEffect(() => {
     if (!editId) {
         setSelectedUniId(activeUniversityId);
-        setSelectedChannelId(activeChannelId);
-        setSelectedChannelName(activeChannelName || 'Đại sảnh');
+        
+        if (activeChannelName === 'đại-sảnh') {
+            setSelectedChannelId(null);
+            setSelectedChannelName('Chọn kênh...');
+        } else {
+            setSelectedChannelId(activeChannelId);
+            setSelectedChannelName(activeChannelName || 'Chọn kênh...');
+        }
     }
   }, [activeChannelId, activeChannelName, activeUniversityId, editId]);
 
-  // --- QUERY DỮ LIỆU ---
-  // 1. Lấy danh sách tất cả các trường (để hiện trong Modal)
   const universities = useQuery(api.university.getUniversities) || [];
 
-  // 2. Lấy danh sách kênh THEO TRƯỜNG ĐANG CHỌN (selectedUniId)
   const channelsData = useQuery(api.university.getChannels, {
     universityId: selectedUniId || undefined
   });
   const groups = channelsData?.groups || [];
   const channels = channelsData?.channels || [];
 
-  // Cập nhật tên trường hiển thị khi selectedUniId thay đổi
   useEffect(() => {
     if (selectedUniId && universities.length > 0) {
         const uni = universities.find(u => u._id === selectedUniId);
@@ -86,7 +72,6 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
     }
   }, [selectedUniId, universities]);
 
-  // API Mutations
   const addThread = useMutation(api.messages.addThread);
   const updateThread = useMutation(api.messages.updateThread);
   const generateUploadUrl = useMutation(api.messages.generateUploadUrl);
@@ -111,7 +96,6 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
     return [...filteredExisting, ...newItems];
   }, [threadToEdit?.mediaFiles, newMediaUris, existingMediaIds]);
 
-  // ... (Giữ nguyên các hàm xử lý ảnh/camera cũ) ...
   const handleSelectImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsMultipleSelection: true, quality: 0.5 });
     if (!result.canceled) setNewMediaUris([...newMediaUris, ...result.assets.map((asset) => asset.uri)]);
@@ -131,10 +115,8 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
   const handleHashtag = () => setThreadContent(prev => prev + " #");
   const handlePoll = () => setThreadContent(prev => prev + "\n📊 Poll:\n1. \n2. ");
 
-  // Xử lý khi chọn trường trong Modal
   const handleSelectUniversity = (uniId: Id<'universities'>) => {
     setSelectedUniId(uniId);
-    // Khi đổi trường, reset kênh về mặc định hoặc null
     setSelectedChannelId(null);
     setSelectedChannelName("Chọn kênh...");
   };
@@ -142,6 +124,12 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
   const handleSubmit = async () => {
       if (threadContent.trim() === '' && mediaPreviewList.length === 0) return;
       if (editId && !threadToEdit) return;
+
+      // 👇 ĐÃ SỬA: Chặn nếu chưa chọn kênh hoặc cố tình đăng vào đại sảnh
+      if (!isReply && (!selectedChannelId || selectedChannelName === 'đại-sảnh' || selectedChannelName === 'Chọn kênh...')) {
+           Alert.alert("Lỗi", "Vui lòng chọn một kênh cụ thể để đăng bài (Không thể đăng trực tiếp vào đại sảnh).");
+           return;
+      }
 
       setIsUploading(true);
 
@@ -161,7 +149,6 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
               const { storageId } = await result.json();
               return storageId;
             } catch (err) {
-              console.error("Lỗi upload ảnh:", uri, err);
               throw new Error("Lỗi tải ảnh lên.");
             }
           })
@@ -178,17 +165,10 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
               mediaFiles: finalMedia
           });
         } else {
-          // Bắt buộc chọn Kênh và Trường
-          if (!isReply && (!selectedChannelId || !selectedUniId)) {
-               Alert.alert("Thiếu thông tin", "Vui lòng chọn Trường và Kênh để đăng bài!");
-               setIsUploading(false);
-               return;
-          }
-
           await addThread({
             threadId: threadId as Id<'messages'>,
             channelId: isReply ? undefined : selectedChannelId!,
-            universityId: isReply ? undefined : selectedUniId!, // <--- Gửi trường đã chọn
+            universityId: isReply ? undefined : selectedUniId!, 
             content: threadContent,
             mediaFiles: newUploadedIds,
           });
@@ -196,14 +176,12 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
 
         router.dismiss();
       } catch (error: any) {
-        console.error("Lỗi Submit:", error);
         Alert.alert('Không thể lưu', error.message);
       } finally {
         setIsUploading(false);
       }
     };
 
-  // Helper render kênh
   const renderChannelItem = (channel: any) => (
     <TouchableOpacity
       key={channel._id}
@@ -273,20 +251,19 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
           <View style={{ flex: 1 }}>
             <Text style={styles.username}>{userProfile?.first_name} {userProfile?.last_name}</Text>
 
-            {/* --- NÚT CHỌN KÊNH & TRƯỜNG --- */}
             {editId || isReply ? (
                <Text style={{fontSize: 12, color: 'gray', marginBottom: 5}}>
                   {editId ? "Đang chỉnh sửa bài viết" : "Đang trả lời bình luận"}
                </Text>
             ) : (
                 <TouchableOpacity
-                  style={styles.channelBadge}
+                  style={[styles.channelBadge, selectedChannelName === 'Chọn kênh...' && { borderColor: 'red', backgroundColor: '#ffe6e6' }]}
                   onPress={() => setPickerVisible(true)}
                 >
-                  <Text style={styles.channelBadgeText}>
-                    Đăng tại: <Text style={{fontWeight: 'bold'}}>#{selectedChannelName}</Text> • {selectedUniName}
+                  <Text style={[styles.channelBadgeText, selectedChannelName === 'Chọn kênh...' && { color: 'red' }]}>
+                    {selectedChannelName === 'Chọn kênh...' ? "⚠️ Bấm vào đây để chọn kênh đăng bài" : <>Đăng tại: <Text style={{fontWeight: 'bold'}}>#{selectedChannelName}</Text> • {selectedUniName}</>}
                   </Text>
-                  <Ionicons name="chevron-down" size={14} color={Colors.submit} />
+                  <Ionicons name="chevron-down" size={14} color={selectedChannelName === 'Chọn kênh...' ? 'red' : Colors.submit} />
                 </TouchableOpacity>
             )}
 
@@ -326,7 +303,6 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
         </View>
       </ScrollView>
 
-      {/* --- MODAL CHỌN KÊNH & TRƯỜNG (MỚI) --- */}
       <Modal visible={isPickerVisible} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
@@ -336,23 +312,16 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
             </TouchableOpacity>
           </View>
 
-          {/* 1. THANH CHỌN TRƯỜNG (HORIZONTAL SCROLL) */}
           <View style={styles.uniSelectorContainer}>
              <Text style={styles.sectionHeader}>Chọn Trường:</Text>
              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 10}}>
                 {universities.map((uni) => (
                    <TouchableOpacity
                       key={uni._id}
-                      style={[
-                        styles.uniPill,
-                        selectedUniId === uni._id && styles.uniPillActive
-                      ]}
+                      style={[ styles.uniPill, selectedUniId === uni._id && styles.uniPillActive ]}
                       onPress={() => handleSelectUniversity(uni._id)}
                    >
-                      <Text style={[
-                        styles.uniPillText,
-                        selectedUniId === uni._id && styles.uniPillTextActive
-                      ]}>
+                      <Text style={[ styles.uniPillText, selectedUniId === uni._id && styles.uniPillTextActive ]}>
                         {uni.slug.toUpperCase()}
                       </Text>
                    </TouchableOpacity>
@@ -362,13 +331,13 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
 
           <View style={styles.divider} />
 
-          {/* 2. DANH SÁCH KÊNH CỦA TRƯỜNG ĐÓ */}
           <FlatList
             data={groups}
             keyExtractor={(item) => item._id}
             contentContainerStyle={{ padding: 16, paddingBottom: 50 }}
             renderItem={({ item: group }) => {
-              const subChannels = channels.filter(c => c.parentId === group._id);
+              // 👇 ĐÃ SỬA: Lọc bỏ 'đại-sảnh' khỏi danh sách hiển thị
+              const subChannels = channels.filter(c => c.parentId === group._id && c.name !== 'đại-sảnh');
               if (subChannels.length === 0) return null;
               return (
                 <View style={styles.groupSection}>
@@ -378,10 +347,8 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
               );
             }}
             ListHeaderComponent={() => {
-              const general = channels.filter(c => !c.parentId && c.type === 'channel');
-              if (channels.length === 0) {
-                  return <Text style={{textAlign:'center', color:'gray', marginTop: 20}}>Không tìm thấy kênh nào.</Text>;
-              }
+              // 👇 ĐÃ SỬA: Lọc bỏ 'đại-sảnh' khỏi nhóm CHUNG
+              const general = channels.filter(c => !c.parentId && c.type === 'channel' && c.name !== 'đại-sảnh');
               if (general.length === 0) return null;
               return (
                 <View style={styles.groupSection}>
@@ -400,7 +367,6 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
 export default ThreadComposer;
 
 const styles = StyleSheet.create({
-  // ... Styles cũ giữ nguyên ...
   container: { flex: 1, backgroundColor: 'white' },
   previewContainer: { padding: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: Colors.border, backgroundColor: 'white' },
   avatar: { width: 40, height: 40, borderRadius: 20 },
@@ -415,57 +381,18 @@ const styles = StyleSheet.create({
   mediaIcons: { flexDirection: 'row', gap: 20, marginTop: 10, alignItems: 'center' },
   gifIcon: { borderWidth: 1.5, borderColor: Colors.border, borderRadius: 4, paddingHorizontal: 2 },
   gifText: { fontSize: 10, fontWeight: 'bold', color: Colors.border },
-
-  // --- STYLES CHO BADGE ---
-  channelBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0f8ff',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 16,
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: '#d0eaff'
-  },
-  channelBadgeText: {
-    fontSize: 13,
-    color: '#007aff', // Màu xanh dương Apple
-  },
-
-  // --- STYLES MODAL ---
+  channelBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f8ff', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, alignSelf: 'flex-start', marginBottom: 8, gap: 6, borderWidth: 1, borderColor: '#d0eaff' },
+  channelBadgeText: { fontSize: 13, color: '#007aff' },
   modalContainer: { flex: 1, backgroundColor: 'white' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
   modalTitle: { fontSize: 18, fontWeight: 'bold' },
-
-  // Style cho phần chọn Trường
   uniSelectorContainer: { padding: 16, paddingBottom: 10 },
   sectionHeader: { fontSize: 12, fontWeight: 'bold', color: 'gray', marginBottom: 8, textTransform: 'uppercase' },
-  uniPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
-    borderWidth: 1,
-    borderColor: '#eee'
-  },
-  uniPillActive: {
-    backgroundColor: 'black',
-    borderColor: 'black'
-  },
-  uniPillText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'gray'
-  },
-  uniPillTextActive: {
-    color: 'white'
-  },
+  uniPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#f5f5f5', borderWidth: 1, borderColor: '#eee' },
+  uniPillActive: { backgroundColor: 'black', borderColor: 'black' },
+  uniPillText: { fontSize: 14, fontWeight: '600', color: 'gray' },
+  uniPillTextActive: { color: 'white' },
   divider: { height: 1, backgroundColor: '#eee', marginHorizontal: 16 },
-
-  // Style cho danh sách kênh
   groupSection: { marginBottom: 20 },
   groupTitle: { fontSize: 13, fontWeight: 'bold', color: 'gray', marginBottom: 8, textTransform: 'uppercase' },
   channelItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f0f0f0' },

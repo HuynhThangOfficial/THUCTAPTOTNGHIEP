@@ -1,45 +1,45 @@
-import { StyleSheet, TouchableOpacity, View, Image, RefreshControl, Text, FlatList } from 'react-native';
+import { StyleSheet, TouchableOpacity, View, RefreshControl, Text, FlatList, Modal, TouchableWithoutFeedback } from 'react-native';
 import { usePaginatedQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { Link, useNavigation, useRouter } from 'expo-router';
-import Animated, {
-  useSharedValue,
-  useAnimatedScrollHandler,
-} from 'react-native-reanimated';
+import { Link, useRouter } from 'expo-router';
+import Animated, { useSharedValue, useAnimatedScrollHandler } from 'react-native-reanimated';
 import Thread from '@/components/Thread';
 import { Doc } from '@/convex/_generated/dataModel';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ThreadComposer from '@/components/ThreadComposer';
 import { useState } from 'react';
-import { useIsFocused } from '@react-navigation/native';
 import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useMenu } from '@/context/MenuContext';
 import { useChannel } from '@/context/ChannelContext';
 import ChannelDetailsModal from '@/components/ChannelDetailsModal';
 
+const SORT_OPTIONS = [
+  { id: 'newest', label: 'Mới nhất' },
+  { id: 'trending', label: 'Xu Hướng' },
+];
+
 const Page = () => {
   const { toggleMenu } = useMenu();
   const { activeChannelId, activeChannelName } = useChannel();
+  const { top } = useSafeAreaInsets();
+  const router = useRouter();
+
+  const [sortBy, setSortBy] = useState<'newest' | 'trending'>('newest');
+  const [isSortModalVisible, setSortModalVisible] = useState(false);
 
   const { results, status, loadMore } = usePaginatedQuery(
     api.messages.getThreads,
-    { channelId: activeChannelId || undefined },
+    { channelId: activeChannelId || undefined, sortBy },
     { initialNumItems: 5 }
   );
 
-  const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
-  const { top } = useSafeAreaInsets();
-
-  // State quản lý Modal
   const [isChannelDetailVisible, setChannelDetailVisible] = useState(false);
 
   const scrollOffset = useSharedValue(0);
   const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollOffset.value = event.contentOffset.y;
-    },
+    onScroll: (event) => { scrollOffset.value = event.contentOffset.y; },
   });
 
   const onLoadmore = () => {
@@ -48,68 +48,71 @@ const Page = () => {
 
   const onRefresh = () => {
     setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 2000);
+    setTimeout(() => setRefreshing(false), 2000);
   };
 
-  const handleSearchPress = () => {
-    router.push('/(public)/search' as any);
-  };
+  const handleSearchPress = () => router.push('/(public)/search' as any);
+
+  const currentSortLabel = SORT_OPTIONS.find(opt => opt.id === sortBy)?.label;
 
   return (
     <View style={styles.container}>
 
-      {/* === PHẦN HEADER CỐ ĐỊNH (STICKY) === */}
-      {/* Tăng zIndex lên 1000 để chắc chắn nó luôn nhận cảm ứng */}
+      {/* === PHẦN HEADER CỐ ĐỊNH (ĐÃ BỎ LOGO, CHỈ CÓ 1 HÀNG) === */}
       <View style={[styles.stickyHeader, { paddingTop: top + 10 }]}>
 
-        {/* Hàng 1: Menu - Logo - Search */}
+        {/* Hàng 1: Menu - Tên Kênh - Search */}
         <View style={styles.headerContainer}>
           <TouchableOpacity onPress={toggleMenu} style={styles.leftIconButton}>
             <Ionicons name="menu-outline" size={28} color="gray" />
           </TouchableOpacity>
 
-          <Image
-            source={require('@/assets/images/KonKet-logo.png')}
-            style={styles.logo}
-          />
+          {/* Tên Kênh ở giữa */}
+          {activeChannelName ? (
+            <TouchableOpacity
+              style={styles.channelNameBtn}
+              onPress={() => setChannelDetailVisible(true)}
+              activeOpacity={0.6}
+              hitSlop={{top: 10, bottom: 10, left: 20, right: 20}}
+            >
+                <Text style={styles.channelNameText}>
+                  #{activeChannelName} <Ionicons name="chevron-forward" size={12} color="#007aff" />
+                </Text>
+            </TouchableOpacity>
+          ) : (
+             <View style={{flex: 1}} /> /* Spacer giữ chỗ */
+          )}
 
-          <TouchableOpacity
-            onPress={handleSearchPress}
-            style={styles.iconButton}
-          >
+          <TouchableOpacity onPress={handleSearchPress} style={styles.iconButton}>
             <Ionicons name="search-outline" size={28} color="gray" />
           </TouchableOpacity>
         </View>
 
-        {/* Hàng 2: Tên Kênh */}
-        {activeChannelName && (
-           <TouchableOpacity
-             style={styles.channelNameBtn} // Tach style ra
-             onPress={() => {
-                 setChannelDetailVisible(true);
-             }}
-             activeOpacity={0.6}
-             hitSlop={{top: 10, bottom: 10, left: 50, right: 50}} // Mở rộng vùng bấm
-           >
-              <Text style={styles.channelNameText}>
-                 #{activeChannelName} <Ionicons name="chevron-forward" size={12} color="#007aff" />
-              </Text>
-           </TouchableOpacity>
+        {/* Hàng 2: Ô đăng bài (Ẩn nếu là đại sảnh) */}
+        {activeChannelName !== 'đại-sảnh' && (
+          <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => router.push('/(auth)/(modal)/create')}
+              style={{ paddingHorizontal: 16, paddingBottom: 10 }}
+          >
+              <ThreadComposer isPreview />
+          </TouchableOpacity>
         )}
-
-        {/* Hàng 3: Composer Preview (Nút đăng bài) */}
-        <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => router.push('/(auth)/(modal)/create')}
-            style={{ paddingHorizontal: 16, paddingBottom: 10 }}
-        >
-            <ThreadComposer isPreview />
-        </TouchableOpacity>
       </View>
 
-      {/* === PHẦN DANH SÁCH CUỘN (SCROLLABLE) === */}
+      {/* === THANH SẮP XẾP BÀI VIẾT === */}
+      <View style={styles.filterRow}>
+         <Text style={styles.filterTitle}>Bài Viết</Text>
+         <TouchableOpacity 
+            style={styles.sortDropdownBtn}
+            onPress={() => setSortModalVisible(true)}
+         >
+            <Text style={styles.sortDropdownText}>{currentSortLabel}</Text>
+            <Ionicons name="caret-down" size={14} color="gray" />
+         </TouchableOpacity>
+      </View>
+
+      {/* === DANH SÁCH BÀI VIẾT === */}
       <Animated.FlatList
         showsVerticalScrollIndicator={false}
         onScroll={scrollHandler}
@@ -125,6 +128,7 @@ const Page = () => {
         onEndReached={onLoadmore}
         onEndReachedThreshold={0.5}
         ItemSeparatorComponent={() => (
+          // 👇 GIỮ ĐƯỜNG KẺ MỎNG NHƯ GIAO DIỆN CŨ 👇
           <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: Colors.border }} />
         )}
         contentContainerStyle={{ paddingBottom: 20 }}
@@ -136,8 +140,36 @@ const Page = () => {
         }
       />
 
-      {/* === DI CHUYỂN MODAL XUỐNG CUỐI CÙNG === */}
-      {/* Để đảm bảo không bị che khuất về mặt Logic View */}
+      {/* === MODAL DROPDOWN SẮP XẾP === */}
+      <Modal visible={isSortModalVisible} transparent animationType="fade">
+         <TouchableWithoutFeedback onPress={() => setSortModalVisible(false)}>
+            <View style={styles.modalOverlay}>
+               <TouchableWithoutFeedback>
+                  <View style={styles.dropdownMenu}>
+                     {SORT_OPTIONS.map((option) => (
+                        <TouchableOpacity 
+                           key={option.id}
+                           style={[styles.dropdownItem, sortBy === option.id && styles.dropdownItemActive]}
+                           onPress={() => {
+                              setSortBy(option.id as any);
+                              setSortModalVisible(false);
+                           }}
+                        >
+                           <Text style={[styles.dropdownItemText, sortBy === option.id && styles.dropdownItemTextActive]}>
+                              {option.label}
+                           </Text>
+                           {sortBy === option.id && (
+                              <Ionicons name="checkmark" size={18} color="#007aff" />
+                           )}
+                        </TouchableOpacity>
+                     ))}
+                  </View>
+               </TouchableWithoutFeedback>
+            </View>
+         </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* === MODAL CHI TIẾT KÊNH === */}
       {activeChannelId && (
         <ChannelDetailsModal
            visible={isChannelDetailVisible}
@@ -152,56 +184,34 @@ const Page = () => {
 export default Page;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  // Style cho Header dính
-  stickyHeader: {
-    backgroundColor: '#fff',
-    borderBottomColor: '#eee',
-    zIndex: 1000,
-    position: 'relative',
-  },
-  headerContainer: {
+  container: { flex: 1, backgroundColor: '#fff' },
+  
+  stickyHeader: { backgroundColor: '#fff', borderBottomColor: '#eee', zIndex: 1000, position: 'relative' },
+  headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 5, height: 45 },
+  iconButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-end' },
+  leftIconButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
+  
+  channelNameBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', zIndex: 1001 },
+  channelNameText: { fontWeight: 'bold', fontSize: 14, color: '#007aff', backgroundColor: '#f0f8ff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, overflow: 'hidden' },
+  
+  filterRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    marginBottom: 5,
-    height: 45,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: '#eee'
   },
-  logo: {
-    width: 40,
-    height: 40,
-    resizeMode: 'contain',
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'flex-end',
-  },
-  leftIconButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-  },
-  channelNameBtn: {
-    alignItems: 'center',
-    marginBottom: 8,
-    zIndex: 1001,
-    paddingVertical: 5,
-  },
-  channelNameText: {
-    fontWeight: 'bold',
-    fontSize: 14,
-    color: '#007aff',
-    backgroundColor: '#f0f8ff',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    overflow: 'hidden'
-  }
+  filterTitle: { fontSize: 16, fontWeight: 'bold', color: '#333' },
+  sortDropdownBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5f5f5', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, gap: 6 },
+  sortDropdownText: { fontSize: 13, color: '#555', fontWeight: '500' },
+
+  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.2)' },
+  dropdownMenu: { width: 250, backgroundColor: 'white', borderRadius: 12, padding: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 5 },
+  dropdownItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8 },
+  dropdownItemActive: { backgroundColor: '#f0f8ff' },
+  dropdownItemText: { fontSize: 15, color: '#333' },
+  dropdownItemTextActive: { color: '#007aff', fontWeight: 'bold' }
 });

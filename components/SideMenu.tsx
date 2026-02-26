@@ -104,7 +104,8 @@ export default function SideMenu() {
     if (result && result.success === false) { Alert.alert("Thông báo", result.message); return; }
     if (result && result.success === true) {
       setCreateModalVisible(false);
-      switchToServer(result.serverId);
+      // 👇 ĐÃ FIX: Ép kiểu as Id<'servers'>
+      switchToServer(result.serverId as Id<'servers'>);
     }
   };
 
@@ -134,7 +135,8 @@ export default function SideMenu() {
       }
       const result = await createServer({ name: serverNameInput, template: 'Custom', iconStorageId: storageId });
       if (result.success) {
-        setNewlyCreatedId(result.serverId);
+        // 👇 ĐÃ FIX: Thêm || null
+        setNewlyCreatedId(result.serverId || null);
         setCreateStep(2);
       } else { Alert.alert("Thông báo", result.message); }
     } catch (e) { console.log(e); }
@@ -333,12 +335,11 @@ export default function SideMenu() {
                 <View>
                   <Text style={styles.modalTitle}>Mời bạn bè</Text>
 
-                  {/* --- SỬA: THANH TÌM KIẾM ĐÃ ĐƯỢC KẾT NỐI --- */}
                   <TextInput
                     style={[styles.textInput, {marginBottom: 15}]}
                     placeholder="Tìm theo username..."
                     value={searchQuery}
-                    onChangeText={setSearchQuery} // Khi gõ, useQuery allUsers ở dòng 39 sẽ tự fetch lại
+                    onChangeText={setSearchQuery}
                   />
 
                   {allUsers?.filter(u => u._id !== userProfile?._id).map((user) => {
@@ -364,7 +365,7 @@ export default function SideMenu() {
                     onPress={() => {
                       setCreateModalVisible(false);
                       setSelectedTemplate(null);
-                      setSearchQuery(''); // Reset search
+                      setSearchQuery(''); 
                       if(newlyCreatedId) switchToServer(newlyCreatedId);
                     }}
                     style={[styles.submitBtn, {marginTop: 20}]}
@@ -378,7 +379,6 @@ export default function SideMenu() {
         </SafeAreaView>
       </Modal>
 
-      {/* CÁC MODAL KHÁC GIỮ NGUYÊN */}
       <Modal visible={isSettingsModalVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{flex: 1, backgroundColor: '#f2f3f5'}}>
           <View style={[styles.modalHeader, { backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>

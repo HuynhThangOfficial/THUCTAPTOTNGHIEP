@@ -14,6 +14,7 @@ export const User = {
   linkTitle: v.optional(v.string()),
   followersCount: v.number(),
   pushToken: v.optional(v.string()),
+  lastSeen: v.optional(v.number()),
 };
 
 export default defineSchema({
@@ -29,7 +30,7 @@ export default defineSchema({
   .index('by_following', ['followingId'])
   .index('by_both', ['followerId', 'followingId']),
 
-  // 1. BẢNG TRƯỜNG ĐẠI HỌC (CHỈ DO HỆ THỐNG TẠO) - GIỮ NGUYÊN
+  // 1. BẢNG TRƯỜNG ĐẠI HỌC (CHỈ DO HỆ THỐNG TẠO)
   universities: defineTable({
     name: v.string(),
     slug: v.string(),
@@ -37,7 +38,7 @@ export default defineSchema({
     sortOrder: v.number(),
   }),
 
-  // 2. BẢNG MÁY CHỦ RIÊNG (DO NGƯỜI DÙNG TẠO) - MỚI THÊM
+  // 2. BẢNG MÁY CHỦ RIÊNG (DO NGƯỜI DÙNG TẠO)
   servers: defineTable({
     name: v.string(),
     slug: v.string(),
@@ -70,13 +71,14 @@ export default defineSchema({
     websiteUrl: v.optional(v.string()),
 
     universityId: v.optional(v.id("universities")),
-    serverId: v.optional(v.id('servers')), // <--- Thêm dòng này
+    serverId: v.optional(v.id('servers')),
 
     channelId: v.optional(v.id('channels')),
     threadId: v.optional(v.id('messages')),
   })
   .index('by_channel', ['channelId'])
-  .index('by_threadId', ['threadId']),
+  .index('by_threadId', ['threadId'])
+  .index('by_university', ['universityId']), // 👇 ĐÃ THÊM: Index giúp query bài viết theo trường học (dành cho đại sảnh)
 
   likes: defineTable({
     userId: v.id('users'),
@@ -89,4 +91,18 @@ export default defineSchema({
     imageChangeLog: v.optional(v.string()),
     isTextModified: v.optional(v.boolean()),
   }).index('by_messageId', ['messageId']),
+  // Bảng Cuộc hội thoại (Chat Room)
+  conversations: defineTable({
+    participantIds: v.array(v.id('users')), // Chứa ID của 2 người đang chat
+    updatedAt: v.number(), // Để sắp xếp ai nhắn gần nhất lên đầu
+    lastMessageText: v.optional(v.string()), 
+  }).index('by_participant', ['participantIds']),
+
+  // Bảng Tin nhắn chi tiết
+  direct_messages: defineTable({
+    conversationId: v.id('conversations'),
+    senderId: v.id('users'),
+    content: v.string(),
+    isRead: v.boolean(),
+  }).index('by_conversation', ['conversationId']),
 });
