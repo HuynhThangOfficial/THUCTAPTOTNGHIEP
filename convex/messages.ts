@@ -19,9 +19,8 @@ export const addThread = mutation({
     websiteUrl: v.optional(v.string()),
     threadId: v.optional(v.id('messages')),
     channelId: v.optional(v.id('channels')),
-
-    // --- THÊM DÒNG NÀY ---
     universityId: v.optional(v.id('universities')),
+    serverId: v.optional(v.id('servers')),
   },
   handler: async (ctx, args) => {
     const userId = await getCurrentUserId(ctx);
@@ -35,6 +34,7 @@ export const addThread = mutation({
       threadId: args.threadId,
 
       channelId: args.channelId,
+      serverId: args.serverId,
 
       likeCount: 0,
       commentCount: 0,

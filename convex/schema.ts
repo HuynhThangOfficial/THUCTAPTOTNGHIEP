@@ -11,7 +11,7 @@ export const User = {
   bio: v.optional(v.string()),
   location: v.optional(v.string()),
   websiteUrl: v.optional(v.string()),
-  linkTitle: v.optional(v.string()), // <--- THÊM DÒNG NÀY
+  linkTitle: v.optional(v.string()),
   followersCount: v.number(),
   pushToken: v.optional(v.string()),
 };
@@ -21,16 +21,15 @@ export default defineSchema({
     .index('byClerkId', ['clerkId'])
     .searchIndex('searchUsers', { searchField: 'username' }),
 
-    // --- THÊM BẢNG NÀY ---
   follows: defineTable({
-    followerId: v.id('users'), // Người đi theo dõi (Là bạn)
-    followingId: v.id('users'), // Người được theo dõi (Idol)
+    followerId: v.id('users'),
+    followingId: v.id('users'),
   })
   .index('by_follower', ['followerId'])
   .index('by_following', ['followingId'])
-  .index('by_both', ['followerId', 'followingId']), // Để kiểm tra xem đã follow chưa
-  // ---------------------
+  .index('by_both', ['followerId', 'followingId']),
 
+  // 1. BẢNG TRƯỜNG ĐẠI HỌC (CHỈ DO HỆ THỐNG TẠO) - GIỮ NGUYÊN
   universities: defineTable({
     name: v.string(),
     slug: v.string(),
@@ -38,15 +37,29 @@ export default defineSchema({
     sortOrder: v.number(),
   }),
 
+  // 2. BẢNG MÁY CHỦ RIÊNG (DO NGƯỜI DÙNG TẠO) - MỚI THÊM
+  servers: defineTable({
+    name: v.string(),
+    slug: v.string(),
+    icon: v.string(),
+    creatorId: v.id('users'), // Chủ máy chủ
+    memberIds: v.array(v.id('users')), // Danh sách thành viên được mời
+  }),
+
+  // 3. BẢNG KÊNH
   channels: defineTable({
     name: v.string(),
     type: v.string(),
-    universityId: v.id('universities'),
+    universityId: v.optional(v.id('universities')), // Có thể thuộc trường
+    serverId: v.optional(v.id('servers')),          // Hoặc thuộc máy chủ riêng
     parentId: v.optional(v.id('channels')),
     sortOrder: v.number(),
     description: v.optional(v.string())
-  }).index('by_university', ['universityId']),
+  })
+  .index('by_university', ['universityId'])
+  .index('by_server', ['serverId']), // Thêm index để truy vấn nhanh kênh của server
 
+  // 4. BẢNG BÀI VIẾT
   messages: defineTable({
     userId: v.id('users'),
     content: v.string(),
@@ -55,13 +68,15 @@ export default defineSchema({
     retweetCount: v.number(),
     mediaFiles: v.optional(v.array(v.string())),
     websiteUrl: v.optional(v.string()),
-    universityId: v.optional(v.id("universities")),
 
-    channelId: v.optional(v.id('channels')), // Kênh
-    threadId: v.optional(v.id('messages')),  // <--- THÊM MỚI: ID bài gốc (nếu là cmt)
+    universityId: v.optional(v.id("universities")),
+    serverId: v.optional(v.id('servers')), // <--- Thêm dòng này
+
+    channelId: v.optional(v.id('channels')),
+    threadId: v.optional(v.id('messages')),
   })
   .index('by_channel', ['channelId'])
-  .index('by_threadId', ['threadId']),       // <--- THÊM INDEX ĐỂ TÌM CMT NHANH
+  .index('by_threadId', ['threadId']),
 
   likes: defineTable({
     userId: v.id('users'),

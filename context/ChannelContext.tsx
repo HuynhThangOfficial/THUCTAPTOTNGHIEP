@@ -4,8 +4,14 @@ import { Id } from '@/convex/_generated/dataModel';
 interface ChannelContextType {
   activeChannelId: Id<'channels'> | null;
   setActiveChannelId: (id: Id<'channels'> | null) => void;
+
   activeUniversityId: Id<'universities'> | null;
   setActiveUniversityId: (id: Id<'universities'> | null) => void;
+
+  // 👇 THÊM STATE CHO MÁY CHỦ
+  activeServerId: Id<'servers'> | null;
+  setActiveServerId: (id: Id<'servers'> | null) => void;
+
   activeChannelName: string;
   setActiveChannelName: (name: string) => void;
 }
@@ -15,6 +21,7 @@ const ChannelContext = createContext<ChannelContextType | undefined>(undefined);
 export const ChannelProvider = ({ children }: { children: React.ReactNode }) => {
   const [activeChannelId, setActiveChannelId] = useState<Id<'channels'> | null>(null);
   const [activeUniversityId, setActiveUniversityId] = useState<Id<'universities'> | null>(null);
+  const [activeServerId, setActiveServerId] = useState<Id<'servers'> | null>(null); // MỚI
   const [activeChannelName, setActiveChannelName] = useState<string>('Trang chủ');
 
   return (
@@ -22,6 +29,7 @@ export const ChannelProvider = ({ children }: { children: React.ReactNode }) => 
       value={{
         activeChannelId, setActiveChannelId,
         activeUniversityId, setActiveUniversityId,
+        activeServerId, setActiveServerId, // MỚI
         activeChannelName, setActiveChannelName
       }}
     >
