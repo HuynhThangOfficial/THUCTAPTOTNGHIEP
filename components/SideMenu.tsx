@@ -28,14 +28,12 @@ export default function SideMenu() {
   const { top, bottom } = useSafeAreaInsets();
   const { userProfile } = useUserProfile();
 
-  // --- 1. STATE TÌM KIẾM ---
-  const [searchQuery, setSearchQuery] = useState('');
-
   const universities = useQuery(api.university.getUniversities);
   const myServers = useQuery(api.university.getMyServers);
   const myFriends = useQuery(api.users.getFriends, userProfile ? { userId: userProfile._id } : "skip");
 
-  // --- 2. TRUYỀN SEARCH QUERY VÀO BACKEND ---
+  // State tìm kiếm cho danh sách mời
+  const [searchQuery, setSearchQuery] = useState('');
   const allUsers = useQuery(api.users.getUsers, { search: searchQuery });
 
   const createServer = useMutation(api.university.createServer);
@@ -52,6 +50,7 @@ export default function SideMenu() {
   const [isSettingsModalVisible, setSettingsModalVisible] = useState(false);
   const [editServerName, setEditServerName] = useState('');
 
+  // States cho quy trình tạo Server
   const [isCreateModalVisible, setCreateModalVisible] = useState(false);
   const [createStep, setCreateStep] = useState(1);
   const [serverNameInput, setServerNameInput] = useState('');
@@ -59,6 +58,9 @@ export default function SideMenu() {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [newlyCreatedId, setNewlyCreatedId] = useState<Id<'servers'> | null>(null);
   const [invitedUsers, setInvitedUsers] = useState<Record<string, boolean>>({});
+
+  // 👇 THÊM STATE ĐỂ MỞ MODAL MỜI RIÊNG BIỆT TỪ SETTINGS
+  const [isInviteOnlyModalVisible, setInviteOnlyModalVisible] = useState(false);
 
   const [isCreateChannelModalVisible, setCreateChannelModalVisible] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
@@ -113,7 +115,7 @@ export default function SideMenu() {
     setServerNameInput(`Máy chủ của ${userProfile?.first_name || 'Tôi'}`);
     setServerIconUri(null);
     setCreateStep(1);
-    setSearchQuery(''); // Reset search khi bắt đầu luồng mới
+    setSearchQuery('');
   };
 
   const pickIcon = async () => {
@@ -141,10 +143,15 @@ export default function SideMenu() {
   };
 
   const handleInviteAction = async (userId: any) => {
+    // Nếu mời từ luồng tạo server mới
     if (newlyCreatedId) {
       await addFriendToServer({ serverId: newlyCreatedId, friendId: userId });
-      setInvitedUsers(prev => ({ ...prev, [userId]: true }));
     }
+    // Nếu mời từ phần Setting của server hiện tại
+    else if (activeServerId) {
+      await addFriendToServer({ serverId: activeServerId, friendId: userId });
+    }
+    setInvitedUsers(prev => ({ ...prev, [userId]: true }));
   };
 
   const handleLongPressDelete = (target: any, isCategory: boolean) => {
@@ -196,6 +203,38 @@ export default function SideMenu() {
       }}
     ]);
   };
+
+  // 👇 HÀM RENDER DANH SÁCH MỜI DÙNG CHUNG 👇
+  const renderInviteList = () => (
+    <View style={{flex: 1}}>
+      <TextInput
+        style={[styles.textInput, {marginBottom: 15}]}
+        placeholder="Tìm theo username..."
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {allUsers?.filter(u => u._id !== userProfile?._id).map((user) => {
+          const isFriend = myFriends?.some(f => f._id === user._id);
+          const isInvited = invitedUsers[user._id] || (currentWorkspace as any)?.memberIds?.includes(user._id);
+          return (
+            <View key={user._id} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderColor: '#f0f0f0'}}>
+              <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                <Image source={{uri: user.imageUrl}} style={{width: 40, height: 40, borderRadius: 20, marginRight: 12}} />
+                <View>
+                   <Text style={{fontWeight: 'bold'}}>{user.first_name}</Text>
+                   <Text style={{fontSize: 12, color: 'gray'}}>@{user.username}</Text>
+                </View>
+              </View>
+              <TouchableOpacity disabled={isInvited} onPress={() => handleInviteAction(user._id)} style={{backgroundColor: isInvited ? '#ccc' : '#5865F2', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20}}>
+                <Text style={{color: 'white', fontWeight: 'bold'}}>{isInvited ? 'Thành viên' : (isFriend ? 'Thêm' : 'Mời')}</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -283,12 +322,12 @@ export default function SideMenu() {
         </View>
       </View>
 
+      {/* MODAL TẠO SERVER */}
       <Modal visible={isCreateModalVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{flex: 1, backgroundColor: '#fff'}}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => { setCreateModalVisible(false); setSelectedTemplate(null); }}><Ionicons name="close" size={28} color="gray" /></TouchableOpacity>
           </View>
-
           <ScrollView style={styles.modalBody}>
             {!selectedTemplate ? (
               <>
@@ -330,45 +369,10 @@ export default function SideMenu() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <View>
+                <View style={{flex: 1, height: 600}}>
                   <Text style={styles.modalTitle}>Mời bạn bè</Text>
-
-                  {/* --- SỬA: THANH TÌM KIẾM ĐÃ ĐƯỢC KẾT NỐI --- */}
-                  <TextInput
-                    style={[styles.textInput, {marginBottom: 15}]}
-                    placeholder="Tìm theo username..."
-                    value={searchQuery}
-                    onChangeText={setSearchQuery} // Khi gõ, useQuery allUsers ở dòng 39 sẽ tự fetch lại
-                  />
-
-                  {allUsers?.filter(u => u._id !== userProfile?._id).map((user) => {
-                    const isFriend = myFriends?.some(f => f._id === user._id);
-                    const isInvited = invitedUsers[user._id];
-                    return (
-                      <View key={user._id} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderColor: '#f0f0f0'}}>
-                        <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                          <Image source={{uri: user.imageUrl}} style={{width: 40, height: 40, borderRadius: 20, marginRight: 12}} />
-                          <View>
-                             <Text style={{fontWeight: 'bold'}}>{user.first_name}</Text>
-                             <Text style={{fontSize: 12, color: 'gray'}}>@{user.username}</Text>
-                          </View>
-                        </View>
-                        <TouchableOpacity disabled={isInvited} onPress={() => handleInviteAction(user._id)} style={{backgroundColor: isInvited ? '#ccc' : '#5865F2', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20}}>
-                          <Text style={{color: 'white', fontWeight: 'bold'}}>{isInvited ? 'Đã mời' : (isFriend ? 'Thêm' : 'Mời')}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
-
-                  <TouchableOpacity
-                    onPress={() => {
-                      setCreateModalVisible(false);
-                      setSelectedTemplate(null);
-                      setSearchQuery(''); // Reset search
-                      if(newlyCreatedId) switchToServer(newlyCreatedId);
-                    }}
-                    style={[styles.submitBtn, {marginTop: 20}]}
-                  >
+                  {renderInviteList()}
+                  <TouchableOpacity onPress={() => { setCreateModalVisible(false); setSelectedTemplate(null); if(newlyCreatedId) switchToServer(newlyCreatedId); }} style={[styles.submitBtn, {marginTop: 20}]}>
                     <Text style={styles.submitBtnText}>Hoàn tất</Text>
                   </TouchableOpacity>
                 </View>
@@ -378,7 +382,7 @@ export default function SideMenu() {
         </SafeAreaView>
       </Modal>
 
-      {/* CÁC MODAL KHÁC GIỮ NGUYÊN */}
+      {/* MODAL SETTINGS (BỔ SUNG NÚT MỜI BẠN BÈ) */}
       <Modal visible={isSettingsModalVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{flex: 1, backgroundColor: '#f2f3f5'}}>
           <View style={[styles.modalHeader, { backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
@@ -392,15 +396,40 @@ export default function SideMenu() {
                 <Text style={{fontWeight: 'bold'}}>Đổi ảnh đại diện</Text>
               </TouchableOpacity>
             </View>
+
             <Text style={styles.sectionTitle}>TÊN MÁY CHỦ</Text>
             <View style={{flexDirection: 'row', backgroundColor: '#fff', borderRadius: 8, padding: 10, marginBottom: 20}}>
                <TextInput style={{flex: 1, fontSize: 16}} value={editServerName} onChangeText={setEditServerName} />
                <TouchableOpacity onPress={handleSaveName}><Text style={{color: '#007aff', fontWeight: 'bold', paddingLeft: 10}}>Lưu</Text></TouchableOpacity>
             </View>
+
+            {/* 👇 NÚT MỜI BẠN BÈ MỚI TRONG SETTINGS 👇 */}
+            <TouchableOpacity
+              onPress={() => { setSettingsModalVisible(false); setInviteOnlyModalVisible(true); }}
+              style={{backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 8, marginBottom: 20}}
+            >
+               <Ionicons name="person-add-outline" size={22} color="#5865F2" style={{marginRight: 10}} />
+               <Text style={{fontSize: 16, fontWeight: 'bold', color: '#5865F2'}}>Mời bạn bè</Text>
+               <Ionicons name="chevron-forward" size={20} color="#ccc" style={{marginLeft: 'auto'}} />
+            </TouchableOpacity>
+
             <TouchableOpacity onPress={handleDeleteServer} style={{backgroundColor: '#ffdddd', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 20}}>
                <Text style={{color: 'red', fontWeight: 'bold', fontSize: 16}}>Xóa máy chủ</Text>
             </TouchableOpacity>
           </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* 👇 MODAL MỜI BẠN BÈ RIÊNG BIỆT (DÙNG CHO SETTINGS) 👇 */}
+      <Modal visible={isInviteOnlyModalVisible} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{flex: 1, backgroundColor: '#fff', padding: 20}}>
+          <View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20}}>
+            <Text style={{fontSize: 22, fontWeight: 'bold'}}>Mời bạn bè</Text>
+            <TouchableOpacity onPress={() => setInviteOnlyModalVisible(false)}>
+              <Text style={{color: '#007aff', fontWeight: 'bold', fontSize: 16}}>Xong</Text>
+            </TouchableOpacity>
+          </View>
+          {renderInviteList()}
         </SafeAreaView>
       </Modal>
 
