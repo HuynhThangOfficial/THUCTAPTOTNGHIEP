@@ -11,7 +11,6 @@ async function getCurrentUserId(ctx: QueryCtx) {
   return user?._id;
 }
 
-// 1. UPDATE: Thêm universityId vào args và handler
 export const addThread = mutation({
   args: {
     content: v.string(),
@@ -32,10 +31,9 @@ export const addThread = mutation({
       mediaFiles: args.mediaFiles,
       websiteUrl: args.websiteUrl,
       threadId: args.threadId,
-
       channelId: args.channelId,
       serverId: args.serverId,
-
+      universityId: args.universityId, 
       likeCount: 0,
       commentCount: 0,
       retweetCount: 0,
@@ -62,7 +60,6 @@ export const addThread = mutation({
   },
 });
 
-// ... (Các hàm deleteThread, updateThread giữ nguyên như cũ của bạn)
 export const deleteThread = mutation({
   args: { messageId: v.id('messages') },
   handler: async (ctx, args) => {
@@ -130,22 +127,34 @@ export const getEditHistory = query({
   },
 });
 
-// 2. UPDATE: getThreads (Cũng thêm universityId nếu cần lọc sau này, hiện tại thì chưa cần nhưng giữ cấu trúc cũ của bạn)
+// 👇 THÊM SORTBY VÀO ĐÂY
 export const getThreads = query({
   args: {
       paginationOpts: paginationOptsValidator,
       userId: v.optional(v.id('users')),
-      channelId: v.optional(v.id('channels'))
+      channelId: v.optional(v.id('channels')),
+      sortBy: v.optional(v.string()) // Biến sắp xếp (newest / trending)
   },
   handler: async (ctx, args) => {
     const currentUserId = await getCurrentUserId(ctx);
     let threads;
 
     if (args.channelId) {
-        threads = await ctx.db.query('messages')
-            .withIndex('by_channel', q => q.eq('channelId', args.channelId))
-            .filter(q =>q.eq(q.field('threadId'), undefined))
-            .order('desc').paginate(args.paginationOpts);
+        const channel = await ctx.db.get(args.channelId);
+        
+        if (channel && channel.name === 'đại-sảnh' && channel.universityId) {
+            threads = await ctx.db.query('messages')
+              .withIndex('by_university', q => q.eq('universityId', channel.universityId))
+              .filter(q => q.eq(q.field('threadId'), undefined))
+              .order('desc')
+              .paginate(args.paginationOpts);
+        } else {
+            threads = await ctx.db.query('messages')
+              .withIndex('by_channel', q => q.eq('channelId', args.channelId))
+              .filter(q => q.eq(q.field('threadId'), undefined))
+              .order('desc')
+              .paginate(args.paginationOpts);
+        }
     } else if (args.userId) {
         threads = await ctx.db.query('messages')
             .filter((q) => q.eq(q.field('userId'), args.userId))
@@ -156,7 +165,7 @@ export const getThreads = query({
             .order('desc').paginate(args.paginationOpts);
     }
 
-    const threadsWithMedia = await Promise.all(
+    let threadsWithMedia = await Promise.all(
       threads.page.map(async (thread) => {
         const creator = await getMessageCreator(ctx, thread.userId);
         const mediaUrls = await getMediaUrls(ctx, thread.mediaFiles);
@@ -168,6 +177,16 @@ export const getThreads = query({
         return { ...thread, mediaFiles: mediaUrls, creator, isLiked };
       })
     );
+
+    // Xử lý logic sắp xếp bài viết ngay trên server
+    if (args.sortBy === 'trending') {
+        threadsWithMedia = threadsWithMedia.sort((a, b) => {
+            const likesA = a.likeCount || 0;
+            const likesB = b.likeCount || 0;
+            return likesB - likesA; 
+        });
+    }
+
     return { ...threads, page: threadsWithMedia };
   },
 });
@@ -301,7 +320,6 @@ export const getChannelAttachments = query({
       }
     }
 
-    // Resolve media URLs 1 lần
     const resolved = await Promise.allSettled(
       mediaIds.map((fileId) => {
         if (fileId.startsWith("http")) return Promise.resolve(fileId);
@@ -316,5 +334,27 @@ export const getChannelAttachments = query({
     });
 
     return { mediaList, linkList };
+  },
+});
+
+export const getLikers = query({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, args) => {
+    const likes = await ctx.db
+      .query("likes")
+      .filter((q) => q.eq(q.field("messageId"), args.messageId))
+      .collect();
+
+    const likers = await Promise.all(
+      likes.map(async (like) => {
+        const user = await ctx.db.get(like.userId);
+        if (!user) return null;
+        if (user.imageUrl && !user.imageUrl.startsWith("http")) {
+          user.imageUrl = await ctx.storage.getUrl(user.imageUrl as Id<"_storage">) ?? user.imageUrl;
+        }
+        return user;
+      })
+    );
+    return likers.filter((u) => u !== null);
   },
 });

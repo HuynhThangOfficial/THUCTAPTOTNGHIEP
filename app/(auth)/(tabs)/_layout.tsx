@@ -11,6 +11,9 @@ import Animated, { useAnimatedStyle, interpolate, Extrapolation, runOnJS } from 
 import SideMenu from '@/components/SideMenu';
 import { MenuProvider, useMenu } from '@/context/MenuContext';
 
+// 👇 1. IMPORT HOOK TẠI ĐÂY 👇
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+
 const CreateTabIcon = ({ color, size }: { color: string; size: number }) => (
   <View style={styles.createIconContainer}>
     <Ionicons name="add" size={size} color={color} />
@@ -18,9 +21,13 @@ const CreateTabIcon = ({ color, size }: { color: string; size: number }) => (
 );
 
 const TabsWithSwipe = () => {
-  const { signOut } = useAuth();
+  const { signOut, isSignedIn } = useAuth(); // Thêm isSignedIn ở đây
   const router = useRouter();
-  usePush();
+  
+  usePush(); // Khởi tạo push notification
+if (isSignedIn) {
+    useOnlineStatus(); 
+  }
 
   const { translateX, closeMenu } = useMenu();
   const MENU_WIDTH = 300;
@@ -29,9 +36,6 @@ const TabsWithSwipe = () => {
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
     borderRadius: interpolate(translateX.value, [0, MENU_WIDTH], [0, 20], Extrapolation.CLAMP),
-
-    // LƯU Ý: Đã xóa shadowOffset khỏi đây để sửa lỗi Warning
-    // Chỉ giữ lại shadowOpacity vì nó thay đổi động
     shadowOpacity: interpolate(translateX.value, [0, MENU_WIDTH], [0, 0.2], Extrapolation.CLAMP),
   }));
 
@@ -139,12 +143,11 @@ const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
     backgroundColor: 'white',
-    // --- DI CHUYỂN CÁC THUỘC TÍNH BÓNG ĐỔ VÀO ĐÂY ---
     shadowColor: "#000",
-    shadowOffset: { width: -5, height: 0 }, // Bóng đổ về phía bên trái
+    shadowOffset: { width: -5, height: 0 }, 
     shadowRadius: 10,
-    elevation: 5, // Hỗ trợ bóng đổ cho Android
-    overflow: 'visible', // Để bóng đổ không bị cắt
+    elevation: 5, 
+    overflow: 'visible', 
   },
 
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'black' },

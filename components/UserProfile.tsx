@@ -15,28 +15,44 @@ type UserProfileProps = {
 };
 
 export const UserProfile = ({ userId, onLogout, showBackButton = false }: UserProfileProps) => {
-  const profile = useQuery(api.users.getUserById, { userId: userId as Id<'users'> });
   const { userProfile } = useUserProfile();
-  const isSelf = userProfile?._id === userId;
   const router = useRouter();
 
+  // 👇 FIX LỖI: Nếu không truyền userId thì mặc định lấy ID của bản thân
+  const currentId = userId || userProfile?._id;
+  const isSelf = userProfile?._id === currentId;
+
+  // 👇 FIX LỖI CONVEX: Thêm "skip" để không gọi API khi ID bị rỗng
+  const profile = useQuery(api.users.getUserById, currentId ? { userId: currentId as Id<'users'> } : "skip");
+  
   // 1. LOGIC FOLLOW & STATS
-  const isFollowing = useQuery(api.users.isFollowing, { targetUserId: userId as Id<'users'> });
-  const followingList = useQuery(api.users.getFollowing, { userId: userId as Id<'users'> });
+  const isFollowing = useQuery(api.users.isFollowing, currentId ? { targetUserId: currentId as Id<'users'> } : "skip");
+  const followingList = useQuery(api.users.getFollowing, currentId ? { userId: currentId as Id<'users'> } : "skip");
   const followingCount = followingList?.length || 0;
   
-  // Lấy số lượng bài viết (Mới)
-  const postCount = useQuery(api.users.getPostCount, { userId: userId as Id<'users'> }) || 0;
+  const postCount = useQuery(api.users.getPostCount, currentId ? { userId: currentId as Id<'users'> } : "skip") || 0;
 
   const followMutation = useMutation(api.users.followUser);
   const unfollowMutation = useMutation(api.users.unfollowUser);
 
+  const startChat = useMutation(api.chat.getOrCreateConversation);
+
   const handleToggleFollow = async () => {
-    if (!userId) return;
+    if (!currentId) return;
     if (isFollowing) {
-      await unfollowMutation({ targetUserId: userId as Id<'users'> });
+      await unfollowMutation({ targetUserId: currentId as Id<'users'> });
     } else {
-      await followMutation({ targetUserId: userId as Id<'users'> });
+      await followMutation({ targetUserId: currentId as Id<'users'> });
+    }
+  };
+
+  const handleMessagePress = async () => {
+    if (!currentId) return;
+    try {
+      const conversationId = await startChat({ otherUserId: currentId as Id<'users'> });
+      router.push(`/(public)/chat/${conversationId}` as any);
+    } catch (error) {
+      console.error("Lỗi khi tạo phòng chat:", error);
     }
   };
 
@@ -47,6 +63,9 @@ export const UserProfile = ({ userId, onLogout, showBackButton = false }: UserPr
       });
     } catch (error) { console.log(error); }
   };
+
+  // Tránh render khi chưa có dữ liệu profile
+  if (!profile) return <View style={styles.container} />;
 
   return (
     <View style={styles.container}>
@@ -104,8 +123,6 @@ export const UserProfile = ({ userId, onLogout, showBackButton = false }: UserPr
     
       {/* --- STATS ROW (SỐ LIỆU) --- */}
       <View style={styles.statsRow}>
-
-        {/* 2. Người theo dõi (Bấm được) */}
         <TouchableOpacity onPress={() => router.push({ pathname: '/(public)/follow-list', params: { userId: profile?._id, initialTab: 'followers' } })}>
           <Text style={styles.followersText}>
             <Text style={{ fontWeight: 'bold' }}>{profile?.followersCount || 0}</Text> người theo dõi
@@ -114,21 +131,18 @@ export const UserProfile = ({ userId, onLogout, showBackButton = false }: UserPr
 
         <Text style={styles.dot}>·</Text>
 
-        {/* 3. Đang theo dõi (Bấm được) */}
         <TouchableOpacity onPress={() => router.push({ pathname: '/(public)/follow-list', params: { userId: profile?._id, initialTab: 'following' } })}>
           <Text style={styles.followersText}>
             <Text style={{ fontWeight: 'bold' }}>{followingCount}</Text> đang theo dõi
           </Text>
         </TouchableOpacity>
-                <Text style={styles.dot}>·</Text>
+        <Text style={styles.dot}>·</Text>
 
-                {/* 1. Số bài viết (Chỉ hiển thị, không bấm được) */}
         <View style={styles.statItem}>
           <Text style={styles.followersText}>
             <Text style={{ fontWeight: 'bold' }}>{postCount}</Text> bài viết
           </Text>
         </View>
-      
       </View>
 
       {/* --- BIO & LINK --- */}
@@ -164,6 +178,13 @@ export const UserProfile = ({ userId, onLogout, showBackButton = false }: UserPr
                 {isFollowing ? 'Đang theo dõi' : 'Theo dõi'}
               </Text>
             </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.messageButton}
+              onPress={handleMessagePress}
+            >
+              <Text style={styles.messageButtonText}>Nhắn tin</Text>
+            </TouchableOpacity>
         </View>
       )}
     </View>
@@ -187,19 +208,21 @@ const styles = StyleSheet.create({
   editButtonTop: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, marginTop: 10 },
   editButtonText: { fontWeight: '600', fontSize: 14 },
   
-  // Style Stats
   statsRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 10, flexWrap: 'wrap' },
-  statItem: { flexDirection: 'row', alignItems: 'center' }, // Style cho mục không bấm được
+  statItem: { flexDirection: 'row', alignItems: 'center' },
   dot: { fontSize: 14, color: 'gray' },
   followersText: { fontSize: 15, color: '#000' },
   
-  // Style Bio
   bioContainer: { marginBottom: 16 },
   bioText: { fontSize: 15, color: '#000', marginBottom: 4, lineHeight: 20 },
   linkRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
   linkText: { fontSize: 15, color: '#0095f6', fontWeight: '500', flex: 1 },
   
   buttonRow: { flexDirection: 'row', justifyContent: 'space-evenly', marginTop: 5, gap: 16 },
+  
+  messageButton: { flex: 1, padding: 10, borderRadius: 5, borderWidth: 1, borderColor: Colors.border, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' },
+  messageButtonText: { fontWeight: 'bold', color: '#000' },
+
   button: { flex: 1, padding: 10, borderRadius: 5, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' },
   buttonText: { fontWeight: 'bold' },
   fullButton: { flex: 1, padding: 10, borderRadius: 5, borderWidth: 1, borderColor: '#000', backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },

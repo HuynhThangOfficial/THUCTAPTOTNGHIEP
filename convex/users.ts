@@ -71,6 +71,23 @@ export const updateUser = mutation({
   },
 });
 
+export const updateLastSeen = mutation({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return; // Nếu chưa đăng nhập thì bỏ qua
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+
+    if (user) {
+      // Cập nhật thời gian hiện tại
+      await ctx.db.patch(user._id, { lastSeen: Date.now() });
+    }
+  },
+});
+
 export const generateUploadUrl = mutation(async (ctx) => {
   await getCurrentUserOrThrow(ctx);
   return await ctx.storage.generateUploadUrl();
