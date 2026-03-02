@@ -168,7 +168,7 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
           await updateThread({ messageId: editId as Id<'messages'>, content: threadContent, mediaFiles: finalMedia });
         } else {
           await addThread({
-            threadId: threadId as Id<'messages'>,
+            threadId: (isReply && threadId) ? (threadId as Id<'messages'>) : undefined,
             channelId: isReply ? undefined : selectedChannelId!,
             universityId: isReply ? undefined : (selectedUniId || undefined),
             serverId: isReply ? undefined : (selectedServerId || undefined),

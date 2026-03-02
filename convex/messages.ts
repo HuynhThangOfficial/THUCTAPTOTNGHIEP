@@ -2,7 +2,6 @@ import { v } from 'convex/values';
 import { mutation, query, QueryCtx } from './_generated/server';
 import { paginationOptsValidator } from 'convex/server';
 import { Id } from './_generated/dataModel';
-import { internal } from './_generated/api';
 
 async function getCurrentUserId(ctx: QueryCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -20,6 +19,7 @@ export const addThread = mutation({
     channelId: v.optional(v.id('channels')),
     universityId: v.optional(v.id('universities')),
     serverId: v.optional(v.id('servers')),
+    parentId: v.optional(v.id('messages')),
   },
   handler: async (ctx, args) => {
     const userId = await getCurrentUserId(ctx);
@@ -33,27 +33,19 @@ export const addThread = mutation({
       threadId: args.threadId,
       channelId: args.channelId,
       serverId: args.serverId,
-      universityId: args.universityId, 
+      universityId: args.universityId,
+      parentId: args.parentId,
       likeCount: 0,
       commentCount: 0,
       retweetCount: 0,
     });
 
     if (args.threadId) {
-      const originalThread = await ctx.db.get(args.threadId);
-      if (originalThread) {
-        await ctx.db.patch(args.threadId, { commentCount: (originalThread.commentCount || 0) + 1 });
-        if (originalThread.userId) {
-          const author = await ctx.db.get(originalThread.userId);
-          if (author?.pushToken) {
-            await ctx.scheduler.runAfter(500, internal.push.sendPushNotification, {
-              pushToken: author.pushToken,
-              messageTitle: 'New comment',
-              messageBody: args.content,
-              threadId: args.threadId,
-            });
-          }
-        }
+      const originalMessage = await ctx.db.get(args.threadId);
+      if (originalMessage) {
+        await ctx.db.patch(args.threadId, {
+          commentCount: (originalMessage.commentCount || 0) + 1
+        });
       }
     }
     return messageId;
@@ -68,8 +60,10 @@ export const deleteThread = mutation({
     const message = await ctx.db.get(args.messageId);
     if (!message || message.userId !== userId) throw new Error("Unauthorized");
     await ctx.db.delete(args.messageId);
+
     const relatedLikes = await ctx.db.query('likes').withIndex('by_user_message', (q) => q.eq('userId', userId).eq('messageId', args.messageId)).collect();
     for (const like of relatedLikes) await ctx.db.delete(like._id);
+
     return { success: true };
   },
 });
@@ -127,13 +121,12 @@ export const getEditHistory = query({
   },
 });
 
-// 👇 THÊM SORTBY VÀO ĐÂY
 export const getThreads = query({
   args: {
       paginationOpts: paginationOptsValidator,
       userId: v.optional(v.id('users')),
       channelId: v.optional(v.id('channels')),
-      sortBy: v.optional(v.string()) // Biến sắp xếp (newest / trending)
+      sortBy: v.optional(v.string())
   },
   handler: async (ctx, args) => {
     const currentUserId = await getCurrentUserId(ctx);
@@ -141,7 +134,7 @@ export const getThreads = query({
 
     if (args.channelId) {
         const channel = await ctx.db.get(args.channelId);
-        
+
         if (channel && channel.name === 'đại-sảnh' && channel.universityId) {
             threads = await ctx.db.query('messages')
               .withIndex('by_university', q => q.eq('universityId', channel.universityId))
@@ -178,12 +171,11 @@ export const getThreads = query({
       })
     );
 
-    // Xử lý logic sắp xếp bài viết ngay trên server
     if (args.sortBy === 'trending') {
         threadsWithMedia = threadsWithMedia.sort((a, b) => {
             const likesA = a.likeCount || 0;
             const likesB = b.likeCount || 0;
-            return likesB - likesA; 
+            return likesB - likesA;
         });
     }
 
@@ -196,16 +188,20 @@ export const likeThread = mutation({
   handler: async (ctx, args) => {
     const userId = await getCurrentUserId(ctx);
     if (!userId) throw new Error("Unauthorized");
-    const existingLike = await ctx.db.query('likes').withIndex('by_user_message', (q) => q.eq('userId', userId).eq('messageId', args.messageId)).unique();
+
     const message = await ctx.db.get(args.messageId);
     if (!message) throw new Error("Message not found");
+
+    const existingLike = await ctx.db.query('likes').withIndex('by_user_message', (q) => q.eq('userId', userId).eq('messageId', args.messageId)).unique();
     if (existingLike) {
       await ctx.db.delete(existingLike._id);
-      await ctx.db.patch(args.messageId, { likeCount: Math.max(0, (message.likeCount || 0) - 1) });
+      const updatedMsg = await ctx.db.get(args.messageId);
+      await ctx.db.patch(args.messageId, { likeCount: Math.max(0, (updatedMsg!.likeCount || 0) - 1) });
       return { liked: false };
     } else {
       await ctx.db.insert('likes', { userId: userId, messageId: args.messageId });
-      await ctx.db.patch(args.messageId, { likeCount: (message.likeCount || 0) + 1 });
+      const updatedMsg = await ctx.db.get(args.messageId);
+      await ctx.db.patch(args.messageId, { likeCount: (updatedMsg!.likeCount || 0) + 1 });
       return { liked: true };
     }
   },
@@ -259,7 +255,7 @@ export const getThreadComments = query({
         let isLiked = false;
         if (currentUserId) {
            const like = await ctx.db.query('likes').withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', comment._id)).unique();
-          isLiked = !!like;
+           isLiked = !!like;
         }
         return { ...comment, mediaFiles: mediaUrls, creator, isLiked };
       })

@@ -103,7 +103,7 @@ const Page = () => {
       {/* === THANH SẮP XẾP BÀI VIẾT === */}
       <View style={styles.filterRow}>
          <Text style={styles.filterTitle}>Bài Viết</Text>
-         <TouchableOpacity 
+         <TouchableOpacity
             style={styles.sortDropdownBtn}
             onPress={() => setSortModalVisible(true)}
          >
@@ -147,7 +147,7 @@ const Page = () => {
                <TouchableWithoutFeedback>
                   <View style={styles.dropdownMenu}>
                      {SORT_OPTIONS.map((option) => (
-                        <TouchableOpacity 
+                        <TouchableOpacity
                            key={option.id}
                            style={[styles.dropdownItem, sortBy === option.id && styles.dropdownItemActive]}
                            onPress={() => {
@@ -185,15 +185,15 @@ export default Page;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  
+
   stickyHeader: { backgroundColor: '#fff', borderBottomColor: '#eee', zIndex: 1000, position: 'relative' },
   headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 5, height: 45 },
   iconButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-end' },
   leftIconButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
-  
+
   channelNameBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', zIndex: 1001 },
   channelNameText: { fontWeight: 'bold', fontSize: 14, color: '#007aff', backgroundColor: '#f0f8ff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, overflow: 'hidden' },
-  
+
   filterRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

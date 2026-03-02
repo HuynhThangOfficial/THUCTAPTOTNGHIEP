@@ -75,10 +75,11 @@ export default defineSchema({
 
     channelId: v.optional(v.id('channels')),
     threadId: v.optional(v.id('messages')),
+    parentId: v.optional(v.id('messages')),
   })
   .index('by_channel', ['channelId'])
   .index('by_threadId', ['threadId'])
-  .index('by_university', ['universityId']), // 👇 ĐÃ THÊM: Index giúp query bài viết theo trường học (dành cho đại sảnh)
+  .index('by_university', ['universityId']),
 
   likes: defineTable({
     userId: v.id('users'),
@@ -105,4 +106,24 @@ export default defineSchema({
     content: v.string(),
     isRead: v.boolean(),
   }).index('by_conversation', ['conversationId']),
+
+  channel_subscriptions: defineTable({
+    userId: v.id('users'),
+    channelId: v.optional(v.id('channels')),
+    serverId: v.optional(v.id('servers')),
+    isSubscribed: v.boolean(),
+  })
+  .index('by_user_channel', ['userId', 'channelId'])
+  .index('by_user_server', ['userId', 'serverId'])
+  .index('by_channel', ['channelId'])
+  .index('by_server', ['serverId']),
+
+  notifications: defineTable({
+    userId: v.id('users'), // Người nhận thông báo
+    senderId: v.optional(v.id('users')), // Người thực hiện hành động
+    type: v.string(), // Loại: 'post', 'message', 'follow'
+    channelId: v.optional(v.id('channels')),
+    messageId: v.optional(v.id('messages')),
+    isRead: v.boolean(),
+  }).index('by_user', ['userId']),
 });

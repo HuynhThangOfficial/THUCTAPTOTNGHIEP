@@ -12,8 +12,8 @@ export const getOrCreateConversation = mutation({
 
     // Kiểm tra xem 2 người đã từng chat chưa
     const allConversations = await ctx.db.query('conversations').collect();
-    const existing = allConversations.find(c => 
-      c.participantIds.includes(currentUser._id) && 
+    const existing = allConversations.find(c =>
+      c.participantIds.includes(currentUser._id) &&
       c.participantIds.includes(args.otherUserId) // 👈 ĐÃ SỬA LỖI TYPO Ở ĐÂY
     );
 
@@ -80,7 +80,7 @@ export const getInbox = query({
     const inbox = await Promise.all(myConvos.map(async (c) => {
       const otherUserId = c.participantIds.find(id => id !== currentUser._id);
       const otherUser = await ctx.db.get(otherUserId!);
-      
+
       let imageUrl = otherUser?.imageUrl;
       if (imageUrl && !imageUrl.startsWith('http')) {
         imageUrl = await ctx.storage.getUrl(imageUrl as any) || imageUrl;
