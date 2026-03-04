@@ -13,10 +13,11 @@ import { LogBox } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ConvexReactClient } from 'convex/react';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
-import * as Sentry from '@sentry/react-native'; // Import Sentry
+import * as Sentry from '@sentry/react-native'; 
 import { ActionSheetProvider } from '@expo/react-native-action-sheet';
 import { ChannelProvider } from '@/context/ChannelContext';
 import { MenuProvider } from '@/context/MenuContext';
+import { RootSiblingParent } from 'react-native-root-siblings'; // <--- IMPORT MỚI
 
 SplashScreen.preventAutoHideAsync();
 
@@ -32,20 +33,17 @@ const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
 });
 
 // --- CẤU HÌNH SENTRY AN TOÀN ---
-// 1. Tạo công cụ theo dõi điều hướng
 const routingInstrumentation = new Sentry.ReactNavigationInstrumentation();
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
   attachScreenshot: true,
-  debug: false, // Tắt debug để đỡ lag console
+  debug: false, 
   tracesSampleRate: 1.0,
-
-  // 2. Chỉ dùng Integration cơ bản (Bỏ mobileReplayIntegration để tránh lỗi)
   integrations: [
     new Sentry.ReactNativeTracing({
       routingInstrumentation,
-      enableNativeFramesTracking: false, // Tắt cái này nếu gặp lỗi build trên Android cũ
+      enableNativeFramesTracking: false, 
     }),
   ],
 });
@@ -59,7 +57,7 @@ const InitialLayout = () => {
   const { isLoaded, isSignedIn } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const user = useUser();
+  const { user } = useUser();
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -77,12 +75,12 @@ const InitialLayout = () => {
     }
   }, [isSignedIn, isLoaded]);
 
-  // Gửi thông tin User lên Sentry để biết ai bị lỗi
+  // Gửi thông tin User lên Sentry
   useEffect(() => {
-    if (user && user.user) {
+    if (user) {
       Sentry.setUser({
-        email: user.user.emailAddresses[0].emailAddress,
-        id: user.user.id
+        email: user.emailAddresses[0].emailAddress,
+        id: user.id
       });
     } else {
       Sentry.setUser(null);
@@ -109,7 +107,12 @@ const RootLayoutNav = () => {
           <ActionSheetProvider>
             <ChannelProvider>
               <MenuProvider>
-                <InitialLayout />
+                {/* Bọc RootSiblingParent ở đây để Toast có thể 
+                  hiển thị ở bất cứ đâu trong ứng dụng 
+                */}
+                <RootSiblingParent> 
+                  <InitialLayout />
+                </RootSiblingParent>
               </MenuProvider>
             </ChannelProvider>
           </ActionSheetProvider>

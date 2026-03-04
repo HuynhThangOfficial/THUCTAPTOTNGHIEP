@@ -27,7 +27,6 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="myapp"/>
         <data android:scheme="com.supersimon.threads"/>
-        <data android:scheme="exp+threads"/>
         <data android:scheme="exp+thuctaptotnghiep"/>
       </intent-filter>
     </activity>

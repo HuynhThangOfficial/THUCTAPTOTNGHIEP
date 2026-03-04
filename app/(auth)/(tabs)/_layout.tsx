@@ -23,11 +23,9 @@ const CreateTabIcon = ({ color, size }: { color: string; size: number }) => (
 const TabsWithSwipe = () => {
   const { signOut, isSignedIn } = useAuth(); // Thêm isSignedIn ở đây
   const router = useRouter();
-  
+
   usePush(); // Khởi tạo push notification
-if (isSignedIn) {
-    useOnlineStatus(); 
-  }
+useOnlineStatus(isSignedIn);
 
   const { translateX, closeMenu } = useMenu();
   const MENU_WIDTH = 300;
@@ -144,10 +142,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'white',
     shadowColor: "#000",
-    shadowOffset: { width: -5, height: 0 }, 
+    shadowOffset: { width: -5, height: 0 },
     shadowRadius: 10,
-    elevation: 5, 
-    overflow: 'visible', 
+    elevation: 5,
+    overflow: 'visible',
   },
 
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'black' },

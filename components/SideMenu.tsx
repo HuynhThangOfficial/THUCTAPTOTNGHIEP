@@ -28,14 +28,11 @@ export default function SideMenu() {
   const { top, bottom } = useSafeAreaInsets();
   const { userProfile } = useUserProfile();
 
-  // --- 1. STATE TÌM KIẾM ---
   const [searchQuery, setSearchQuery] = useState('');
 
   const universities = useQuery(api.university.getUniversities);
   const myServers = useQuery(api.university.getMyServers);
   const myFriends = useQuery(api.users.getFriends, userProfile ? { userId: userProfile._id } : "skip");
-
-  // --- 2. TRUYỀN SEARCH QUERY VÀO BACKEND ---
   const allUsers = useQuery(api.users.getUsers, { search: searchQuery });
 
   const createServer = useMutation(api.university.createServer);
@@ -59,6 +56,8 @@ export default function SideMenu() {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [newlyCreatedId, setNewlyCreatedId] = useState<Id<'servers'> | null>(null);
   const [invitedUsers, setInvitedUsers] = useState<Record<string, boolean>>({});
+
+  const [isInviteOnlyModalVisible, setInviteOnlyModalVisible] = useState(false);
 
   const [isCreateChannelModalVisible, setCreateChannelModalVisible] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
@@ -104,7 +103,6 @@ export default function SideMenu() {
     if (result && result.success === false) { Alert.alert("Thông báo", result.message); return; }
     if (result && result.success === true) {
       setCreateModalVisible(false);
-      // 👇 ĐÃ FIX: Ép kiểu as Id<'servers'>
       switchToServer(result.serverId as Id<'servers'>);
     }
   };
@@ -114,7 +112,7 @@ export default function SideMenu() {
     setServerNameInput(`Máy chủ của ${userProfile?.first_name || 'Tôi'}`);
     setServerIconUri(null);
     setCreateStep(1);
-    setSearchQuery(''); // Reset search khi bắt đầu luồng mới
+    setSearchQuery('');
   };
 
   const pickIcon = async () => {
@@ -135,7 +133,6 @@ export default function SideMenu() {
       }
       const result = await createServer({ name: serverNameInput, template: 'Custom', iconStorageId: storageId });
       if (result.success) {
-        // 👇 ĐÃ FIX: Thêm || null
         setNewlyCreatedId(result.serverId || null);
         setCreateStep(2);
       } else { Alert.alert("Thông báo", result.message); }
@@ -143,10 +140,9 @@ export default function SideMenu() {
   };
 
   const handleInviteAction = async (userId: any) => {
-    if (newlyCreatedId) {
-      await addFriendToServer({ serverId: newlyCreatedId, friendId: userId });
-      setInvitedUsers(prev => ({ ...prev, [userId]: true }));
-    }
+    if (newlyCreatedId) { await addFriendToServer({ serverId: newlyCreatedId, friendId: userId }); }
+    else if (activeServerId) { await addFriendToServer({ serverId: activeServerId, friendId: userId }); }
+    setInvitedUsers(prev => ({ ...prev, [userId]: true }));
   };
 
   const handleLongPressDelete = (target: any, isCategory: boolean) => {
@@ -199,6 +195,29 @@ export default function SideMenu() {
     ]);
   };
 
+  const renderInviteList = () => (
+    <View style={{flex: 1}}>
+      <TextInput style={[styles.textInput, {marginBottom: 15}]} placeholder="Tìm theo username..." value={searchQuery} onChangeText={setSearchQuery} />
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {allUsers?.filter(u => u._id !== userProfile?._id).map((user) => {
+          const isFriend = myFriends?.some(f => f._id === user._id);
+          const isInvited = invitedUsers[user._id] || (currentWorkspace as any)?.memberIds?.includes(user._id);
+          return (
+            <View key={user._id} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderColor: '#f0f0f0'}}>
+              <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                <Image source={{uri: user.imageUrl}} style={{width: 40, height: 40, borderRadius: 20, marginRight: 12}} />
+                <View><Text style={{fontWeight: 'bold'}}>{user.first_name}</Text><Text style={{fontSize: 12, color: 'gray'}}>@{user.username}</Text></View>
+              </View>
+              <TouchableOpacity disabled={isInvited} onPress={() => handleInviteAction(user._id)} style={{backgroundColor: isInvited ? '#ccc' : '#5865F2', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20}}>
+                <Text style={{color: 'white', fontWeight: 'bold'}}>{isInvited ? 'Thành viên' : (isFriend ? 'Thêm' : 'Mời')}</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <View style={[styles.serverRail, { paddingTop: top }]}>
@@ -216,9 +235,7 @@ export default function SideMenu() {
                 {server._id === activeServerId && <View style={styles.activePill} />}
               </TouchableOpacity>
             ))}
-            <TouchableOpacity style={styles.addServerBtn} onPress={() => setCreateModalVisible(true)}>
-              <Ionicons name="add" size={32} color="#2e8b57" />
-            </TouchableOpacity>
+            <TouchableOpacity style={styles.addServerBtn} onPress={() => setCreateModalVisible(true)}><Ionicons name="add" size={32} color="#2e8b57" /></TouchableOpacity>
         </ScrollView>
       </View>
 
@@ -227,26 +244,18 @@ export default function SideMenu() {
           <Text style={styles.serverName} numberOfLines={1}>{currentWorkspace?.name || "Chọn Không Gian"}</Text>
           {isOwner && (
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
-               <TouchableOpacity onPress={() => { setNewChannelType('category'); setSelectedCategoryId(undefined); setNewChannelName(''); setCreateChannelModalVisible(true); }}>
-                  <Ionicons name="folder-open-outline" size={20} color="gray" />
-               </TouchableOpacity>
-               <TouchableOpacity onPress={() => { setEditServerName(currentWorkspace?.name || ''); setSettingsModalVisible(true); }}>
-                  <Ionicons name="settings-outline" size={20} color="gray" />
-               </TouchableOpacity>
+               <TouchableOpacity onPress={() => { setNewChannelType('category'); setSelectedCategoryId(undefined); setNewChannelName(''); setCreateChannelModalVisible(true); }}><Ionicons name="folder-open-outline" size={20} color="gray" /></TouchableOpacity>
+               <TouchableOpacity onPress={() => { setEditServerName(currentWorkspace?.name || ''); setSettingsModalVisible(true); }}><Ionicons name="settings-outline" size={20} color="gray" /></TouchableOpacity>
             </View>
           )}
         </View>
-
         <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
             {channels.filter(c => !c.parentId).map((channel) => (
-                <TouchableOpacity key={channel._id} style={[styles.channelItem, activeChannelId === channel._id && styles.activeChannel]}
-                  onPress={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }}
-                  onLongPress={() => isOwner && handleLongPressDelete(channel, false)}>
+                <TouchableOpacity key={channel._id} style={[styles.channelItem, activeChannelId === channel._id && styles.activeChannel]} onPress={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} onLongPress={() => isOwner && handleLongPressDelete(channel, false)}>
                     <MaterialCommunityIcons name="pound" size={20} color={activeChannelId === channel._id ? "black" : "gray"} />
                     <Text style={[styles.channelText, activeChannelId === channel._id && {color: 'black', fontWeight: 'bold'}]}>{channel.name}</Text>
                 </TouchableOpacity>
             ))}
-
             {groups.map((group) => {
               const isExpanded = expandedGroups[group._id] ?? true;
               const childChannels = channels.filter(c => c.parentId === group._id);
@@ -254,19 +263,12 @@ export default function SideMenu() {
                 <View key={group._id} style={{ marginTop: 16 }}>
                   <View style={[styles.categoryHeader, {justifyContent: 'space-between', paddingRight: 10}]}>
                     <TouchableOpacity style={{flexDirection: 'row', alignItems: 'center', flex: 1}} onPress={() => toggleGroup(group._id)} onLongPress={() => isOwner && handleLongPressDelete(group, true)}>
-                      <Ionicons name={isExpanded ? "chevron-down" : "chevron-forward"} size={12} color="gray" />
-                      <Text style={styles.categoryTitle}>{group.name}</Text>
+                      <Ionicons name={isExpanded ? "chevron-down" : "chevron-forward"} size={12} color="gray" /><Text style={styles.categoryTitle}>{group.name}</Text>
                     </TouchableOpacity>
-                    {isOwner && (
-                      <TouchableOpacity onPress={() => { setNewChannelType('channel'); setSelectedCategoryId(group._id); setNewChannelName(''); setCreateChannelModalVisible(true); }}>
-                        <Ionicons name="add" size={18} color="gray" />
-                      </TouchableOpacity>
-                    )}
+                    {isOwner && (<TouchableOpacity onPress={() => { setNewChannelType('channel'); setSelectedCategoryId(group._id); setNewChannelName(''); setCreateChannelModalVisible(true); }}><Ionicons name="add" size={18} color="gray" /></TouchableOpacity>)}
                   </View>
                   {isExpanded && childChannels.map(channel => (
-                    <TouchableOpacity key={channel._id} style={[styles.channelItem, activeChannelId === channel._id && styles.activeChannel]}
-                      onPress={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }}
-                      onLongPress={() => isOwner && handleLongPressDelete(channel, false)}>
+                    <TouchableOpacity key={channel._id} style={[styles.channelItem, activeChannelId === channel._id && styles.activeChannel]} onPress={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} onLongPress={() => isOwner && handleLongPressDelete(channel, false)}>
                         <MaterialCommunityIcons name="pound" size={20} color={activeChannelId === channel._id ? "black" : "gray"} />
                         <Text style={[styles.channelText, activeChannelId === channel._id && {color: 'black', fontWeight: 'bold'}]}>{channel.name}</Text>
                     </TouchableOpacity>
@@ -275,39 +277,23 @@ export default function SideMenu() {
               );
             })}
         </ScrollView>
-
         <View style={styles.userFooter}>
             <Image source={{ uri: userProfile?.imageUrl || 'https://github.com/shadcn.png' }} style={styles.footerAvatar} />
-            <View style={{ marginLeft: 8, flex: 1 }}>
-                <Text style={styles.footerName} numberOfLines={1}>{userProfile?.first_name}</Text>
-                <Text style={styles.footerUsername} numberOfLines={1}>@{userProfile?.username}</Text>
-            </View>
+            <View style={{ marginLeft: 8, flex: 1 }}><Text style={styles.footerName} numberOfLines={1}>{userProfile?.first_name}</Text><Text style={styles.footerUsername} numberOfLines={1}>@{userProfile?.username}</Text></View>
         </View>
       </View>
 
       <Modal visible={isCreateModalVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{flex: 1, backgroundColor: '#fff'}}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => { setCreateModalVisible(false); setSelectedTemplate(null); }}><Ionicons name="close" size={28} color="gray" /></TouchableOpacity>
-          </View>
-
+          <View style={styles.modalHeader}><TouchableOpacity onPress={() => { setCreateModalVisible(false); setSelectedTemplate(null); }}><Ionicons name="close" size={28} color="gray" /></TouchableOpacity></View>
           <ScrollView style={styles.modalBody}>
             {!selectedTemplate ? (
               <>
-                <Text style={styles.modalTitle}>Tạo Máy Chủ Của Bạn</Text>
-                <Text style={styles.modalSubtitle}>Máy chủ của bạn là nơi bạn giao lưu với bạn bè của mình.</Text>
-                <TouchableOpacity style={styles.templateOptionPrimary} onPress={handleStartCustomCreate}>
-                    <View style={styles.emojiWrapper}><Text style={styles.templateEmoji}>🌍</Text></View>
-                    <Text style={styles.templateTextPrimary}>Tạo Mẫu Riêng</Text>
-                    <Ionicons name="chevron-forward" size={20} color="gray" style={{marginLeft: 'auto'}} />
-                </TouchableOpacity>
+                <Text style={styles.modalTitle}>Tạo Máy Chủ Của Bạn</Text><Text style={styles.modalSubtitle}>Máy chủ của bạn là nơi bạn giao lưu với bạn bè của mình.</Text>
+                <TouchableOpacity style={styles.templateOptionPrimary} onPress={handleStartCustomCreate}><View style={styles.emojiWrapper}><Text style={styles.templateEmoji}>🌍</Text></View><Text style={styles.templateTextPrimary}>Tạo Mẫu Riêng</Text></TouchableOpacity>
                 <Text style={styles.sectionTitle}>Bắt đầu từ mẫu</Text>
                 {TEMPLATES.map((item) => (
-                  <TouchableOpacity key={item.id} style={styles.templateOption} onPress={() => handleCreateServerClick(item.id)}>
-                      <View style={styles.emojiWrapper}><Text style={styles.templateEmoji}>{item.icon}</Text></View>
-                      <Text style={styles.templateText}>{item.name}</Text>
-                      <Ionicons name="chevron-forward" size={20} color="gray" style={{marginLeft: 'auto'}} />
-                  </TouchableOpacity>
+                  <TouchableOpacity key={item.id} style={styles.templateOption} onPress={() => handleCreateServerClick(item.id)}><View style={styles.emojiWrapper}><Text style={styles.templateEmoji}>{item.icon}</Text></View><Text style={styles.templateText}>{item.name}</Text></TouchableOpacity>
                 ))}
               </>
             ) : (
@@ -315,64 +301,13 @@ export default function SideMenu() {
                 <View style={{alignItems: 'center'}}>
                   <Text style={styles.modalTitle}>Tùy chỉnh máy chủ</Text>
                   <TouchableOpacity onPress={pickIcon} style={{marginVertical: 20}}>
-                    {serverIconUri ? (
-                      <Image source={{uri: serverIconUri}} style={{width: 100, height: 100, borderRadius: 50}} />
-                    ) : (
-                      <View style={{width: 100, height: 100, borderRadius: 50, backgroundColor: '#f2f3f5', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1, borderColor: 'gray'}}>
-                        <Ionicons name="camera" size={40} color="gray" />
-                      </View>
-                    )}
+                    {serverIconUri ? (<Image source={{uri: serverIconUri}} style={{width: 100, height: 100, borderRadius: 50}} />) : (<View style={{width: 100, height: 100, borderRadius: 50, backgroundColor: '#f2f3f5', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1, borderColor: 'gray'}}><Ionicons name="camera" size={40} color="gray" /></View>)}
                   </TouchableOpacity>
-                  <View style={{width: '100%'}}>
-                    <Text style={styles.sectionTitle}>TÊN MÁY CHỦ</Text>
-                    <TextInput style={styles.textInput} value={serverNameInput} onChangeText={setServerNameInput} />
-                  </View>
-                  <TouchableOpacity style={[styles.submitBtn, {width: '100%', marginTop: 20}]} onPress={handleFinalCreateServer}>
-                    <Text style={styles.submitBtnText}>Tạo máy chủ</Text>
-                  </TouchableOpacity>
+                  <View style={{width: '100%'}}><Text style={styles.sectionTitle}>TÊN MÁY CHỦ</Text><TextInput style={styles.textInput} value={serverNameInput} onChangeText={setServerNameInput} /></View>
+                  <TouchableOpacity style={[styles.submitBtn, {width: '100%', marginTop: 20}]} onPress={handleFinalCreateServer}><Text style={styles.submitBtnText}>Tạo máy chủ</Text></TouchableOpacity>
                 </View>
               ) : (
-                <View>
-                  <Text style={styles.modalTitle}>Mời bạn bè</Text>
-
-                  <TextInput
-                    style={[styles.textInput, {marginBottom: 15}]}
-                    placeholder="Tìm theo username..."
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                  />
-
-                  {allUsers?.filter(u => u._id !== userProfile?._id).map((user) => {
-                    const isFriend = myFriends?.some(f => f._id === user._id);
-                    const isInvited = invitedUsers[user._id];
-                    return (
-                      <View key={user._id} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderColor: '#f0f0f0'}}>
-                        <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                          <Image source={{uri: user.imageUrl}} style={{width: 40, height: 40, borderRadius: 20, marginRight: 12}} />
-                          <View>
-                             <Text style={{fontWeight: 'bold'}}>{user.first_name}</Text>
-                             <Text style={{fontSize: 12, color: 'gray'}}>@{user.username}</Text>
-                          </View>
-                        </View>
-                        <TouchableOpacity disabled={isInvited} onPress={() => handleInviteAction(user._id)} style={{backgroundColor: isInvited ? '#ccc' : '#5865F2', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20}}>
-                          <Text style={{color: 'white', fontWeight: 'bold'}}>{isInvited ? 'Đã mời' : (isFriend ? 'Thêm' : 'Mời')}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
-
-                  <TouchableOpacity
-                    onPress={() => {
-                      setCreateModalVisible(false);
-                      setSelectedTemplate(null);
-                      setSearchQuery(''); 
-                      if(newlyCreatedId) switchToServer(newlyCreatedId);
-                    }}
-                    style={[styles.submitBtn, {marginTop: 20}]}
-                  >
-                    <Text style={styles.submitBtnText}>Hoàn tất</Text>
-                  </TouchableOpacity>
-                </View>
+                <View style={{flex: 1, height: 600}}><Text style={styles.modalTitle}>Mời bạn bè</Text>{renderInviteList()}<TouchableOpacity onPress={() => { setCreateModalVisible(false); setSelectedTemplate(null); if(newlyCreatedId) switchToServer(newlyCreatedId); }} style={[styles.submitBtn, {marginTop: 20}]}><Text style={styles.submitBtnText}>Hoàn tất</Text></TouchableOpacity></View>
               )
             )}
           </ScrollView>
@@ -381,40 +316,21 @@ export default function SideMenu() {
 
       <Modal visible={isSettingsModalVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{flex: 1, backgroundColor: '#f2f3f5'}}>
-          <View style={[styles.modalHeader, { backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-             <Text style={{fontSize: 18, fontWeight: 'bold'}}>Cài đặt máy chủ</Text>
-             <TouchableOpacity onPress={() => setSettingsModalVisible(false)}><Text style={{fontSize: 16, color: '#007aff', fontWeight: 'bold'}}>Xong</Text></TouchableOpacity>
-          </View>
+          <View style={[styles.modalHeader, { backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}><Text style={{fontSize: 18, fontWeight: 'bold'}}>Cài đặt máy chủ</Text><TouchableOpacity onPress={() => setSettingsModalVisible(false)}><Text style={{fontSize: 16, color: '#007aff', fontWeight: 'bold'}}>Xong</Text></TouchableOpacity></View>
           <ScrollView style={{padding: 20}}>
-            <View style={{alignItems: 'center', marginBottom: 20}}>
-              <Image source={getIconSource(currentWorkspace?.icon)} style={{width: 80, height: 80, borderRadius: 40, marginBottom: 10}} />
-              <TouchableOpacity onPress={handleUpdateImage} style={{backgroundColor: '#e0e0e0', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20}}>
-                <Text style={{fontWeight: 'bold'}}>Đổi ảnh đại diện</Text>
-              </TouchableOpacity>
-            </View>
+            <View style={{alignItems: 'center', marginBottom: 20}}><Image source={getIconSource(currentWorkspace?.icon)} style={{width: 80, height: 80, borderRadius: 40, marginBottom: 10}} /><TouchableOpacity onPress={handleUpdateImage} style={{backgroundColor: '#e0e0e0', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20}}><Text style={{fontWeight: 'bold'}}>Đổi ảnh đại diện</Text></TouchableOpacity></View>
             <Text style={styles.sectionTitle}>TÊN MÁY CHỦ</Text>
-            <View style={{flexDirection: 'row', backgroundColor: '#fff', borderRadius: 8, padding: 10, marginBottom: 20}}>
-               <TextInput style={{flex: 1, fontSize: 16}} value={editServerName} onChangeText={setEditServerName} />
-               <TouchableOpacity onPress={handleSaveName}><Text style={{color: '#007aff', fontWeight: 'bold', paddingLeft: 10}}>Lưu</Text></TouchableOpacity>
-            </View>
-            <TouchableOpacity onPress={handleDeleteServer} style={{backgroundColor: '#ffdddd', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 20}}>
-               <Text style={{color: 'red', fontWeight: 'bold', fontSize: 16}}>Xóa máy chủ</Text>
-            </TouchableOpacity>
+            <View style={{flexDirection: 'row', backgroundColor: '#fff', borderRadius: 8, padding: 10, marginBottom: 20}}><TextInput style={{flex: 1, fontSize: 16}} value={editServerName} onChangeText={setEditServerName} /><TouchableOpacity onPress={handleSaveName}><Text style={{color: '#007aff', fontWeight: 'bold', paddingLeft: 10}}>Lưu</Text></TouchableOpacity></View>
+            <TouchableOpacity onPress={() => { setSettingsModalVisible(false); setInviteOnlyModalVisible(true); }} style={{backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 8, marginBottom: 20}}><Ionicons name="person-add-outline" size={22} color="#5865F2" style={{marginRight: 10}} /><Text style={{fontSize: 16, fontWeight: 'bold', color: '#5865F2'}}>Mời bạn bè</Text></TouchableOpacity>
+            <TouchableOpacity onPress={handleDeleteServer} style={{backgroundColor: '#ffdddd', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 20}}><Text style={{color: 'red', fontWeight: 'bold', fontSize: 16}}>Xóa máy chủ</Text></TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
       </Modal>
 
+      <Modal visible={isInviteOnlyModalVisible} animationType="slide" presentationStyle="pageSheet"><SafeAreaView style={{flex: 1, backgroundColor: '#fff', padding: 20}}><View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20}}><Text style={{fontSize: 22, fontWeight: 'bold'}}>Mời bạn bè</Text><TouchableOpacity onPress={() => setInviteOnlyModalVisible(false)}><Text style={{color: '#007aff', fontWeight: 'bold', fontSize: 16}}>Xong</Text></TouchableOpacity></View>{renderInviteList()}</SafeAreaView></Modal>
+
       <Modal visible={isCreateChannelModalVisible} transparent animationType="fade">
-         <View style={styles.modalOverlay}>
-            <View style={styles.smallModalContainer}>
-               <Text style={styles.smallModalTitle}>Tạo {newChannelType === 'category' ? 'Danh Mục' : 'Kênh'}</Text>
-               <TextInput style={styles.textInput} placeholder={newChannelType === 'category' ? "Tên danh mục mới" : "tên-kênh-mới"} value={newChannelName} onChangeText={setNewChannelName} autoFocus />
-               <View style={styles.modalButtonRow}>
-                  <TouchableOpacity onPress={() => setCreateChannelModalVisible(false)} style={styles.cancelBtn}><Text style={styles.cancelBtnText}>Hủy</Text></TouchableOpacity>
-                  <TouchableOpacity onPress={handleCreateChannelSubmit} style={styles.submitBtn}><Text style={styles.submitBtnText}>Tạo</Text></TouchableOpacity>
-               </View>
-            </View>
-         </View>
+         <View style={styles.modalOverlay}><View style={styles.smallModalContainer}><Text style={styles.smallModalTitle}>Tạo {newChannelType === 'category' ? 'Danh Mục' : 'Kênh'}</Text><TextInput style={styles.textInput} placeholder={newChannelType === 'category' ? "Tên danh mục mới" : "tên-kênh-mới"} value={newChannelName} onChangeText={setNewChannelName} autoFocus /><View style={styles.modalButtonRow}><TouchableOpacity onPress={() => setCreateChannelModalVisible(false)} style={styles.cancelBtn}><Text style={styles.cancelBtnText}>Hủy</Text></TouchableOpacity><TouchableOpacity onPress={handleCreateChannelSubmit} style={styles.submitBtn}><Text style={styles.submitBtnText}>Tạo</Text></TouchableOpacity></View></View></View>
       </Modal>
     </View>
   );

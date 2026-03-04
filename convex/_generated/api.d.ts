@@ -12,6 +12,7 @@ import type * as chat from "../chat.js";
 import type * as http from "../http.js";
 import type * as messages from "../messages.js";
 import type * as push from "../push.js";
+import type * as social from "../social.js";
 import type * as university from "../university.js";
 import type * as users from "../users.js";
 
@@ -26,6 +27,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   messages: typeof messages;
   push: typeof push;
+  social: typeof social;
   university: typeof university;
   users: typeof users;
 }>;

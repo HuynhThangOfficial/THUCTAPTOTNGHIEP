@@ -36,9 +36,7 @@ export const getChannels = query({
     } else if (args.serverId) {
       all = await ctx.db
         .query('channels')
-        .withIndex('by_server', (q) =>
-          q.eq('serverId', args.serverId!)
-        )
+        .withIndex('by_server', (q) => q.eq('serverId', args.serverId!))
         .collect();
     }
 
@@ -476,4 +474,32 @@ export const deleteChannel = mutation({
 
     await ctx.db.delete(args.channelId);
   }
+});
+
+export const getAllPostableWorkspaces = query({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return { universities: [], servers: [] };
+
+    const user = await ctx.db
+      .query('users')
+      .withIndex('byClerkId', (q) => q.eq('clerkId', identity.subject))
+      .unique();
+
+    if (!user) return { universities: [], servers: [] };
+
+    // 1. Lấy tất cả các trường đại học (VAA, v.v.)
+    const universities = await ctx.db.query('universities').collect();
+
+    // 2. Lấy tất cả server mà người dùng là chủ sở hữu hoặc thành viên
+    const allServers = await ctx.db.query('servers').collect();
+    const myServers = allServers.filter(
+      (s) => s.creatorId === user._id || s.memberIds.includes(user._id)
+    );
+
+    return {
+      universities,
+      servers: myServers,
+    };
+  },
 });
