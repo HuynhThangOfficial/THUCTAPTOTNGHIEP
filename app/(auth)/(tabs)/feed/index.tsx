@@ -26,7 +26,7 @@ const Page = () => {
   const [isBellModalVisible, setBellModalVisible] = useState(false);
   const [isAdvancedSettingsVisible, setAdvancedSettingsVisible] = useState(false);
 
-  // Status thông báo
+  // Status thông báo - Hỗ trợ cả Server và University
   const subStatus = useQuery(api.messages.getSubscriptionStatus, activeChannelId ? {
     channelId: activeChannelId,
     serverId: activeServerId ?? undefined,
@@ -113,6 +113,7 @@ const Page = () => {
 
       <Animated.FlatList
         onScroll={scrollHandler}
+        scrollEventThrottle={16}
         data={results}
         renderItem={({ item }) => (
           <Link href={`/feed/${item._id}`} asChild>
@@ -124,80 +125,66 @@ const Page = () => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       />
 
-      {/* MODAL 1: CÀI ĐẶT THÔNG BÁO (4 DÒNG CHÍNH) */}
-        <Modal visible={isBellModalVisible} transparent animationType="fade">
-          <TouchableWithoutFeedback onPress={() => setBellModalVisible(false)}>
-            <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback>
-                <View style={styles.bellMenu}>
-                  <Text style={styles.modalTitle}>Cài đặt thông báo</Text>
+      {/* MODAL 1: CÀI ĐẶT THÔNG BÁO (Hợp nhất UI 4 dòng) */}
+      <Modal visible={isBellModalVisible} transparent animationType="fade">
+        <TouchableWithoutFeedback onPress={() => setBellModalVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.bellMenu}>
+                <Text style={styles.modalTitle}>Cài đặt thông báo</Text>
 
-                  {/* 1. KÊNH HIỆN TẠI */}
-                  {activeChannelName !== 'đại-sảnh' && (
-                    <TouchableOpacity
-                      style={[styles.dropdownItem, subStatus?.channelSubbed && styles.dropdownItemActive]}
-                      onPress={() => activeChannelId && toggleChannel({ channelId: activeChannelId })}
-                    >
-                      <Text style={[styles.dropdownItemText, subStatus?.channelSubbed && styles.dropdownItemTextActive]}>
-                        Thông báo kênh này
-                      </Text>
-                      {subStatus?.channelSubbed && <Ionicons name="checkmark" size={18} color="#007aff" />}
-                    </TouchableOpacity>
-                  )}
-
-                  {/* 2. BẬT NHANH TOÀN SERVER */}
+                {activeChannelName !== 'đại-sảnh' && (
                   <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={async () => {
-                      const tid = activeServerId || activeUniversityId;
-                      if (tid) {
-                        await toggleServer({
-                          serverId: activeServerId ?? undefined,
-                          universityId: activeUniversityId ?? undefined,
-                          action: "on"
-                        });
-                        setBellModalVisible(false);
-                      }
-                    }}
+                    style={[styles.dropdownItem, subStatus?.channelSubbed && styles.dropdownItemActive]}
+                    onPress={() => activeChannelId && toggleChannel({ channelId: activeChannelId })}
                   >
-                    <Text style={styles.dropdownItemText}>Bật thông báo toàn Server</Text>
-                    <Ionicons name="notifications-outline" size={18} color="gray" />
+                    <Text style={[styles.dropdownItemText, subStatus?.channelSubbed && styles.dropdownItemTextActive]}>Thông báo kênh này</Text>
+                    {subStatus?.channelSubbed && <Ionicons name="checkmark" size={18} color="#007aff" />}
                   </TouchableOpacity>
+                )}
 
-                  {/* 3. TẮT NHANH TOÀN SERVER (MỚI THÊM) */}
-                  <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={async () => {
-                      const tid = activeServerId || activeUniversityId;
-                      if (tid) {
-                        await toggleServer({
-                          serverId: activeServerId ?? undefined,
-                          universityId: activeUniversityId ?? undefined,
-                          action: "off"
-                        });
-                        setBellModalVisible(false);
-                      }
-                    }}
-                  >
-                    <Text style={[styles.dropdownItemText, { color: '#ff3b30' }]}>Tắt thông báo toàn Server</Text>
-                    <Ionicons name="notifications-off-outline" size={18} color="#ff3b30" />
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={async () => {
+                    const tid = activeServerId || activeUniversityId;
+                    if (tid) {
+                      await toggleServer({ serverId: activeServerId ?? undefined, universityId: activeUniversityId ?? undefined, action: "on" });
+                      setBellModalVisible(false);
+                    }
+                  }}
+                >
+                  <Text style={styles.dropdownItemText}>Bật thông báo toàn Server</Text>
+                  <Ionicons name="notifications-outline" size={18} color="gray" />
+                </TouchableOpacity>
 
-                  {/* 4. TÙY CHỈNH CHI TIẾT */}
-                  <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={() => { setBellModalVisible(false); setTimeout(() => setAdvancedSettingsVisible(true), 300); }}
-                  >
-                    <Text style={styles.dropdownItemText}>Tuỳ chỉnh từng kênh</Text>
-                    <Ionicons name="chevron-forward" size={16} color="gray" />
-                  </TouchableOpacity>
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={async () => {
+                    const tid = activeServerId || activeUniversityId;
+                    if (tid) {
+                      await toggleServer({ serverId: activeServerId ?? undefined, universityId: activeUniversityId ?? undefined, action: "off" });
+                      setBellModalVisible(false);
+                    }
+                  }}
+                >
+                  <Text style={[styles.dropdownItemText, { color: '#ff3b30' }]}>Tắt thông báo toàn Server</Text>
+                  <Ionicons name="notifications-off-outline" size={18} color="#ff3b30" />
+                </TouchableOpacity>
 
-      {/* MODAL 2: TÙY CHỈNH TỪNG KÊNH (ĐÃ THÊM CHẤM CHẤM CHO TÊN DÀI) */}
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => { setBellModalVisible(false); setTimeout(() => setAdvancedSettingsVisible(true), 300); }}
+                >
+                  <Text style={styles.dropdownItemText}>Tuỳ chỉnh từng kênh</Text>
+                  <Ionicons name="chevron-forward" size={16} color="gray" />
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* MODAL 2: TÙY CHỈNH TỪNG KÊNH (Fix tên dài ...) */}
       <Modal visible={isAdvancedSettingsVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.bellMenu, { width: 320, maxHeight: '70%' }]}>
@@ -208,14 +195,7 @@ const Page = () => {
             <ScrollView showsVerticalScrollIndicator={false}>
               {serverChannels?.map((channel) => (
                 <View key={channel._id} style={styles.channelSettingRow}>
-                  {/* 👇 THÊM numberOfLines VÀ ellipsizeMode TẠI ĐÂY 👇 */}
-                  <Text
-                    style={styles.channelSettingName}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    #{channel.name}
-                  </Text>
+                  <Text style={styles.channelSettingName} numberOfLines={1} ellipsizeMode="tail">#{channel.name}</Text>
                   <Switch
                     value={channel.isSubscribed}
                     onValueChange={() => toggleChannel({ channelId: channel._id })}
@@ -228,7 +208,7 @@ const Page = () => {
         </View>
       </Modal>
 
-      {/* MODAL SẮP XẾP */}
+      {/* MODAL SẮP XẾP (Trả về width 70%) */}
       <Modal visible={isSortModalVisible} transparent animationType="fade">
          <TouchableWithoutFeedback onPress={() => setSortModalVisible(false)}>
             <View style={styles.modalOverlay}>
@@ -245,6 +225,8 @@ const Page = () => {
             </View>
          </TouchableWithoutFeedback>
       </Modal>
+
+      {activeChannelId && <ChannelDetailsModal visible={isChannelDetailVisible} onClose={() => setChannelDetailVisible(false)} channelId={activeChannelId} />}
     </View>
   );
 };
@@ -264,16 +246,13 @@ const styles = StyleSheet.create({
   sortDropdownBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5f5f5', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, gap: 6 },
   sortDropdownText: { fontSize: 13, color: '#555', fontWeight: '500' },
   modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' },
-
   sortMenu: { width: '70%', backgroundColor: 'white', borderRadius: 16, padding: 12, elevation: 10 },
   bellMenu: { width: 280, backgroundColor: 'white', borderRadius: 16, padding: 12, elevation: 10 },
-
-  modalTitle: { fontSize: 16, fontWeight: 'bold', textAlign: 'center' },
+  modalTitle: { fontSize: 16, fontWeight: 'bold', textAlign: 'center', marginBottom: 12 },
   dropdownItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 10 },
   dropdownItemActive: { backgroundColor: '#f0f8ff' },
   dropdownItemText: { fontSize: 15, color: '#333' },
   dropdownItemTextActive: { color: '#007aff', fontWeight: 'bold' },
   channelSettingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', paddingHorizontal: 8 },
-  // 👇 THÊM flex: 1 ĐỂ TEXT TỰ CO GIÃN 👇
   channelSettingName: { fontSize: 16, color: '#333', fontWeight: '500', flex: 1, marginRight: 10 }
 });

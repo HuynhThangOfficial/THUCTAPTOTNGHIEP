@@ -1,4 +1,4 @@
-import { StyleSheet, Text, TextInput, View, TouchableOpacity, Image, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, TextInput, View, TouchableOpacity, Image, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import React, { useState } from 'react';
 import { Colors } from '@/constants/Colors';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,51 +9,72 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Sentry from '@sentry/react-native';
 
 const Page = () => {
-  // 1. Nhận thêm tham số linkTitlestring từ URL
+  // 1. Nhận tham số (có fallback để tránh lỗi undefined)
   const { biostring, linkstring, linkTitlestring, userId, imageUrl } = useLocalSearchParams<{
-    biostring: string;
-    linkstring: string;
-    linkTitlestring: string; // <--- Thêm
+    biostring?: string;
+    linkstring?: string;
+    linkTitlestring?: string;
     userId: string;
-    imageUrl: string;
+    imageUrl?: string;
   }>();
 
-  const [bio, setBio] = useState(biostring);
-  const [link, setLink] = useState(linkstring);
-  const [linkTitle, setLinkTitle] = useState(linkTitlestring); // <--- State mới
+  // Đặt giá trị mặc định là chuỗi rỗng nếu param không tồn tại
+  const [bio, setBio] = useState(biostring || '');
+  const [link, setLink] = useState(linkstring || '');
+  const [linkTitle, setLinkTitle] = useState(linkTitlestring || '');
 
   const updateUser = useMutation(api.users.updateUser);
   const generateUploadUrl = useMutation(api.users.generateUploadUrl);
   const updateImage = useMutation(api.users.updateImage);
 
   const [selectedImage, setSelectedImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false); // Trạng thái loading (Tuỳ chọn)
 
   const router = useRouter();
 
   const onDone = async () => {
-    // 2. Gửi linkTitle lên server
-    updateUser({ 
-      _id: userId as Id<'users'>, 
-      bio, 
-      websiteUrl: link, 
-      linkTitle: linkTitle // <--- Thêm
-    });
-    
-    if (selectedImage) {
-      await updateProfilePicture();
+    // Tránh việc user bấm Lưu nhiều lần liên tục
+    if (isUpdating) return;
+    setIsUpdating(true);
+
+    try {
+      // 2. Chờ gửi thông tin text lên server xong mới làm bước tiếp theo
+      await updateUser({ 
+        _id: userId as Id<'users'>, 
+        bio, 
+        websiteUrl: link, 
+        linkTitle: linkTitle 
+      });
+      
+      // 3. Nếu có đổi ảnh thì upload ảnh
+      if (selectedImage) {
+        await updateProfilePicture();
+      }
+      
+      // Xong xuôi tất cả mới đóng màn hình
+      router.dismiss();
+    } catch (error) {
+      console.error("Lỗi cập nhật profile:", error);
+      Alert.alert("Lỗi", "Không thể cập nhật hồ sơ. Vui lòng thử lại!");
+    } finally {
+      setIsUpdating(false);
     }
-    router.dismiss();
   };
 
   const updateProfilePicture = async () => {
     const postUrl = await generateUploadUrl();
     const response = await fetch(selectedImage!.uri);
     const blob = await response.blob();
+    
+    // Đảm bảo luôn có Content-Type kể cả khi ImagePicker không trả về
+    const mimeType = selectedImage!.mimeType || blob.type || 'image/jpeg';
+
     const result = await fetch(postUrl, {
       method: 'POST',
-      headers: { 'Content-Type': selectedImage!.mimeType! },
+      headers: { 'Content-Type': mimeType },
       body: blob,
     });
+
     const { storageId } = await result.json();
     await updateImage({ storageId, _id: userId as Id<'users'> });
   };
@@ -62,7 +83,7 @@ const Page = () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [1, 1], // Sửa thành 1:1 cho ảnh tròn đẹp hơn
+      aspect: [1, 1], // Tỉ lệ 1:1 cho ảnh tròn là quá chuẩn
       quality: 0.5,
     });
     if (!result.canceled) {
@@ -76,8 +97,10 @@ const Page = () => {
         <Stack.Screen
           options={{
             headerRight: () => (
-              <TouchableOpacity onPress={onDone}>
-                <Text style={styles.doneButtonText}>Lưu</Text>
+              <TouchableOpacity onPress={onDone} disabled={isUpdating}>
+                <Text style={[styles.doneButtonText, isUpdating && { color: 'gray' }]}>
+                  {isUpdating ? "Đang lưu..." : "Lưu"}
+                </Text>
               </TouchableOpacity>
             ),
           }}
@@ -85,11 +108,10 @@ const Page = () => {
         
         {/* Avatar */}
         <TouchableOpacity onPress={selectImage} style={{ marginTop: 20 }}>
-          {selectedImage ? (
-            <Image source={{ uri: selectedImage.uri }} style={styles.image} />
-          ) : (
-            <Image source={{ uri: imageUrl }} style={styles.image} />
-          )}
+          <Image 
+            source={{ uri: selectedImage ? selectedImage.uri : (imageUrl || 'https://www.gravatar.com/avatar/?d=mp') }} 
+            style={styles.image} 
+          />
           <Text style={styles.changePhotoText}>Đổi ảnh đại diện</Text>
         </TouchableOpacity>
 
@@ -109,7 +131,6 @@ const Page = () => {
         <View style={styles.section}>
           <Text style={styles.label}>Liên kết</Text>
           
-          {/* Ô nhập URL */}
           <TextInput 
             value={link} 
             onChangeText={setLink} 
@@ -118,8 +139,8 @@ const Page = () => {
             style={styles.input}
           />
 
-          {/* Ô nhập Tiêu đề (Mới) */}
           <View style={styles.divider} />
+          
           <Text style={[styles.label, { marginTop: 10 }]}>Tiêu đề liên kết (Tùy chọn)</Text>
           <TextInput 
             value={linkTitle} 

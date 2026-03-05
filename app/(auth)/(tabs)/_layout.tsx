@@ -6,12 +6,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { usePush } from '@/hooks/usePush';
 import * as Haptics from 'expo-haptics';
-
 import Animated, { useAnimatedStyle, interpolate, Extrapolation, runOnJS } from 'react-native-reanimated';
 import SideMenu from '@/components/SideMenu';
 import { MenuProvider, useMenu } from '@/context/MenuContext';
-
-// 👇 1. IMPORT HOOK TẠI ĐÂY 👇
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
 const CreateTabIcon = ({ color, size }: { color: string; size: number }) => (
@@ -21,18 +18,16 @@ const CreateTabIcon = ({ color, size }: { color: string; size: number }) => (
 );
 
 const TabsWithSwipe = () => {
-  const { signOut, isSignedIn } = useAuth(); // Thêm isSignedIn ở đây
+  const { signOut, isSignedIn } = useAuth();
   const router = useRouter();
 
-  usePush(); // Khởi tạo push notification
-if (isSignedIn) {
-    useOnlineStatus();
-  }
+  usePush();
+  // Hợp nhất logic useOnlineStatus từ cả 2 nhánh
+  useOnlineStatus(isSignedIn);
 
   const { translateX, closeMenu } = useMenu();
   const MENU_WIDTH = 300;
 
-  // --- ANIMATION ---
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
     borderRadius: interpolate(translateX.value, [0, MENU_WIDTH], [0, 20], Extrapolation.CLAMP),
@@ -47,12 +42,10 @@ if (isSignedIn) {
 
   return (
     <View style={styles.container}>
-      {/* 1. MENU NẰM DƯỚI */}
       <View style={styles.menuContainer}>
         <SideMenu />
       </View>
 
-      {/* 2. TABS NẰM TRÊN */}
       <Animated.View style={[styles.mainContainer, animatedStyle]}>
         <Tabs
           screenOptions={{
@@ -97,6 +90,7 @@ if (isSignedIn) {
             name="favorites"
             options={{
               title: 'Thông báo',
+              // Sử dụng icon Bell cho tab Thông báo như thiết kế của bạn
               tabBarIcon: ({ color, size, focused }) => (
                 <Ionicons name={focused ? 'notifications' : 'notifications-outline'} size={size} color={color} />
               ),
@@ -139,7 +133,6 @@ export default Layout;
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#1e1f22' },
   menuContainer: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 300, zIndex: 0 },
-
   mainContainer: {
     flex: 1,
     backgroundColor: 'white',
@@ -149,7 +142,6 @@ const styles = StyleSheet.create({
     elevation: 5,
     overflow: 'visible',
   },
-
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'black' },
   createIconContainer: {
     backgroundColor: Colors.itemBackground,

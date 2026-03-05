@@ -93,10 +93,19 @@ export const generateUploadUrl = mutation(async (ctx) => {
   return await ctx.storage.generateUploadUrl();
 });
 
+// 👇 ĐÂY LÀ HÀM ĐÃ ĐƯỢC FIX LỖI AVATAR 👇
 export const updateImage = mutation({
   args: { storageId: v.id('_storage'), _id: v.id('users') },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args._id, { imageUrl: args.storageId });
+    // 1. Biến cái mã ID thành link web thật
+    const imageUrl = await ctx.storage.getUrl(args.storageId);
+    
+    if (!imageUrl) {
+      throw new Error("Không thể lấy đường dẫn ảnh từ server.");
+    }
+
+    // 2. Lưu link web đó vào database thay vì lưu mã ID
+    await ctx.db.patch(args._id, { imageUrl: imageUrl });
   },
 });
 
