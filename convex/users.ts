@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { internalMutation, mutation, query, QueryCtx } from './_generated/server';
 import { Id } from './_generated/dataModel';
+import { internal } from './_generated/api'; // 👇 ĐÃ THÊM IMPORT
 
 // --- 1. CÁC HÀM LẤY THÔNG TIN USER ---
 
@@ -60,7 +61,7 @@ export const updateUser = mutation({
     _id: v.id('users'),
     bio: v.optional(v.string()),
     websiteUrl: v.optional(v.string()),
-    linkTitle: v.optional(v.string()), // <--- Trường tiêu đề Link
+    linkTitle: v.optional(v.string()),
     profilePicture: v.optional(v.string()),
     pushToken: v.optional(v.string()),
   },
@@ -74,7 +75,7 @@ export const updateUser = mutation({
 export const updateLastSeen = mutation({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return; // Nếu chưa đăng nhập thì bỏ qua
+    if (!identity) return;
 
     const user = await ctx.db
       .query("users")
@@ -82,7 +83,6 @@ export const updateLastSeen = mutation({
       .unique();
 
     if (user) {
-      // Cập nhật thời gian hiện tại
       await ctx.db.patch(user._id, { lastSeen: Date.now() });
     }
   },
@@ -168,7 +168,6 @@ async function userByExternalId(ctx: QueryCtx, externalId: string) {
 
 // --- 5. HỆ THỐNG FOLLOW & STATS ---
 
-// Follow
 export const followUser = mutation({
   args: { targetUserId: v.id('users') },
   handler: async (ctx, args) => {
@@ -180,7 +179,7 @@ export const followUser = mutation({
 
     const existingFollow = await ctx.db
       .query('follows')
-      .withIndex('by_both', (q) => // Lưu ý: Nếu lỗi index, sửa thành 'by_follower_following' tùy schema của bạn
+      .withIndex('by_both', (q) =>
         q.eq('followerId', currentUser._id).eq('followingId', args.targetUserId)
       )
       .unique();
@@ -196,11 +195,17 @@ export const followUser = mutation({
           followersCount: (targetUser.followersCount || 0) + 1,
         });
       }
+
+      // 👇 GỬI THÔNG BÁO KHI CÓ NGƯỜI FOLLOW 👇
+      await ctx.runMutation(internal.messages.createInternalNotification, {
+         receiverId: args.targetUserId,
+         type: 'follow',
+         senderId: currentUser._id
+      });
     }
   },
 });
 
-// Unfollow
 export const unfollowUser = mutation({
   args: { targetUserId: v.id('users') },
   handler: async (ctx, args) => {
@@ -225,7 +230,6 @@ export const unfollowUser = mutation({
   },
 });
 
-// IsFollowing (Cũ - chỉ 1 chiều)
 export const isFollowing = query({
   args: { targetUserId: v.id('users') },
   handler: async (ctx, args) => {
@@ -243,7 +247,6 @@ export const isFollowing = query({
   },
 });
 
-// Lấy danh sách Followers
 export const getFollowers = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
@@ -266,7 +269,6 @@ export const getFollowers = query({
   },
 });
 
-// Lấy danh sách Following
 export const getFollowing = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
@@ -289,7 +291,6 @@ export const getFollowing = query({
   },
 });
 
-// Đếm số bài viết (Đã sửa lỗi userId)
 export const getPostCount = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
@@ -302,15 +303,12 @@ export const getPostCount = query({
   },
 });
 
-// 👇👇👇 HÀM MỚI QUAN TRỌNG: KIỂM TRA QUAN HỆ 2 CHIỀU 👇👇👇
 export const checkRelationship = query({
   args: { targetUserId: v.id("users") },
   handler: async (ctx, args) => {
     const currentUserId = await getCurrentUser(ctx);
-    // Nếu chưa đăng nhập thì coi như chưa follow
     if (!currentUserId) return { isFollowing: false, isFollowedBy: false };
 
-    // 1. Kiểm tra: Mình có đang follow họ không?
     const followTx = await ctx.db
       .query("follows")
       .withIndex("by_both", (q) =>
@@ -318,7 +316,6 @@ export const checkRelationship = query({
       )
       .unique();
 
-    // 2. Kiểm tra: Họ có đang follow mình không?
     const followedByTx = await ctx.db
       .query("follows")
       .withIndex("by_both", (q) =>
@@ -327,21 +324,20 @@ export const checkRelationship = query({
       .unique();
 
     return {
-      isFollowing: !!followTx,      // True nếu mình đang follow họ
-      isFollowedBy: !!followedByTx  // True nếu họ đang follow mình
+      isFollowing: !!followTx,
+      isFollowedBy: !!followedByTx
     };
   },
 });
+
 export const getFriends = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    // 1. Lấy danh sách những người mình đang follow
     const following = await ctx.db
       .query("follows")
       .withIndex("by_follower", (q) => q.eq("followerId", args.userId))
       .collect();
 
-    // 2. Lọc ra những người có follow ngược lại mình (Mutual Follow)
     const friendPromises = following.map(async (f) => {
       const isFollowBack = await ctx.db
         .query("follows")
@@ -350,9 +346,8 @@ export const getFriends = query({
         )
         .unique();
 
-      if (!isFollowBack) return null; // Nếu họ không follow lại -> Không phải bạn bè
+      if (!isFollowBack) return null;
 
-      // 3. Lấy thông tin user
       const user = await ctx.db.get(f.followingId);
       if (!user) return null;
 
@@ -368,19 +363,17 @@ export const getFriends = query({
 });
 
 export const getUsers = query({
-  args: { search: v.optional(v.string()) }, // Thêm tham số search
+  args: { search: v.optional(v.string()) },
   handler: async (ctx, args) => {
     if (args.search) {
-      // Tìm kiếm người dùng có tên chứa từ khóa (không phân biệt hoa thường)
       return await ctx.db
         .query("users")
         .withSearchIndex("searchUsers", (q) =>
           q.search("username", args.search!)
         )
-        .take(20); // Lấy tối đa 20 kết quả khớp nhất
+        .take(20);
     }
 
-    // Nếu không search, mặc định lấy 10 người mới nhất
     return await ctx.db
       .query("users")
       .order("desc")

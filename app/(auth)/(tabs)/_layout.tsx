@@ -96,9 +96,9 @@ if (isSignedIn) {
           <Tabs.Screen
             name="favorites"
             options={{
-              title: 'Yêu thích',
+              title: 'Thông báo',
               tabBarIcon: ({ color, size, focused }) => (
-                <Ionicons name={focused ? 'heart' : 'heart-outline'} size={size} color={color} />
+                <Ionicons name={focused ? 'notifications' : 'notifications-outline'} size={size} color={color} />
               ),
             }}
           />

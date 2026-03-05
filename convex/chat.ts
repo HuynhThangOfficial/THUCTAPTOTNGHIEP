@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
+import { internal } from './_generated/api'; // 👇 ĐÃ THÊM IMPORT NÀY
 
 // 1. Tạo hoặc lấy cuộc trò chuyện giữa 2 người
 export const getOrCreateConversation = mutation({
@@ -14,7 +15,7 @@ export const getOrCreateConversation = mutation({
     const allConversations = await ctx.db.query('conversations').collect();
     const existing = allConversations.find(c =>
       c.participantIds.includes(currentUser._id) &&
-      c.participantIds.includes(args.otherUserId) // 👈 ĐÃ SỬA LỖI TYPO Ở ĐÂY
+      c.participantIds.includes(args.otherUserId)
     );
 
     if (existing) return existing._id;
@@ -46,11 +47,23 @@ export const sendMessage = mutation({
       isRead: false,
     });
 
-    // Cập nhật lại thời gian của cuộc hội thoại để đẩy lên đầu danh sách
     await ctx.db.patch(args.conversationId, {
       updatedAt: Date.now(),
       lastMessageText: args.content,
     });
+
+    // 👇 ĐÃ THÊM: TỰ ĐỘNG BẮN THÔNG BÁO KHI CÓ TIN NHẮN TỚI 👇
+    const conversation = await ctx.db.get(args.conversationId);
+    if (conversation) {
+      const otherUserId = conversation.participantIds.find(id => id !== currentUser!._id);
+      if (otherUserId) {
+        await ctx.runMutation(internal.messages.createInternalNotification, {
+          receiverId: otherUserId,
+          type: 'message',
+          senderId: currentUser!._id
+        });
+      }
+    }
   }
 });
 
@@ -76,7 +89,6 @@ export const getInbox = query({
     const convos = await ctx.db.query('conversations').collect();
     const myConvos = convos.filter(c => c.participantIds.includes(currentUser._id));
 
-    // Lấy thông tin người đang chat cùng
     const inbox = await Promise.all(myConvos.map(async (c) => {
       const otherUserId = c.participantIds.find(id => id !== currentUser._id);
       const otherUser = await ctx.db.get(otherUserId!);
@@ -95,6 +107,7 @@ export const getInbox = query({
     return inbox.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 });
+
 // 5. Lấy thông tin người đang chat cùng để hiển thị trên Header
 export const getConversationInfo = query({
   args: { conversationId: v.id('conversations') },

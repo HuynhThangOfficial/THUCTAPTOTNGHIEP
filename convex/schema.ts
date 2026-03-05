@@ -110,7 +110,7 @@ export default defineSchema({
   channel_subscriptions: defineTable({
     userId: v.id('users'),
     channelId: v.optional(v.id('channels')),
-    serverId: v.optional(v.id('servers')),
+    serverId: v.optional(v.union(v.id('servers'), v.id('universities'))),
     isSubscribed: v.boolean(),
   })
   .index('by_user_channel', ['userId', 'channelId'])
