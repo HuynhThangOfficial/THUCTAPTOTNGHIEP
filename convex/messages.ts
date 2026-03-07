@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 import { mutation, query, QueryCtx, internalMutation } from './_generated/server';
 import { paginationOptsValidator } from 'convex/server';
 import { Id } from './_generated/dataModel';
+import { isHttpUrl } from './utils'; // 👇 IMPORT HÀM TỪ FILE UTILS VÀO ĐÂY
 
 async function getCurrentUserId(ctx: QueryCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -169,7 +170,10 @@ export const getEditHistory = query({
 
 const getMessageCreator = async (ctx: QueryCtx, userId: Id<'users'>) => {
   const user = await ctx.db.get(userId);
-  if (!user?.imageUrl || user.imageUrl.startsWith('http')) return user;
+  
+  // 👇 ĐÃ CẬP NHẬT CHUẨN BEST PRACTICE TẠI ĐÂY
+  if (!user?.imageUrl || isHttpUrl(user.imageUrl)) return user;
+  
   const url = await ctx.storage.getUrl(user.imageUrl as Id<'_storage'>);
   return { ...user, imageUrl: url ?? undefined };
 };
@@ -195,28 +199,51 @@ export const getThreads = query({
     let threads;
 
     if (args.channelId) {
-        const channel = await ctx.db.get(args.channelId);
-        if (channel && channel.name === 'đại-sảnh' && channel.universityId) {
-            threads = await ctx.db.query('messages')
-              .withIndex('by_university', q => q.eq('universityId', channel.universityId))
-              .filter(q => q.eq(q.field('threadId'), undefined))
-              .order('desc')
-              .paginate(args.paginationOpts);
+      const channel = await ctx.db.get(args.channelId);
+
+      if (channel && channel.name === 'đại-sảnh') {
+        if (channel.universityId) {
+          // Trường hợp 1: Đại sảnh của University (VAA, v.v.)
+          threads = await ctx.db.query('messages')
+            .withIndex('by_university', q => q.eq('universityId', channel.universityId))
+            .filter(q => q.eq(q.field('threadId'), undefined))
+            .order('desc')
+            .paginate(args.paginationOpts);
+        } else if (channel.serverId) {
+          // Trường hợp 2: Đại sảnh của Server tự tạo (Personal Server)
+          threads = await ctx.db.query('messages')
+            .filter(q =>
+              q.and(
+                q.eq(q.field('serverId'), channel.serverId),
+                q.eq(q.field('threadId'), undefined)
+              )
+            )
+            .order('desc')
+            .paginate(args.paginationOpts);
         } else {
-            threads = await ctx.db.query('messages')
-              .withIndex('by_channel', q => q.eq('channelId', args.channelId))
-              .filter(q => q.eq(q.field('threadId'), undefined))
-              .order('desc')
-              .paginate(args.paginationOpts);
+          // Dự phòng nếu kênh không gắn với Uni hay Server nào
+          threads = await ctx.db.query('messages')
+            .withIndex('by_channel', q => q.eq('channelId', args.channelId))
+            .filter(q => q.eq(q.field('threadId'), undefined))
+            .order('desc')
+            .paginate(args.paginationOpts);
         }
+      } else {
+        // Nếu là kênh bình thường (không phải đại sảnh)
+        threads = await ctx.db.query('messages')
+          .withIndex('by_channel', q => q.eq('channelId', args.channelId))
+          .filter(q => q.eq(q.field('threadId'), undefined))
+          .order('desc')
+          .paginate(args.paginationOpts);
+      }
     } else if (args.userId) {
-        threads = await ctx.db.query('messages')
-            .filter((q) => q.eq(q.field('userId'), args.userId))
-            .order('desc').paginate(args.paginationOpts);
+      threads = await ctx.db.query('messages')
+        .filter((q) => q.eq(q.field('userId'), args.userId))
+        .order('desc').paginate(args.paginationOpts);
     } else {
-        threads = await ctx.db.query('messages')
-            .filter((q) => q.eq(q.field('threadId'), undefined))
-            .order('desc').paginate(args.paginationOpts);
+      threads = await ctx.db.query('messages')
+        .filter((q) => q.eq(q.field('threadId'), undefined))
+        .order('desc').paginate(args.paginationOpts);
     }
 
     let page = await Promise.all(
@@ -258,11 +285,11 @@ export const likeThread = mutation({
     if (existingLike) {
       await ctx.db.delete(existingLike._id);
       await ctx.db.patch(args.messageId, { likeCount: Math.max(0, (message.likeCount || 0) - 1) });
-      return { liked: false }; // Đầy đủ kết quả trả về cho Frontend
+      return { liked: false }; 
     } else {
       await ctx.db.insert('likes', { userId, messageId: args.messageId });
       await ctx.db.patch(args.messageId, { likeCount: (message.likeCount || 0) + 1 });
-      return { liked: true }; // Đầy đủ kết quả trả về cho Frontend
+      return { liked: true }; 
     }
   },
 });
@@ -377,7 +404,9 @@ export const getLikers = query({
     const likers = await Promise.all(likes.map(async (like) => {
       const user = await ctx.db.get(like.userId);
       if (!user) return null;
-      if (user.imageUrl && !user.imageUrl.startsWith("http")) {
+      
+      // 👇 ĐÃ CẬP NHẬT CHUẨN BEST PRACTICE TẠI ĐÂY
+      if (user.imageUrl && !isHttpUrl(user.imageUrl)) {
         user.imageUrl = await ctx.storage.getUrl(user.imageUrl as Id<"_storage">) ?? user.imageUrl;
       }
       return user;
@@ -517,7 +546,9 @@ export const getNotifications = query({
     return await Promise.all(notifs.map(async (n) => {
       const sender = n.senderId ? await ctx.db.get(n.senderId) : null;
       let imageUrl = sender?.imageUrl;
-      if (imageUrl && !imageUrl.startsWith('http')) {
+      
+      // 👇 ĐÃ CẬP NHẬT CHUẨN BEST PRACTICE TẠI ĐÂY
+      if (imageUrl && !isHttpUrl(imageUrl)) {
         imageUrl = await ctx.storage.getUrl(imageUrl as Id<'_storage'>) || imageUrl;
       }
       const channel = n.channelId ? await ctx.db.get(n.channelId) : null;

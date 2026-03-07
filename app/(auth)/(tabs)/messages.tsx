@@ -8,13 +8,11 @@ import { useRouter } from 'expo-router';
 import { Ionicons, Feather, FontAwesome6 } from '@expo/vector-icons';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import * as ImagePicker from 'expo-image-picker';
+import { isHttpUrl } from '@/convex/utils';
 
-// Xử lý lỗi ảnh null/undefined hoặc chuỗi Storage ID gây crash app
-const getValidAvatar = (url?: string | null) => {
-  if (url && typeof url === 'string' && url.startsWith('http')) {
-    return url;
-  }
-  return 'https://www.gravatar.com/avatar/?d=mp';
+const getValidAvatar = (url?: string | null): string => {
+  if (isHttpUrl(url)) return url as string;
+  return 'https://www.gravatar.com/avatar/?d=mp'; 
 };
 
 const formatTimeShort = (timestamp?: number) => {
@@ -246,7 +244,7 @@ const MessagesScreen = () => {
         renderItem={({ item }) => {
           const otherUser = item.otherUser;
           return (
-            <TouchableOpacity style={styles.chatRow} onPress={() => router.push(`/(public)/chat/${item._id}` as any)}>
+            <TouchableOpacity style={styles.chatRow} onPress={() => router.push(`/(auth)/chat/${item._id}` as any)}>
               <Image source={{ uri: getValidAvatar(otherUser?.imageUrl) }} style={styles.chatAvatar} />
               <View style={styles.chatInfo}>
                 <Text style={styles.chatName}>{otherUser ? `${otherUser.first_name} ${otherUser.last_name}` : 'Người dùng'}</Text>

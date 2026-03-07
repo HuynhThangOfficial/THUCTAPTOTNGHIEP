@@ -8,21 +8,29 @@ import { Id } from '@/convex/_generated/dataModel';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
+// IMPORT HÀM BEST PRACTICE TỪ CONVEX
+import { isHttpUrl } from '@/convex/utils';
+
+// Helper: Xử lý hiển thị Avatar an toàn 100%
+const getValidAvatar = (url?: string | null): string => {
+  if (isHttpUrl(url)) return url as string;
+  return 'https://www.gravatar.com/avatar/?d=mp';
+};
+
 type UserProfileProps = {
   userId?: string;
-  onLogout?: () => void;
+  onSettingsPress?: () => void; // Đã đổi tên chuẩn ở đây
   showBackButton?: boolean;
 };
 
-export const UserProfile = ({ userId, onLogout, showBackButton = false }: UserProfileProps) => {
+// 👇 ĐÃ ĐỒNG BỘ TÊN onSettingsPress Ở DÒNG NÀY 👇
+export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }: UserProfileProps) => {
   const { userProfile } = useUserProfile();
   const router = useRouter();
 
-  // 👇 FIX LỖI: Nếu không truyền userId thì mặc định lấy ID của bản thân
   const currentId = userId || userProfile?._id;
   const isSelf = userProfile?._id === currentId;
 
-  // 👇 FIX LỖI CONVEX: Thêm "skip" để không gọi API khi ID bị rỗng
   const profile = useQuery(api.users.getUserById, currentId ? { userId: currentId as Id<'users'> } : "skip");
   
   // 1. LOGIC FOLLOW & STATS
@@ -50,7 +58,7 @@ export const UserProfile = ({ userId, onLogout, showBackButton = false }: UserPr
     if (!currentId) return;
     try {
       const conversationId = await startChat({ otherUserId: currentId as Id<'users'> });
-      router.push(`/(public)/chat/${conversationId}` as any);
+      router.push(`/(auth)/chat/${conversationId}` as any);
     } catch (error) {
       console.error("Lỗi khi tạo phòng chat:", error);
     }
@@ -64,7 +72,6 @@ export const UserProfile = ({ userId, onLogout, showBackButton = false }: UserPr
     } catch (error) { console.log(error); }
   };
 
-  // Tránh render khi chưa có dữ liệu profile
   if (!profile) return <View style={styles.container} />;
 
   return (
@@ -80,21 +87,25 @@ export const UserProfile = ({ userId, onLogout, showBackButton = false }: UserPr
           <MaterialCommunityIcons name="web" size={24} color="black" />
         )}
         <View style={styles.rightIcons}>
+          {/* 👇 Nút Chia sẻ và Menu Cài đặt chỉ dành cho chính chủ 👇 */}
           {isSelf && (
-            <TouchableOpacity onPress={handleShare}>
-              <Ionicons name="share-outline" size={24} color="black" />
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity onPress={handleShare}>
+                <Ionicons name="share-outline" size={24} color="black" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={onSettingsPress}>
+<Ionicons name="settings-outline" size={26} color="black" />
+              </TouchableOpacity>
+            </>
           )}
-          <TouchableOpacity onPress={onLogout}>
-            <Ionicons name="log-out-outline" size={24} color="black" />
-          </TouchableOpacity>
         </View>
       </View>
 
       {/* --- PROFILE INFO --- */}
       <View style={styles.profileContainer}>
         <View style={styles.userInfoColumn}>
-          <Image source={{ uri: profile?.imageUrl as string }} style={styles.image} />
+          <Image source={{ uri: getValidAvatar(profile?.imageUrl) }} style={styles.image} />
+          
           <View style={styles.textStack}>
              <Text style={styles.name}>{profile?.first_name} {profile?.last_name}</Text>
              <Text style={styles.email}>{profile?.email}</Text>
@@ -123,7 +134,7 @@ export const UserProfile = ({ userId, onLogout, showBackButton = false }: UserPr
     
       {/* --- STATS ROW (SỐ LIỆU) --- */}
       <View style={styles.statsRow}>
-        <TouchableOpacity onPress={() => router.push({ pathname: '/(public)/follow-list', params: { userId: profile?._id, initialTab: 'followers' } })}>
+        <TouchableOpacity onPress={() => router.push({ pathname: '/follow-list', params: { userId: profile?._id, initialTab: 'followers' } })}>
           <Text style={styles.followersText}>
             <Text style={{ fontWeight: 'bold' }}>{profile?.followersCount || 0}</Text> người theo dõi
           </Text>
@@ -131,7 +142,7 @@ export const UserProfile = ({ userId, onLogout, showBackButton = false }: UserPr
 
         <Text style={styles.dot}>·</Text>
 
-        <TouchableOpacity onPress={() => router.push({ pathname: '/(public)/follow-list', params: { userId: profile?._id, initialTab: 'following' } })}>
+        <TouchableOpacity onPress={() => router.push({ pathname: '/follow-list', params: { userId: profile?._id, initialTab: 'following' } })}>
           <Text style={styles.followersText}>
             <Text style={{ fontWeight: 'bold' }}>{followingCount}</Text> đang theo dõi
           </Text>
@@ -155,7 +166,7 @@ export const UserProfile = ({ userId, onLogout, showBackButton = false }: UserPr
             onPress={() => {
               let url = profile.websiteUrl;
               if (!url) return;
-              if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
+              if (!isHttpUrl(url)) url = 'https://' + url;
               Linking.openURL(url).catch(err => console.error("Err", err));
             }}
           >

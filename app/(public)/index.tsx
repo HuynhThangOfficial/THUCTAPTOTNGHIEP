@@ -1,41 +1,58 @@
 import { Colors } from '@/constants/Colors';
-import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useOAuth } from '@clerk/clerk-expo';
 import { UserFeedback } from '@sentry/react-native';
 import * as Sentry from '@sentry/react-native';
 import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
+
+// Xóa các session web đang bị kẹt
+WebBrowser.maybeCompleteAuthSession();
 
 const LoginScreen = () => {
-  const { startOAuthFlow } = useOAuth({ strategy: 'oauth_facebook' });
+  const { startOAuthFlow: facebookAuth } = useOAuth({ strategy: 'oauth_facebook' });
   const { startOAuthFlow: googleAuth } = useOAuth({ strategy: 'oauth_google' });
 
+  // Tạo State khóa nút
+  const [isLoading, setIsLoading] = useState(false);
+
   const handleFacebookLogin = async () => {
+    if (isLoading) return; // Nếu đang chạy thì ngưng
+    setIsLoading(true);    // Khóa các nút lại
+
     try {
-      const { createdSessionId, setActive } = await startOAuthFlow({
-      redirectUrl: Linking.createURL('/(auth)/(tabs)/feed', {scheme: 'myapp' }) //ok
+      const { createdSessionId, setActive } = await facebookAuth({
+        redirectUrl: Linking.createURL('/(auth)/(tabs)/feed', {scheme: 'myapp' }) 
       });
 
-      if (createdSessionId) {
-        setActive!({ session: createdSessionId });
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
       }
     } catch (err) {
-      console.error('OAuth error', err);
+      console.error('Lỗi đăng nhập Facebook:', err);
+    } finally {
+      setIsLoading(false); // Xử lý xong mở khóa ra
     }
   };
 
   const handleGoogleLogin = async () => {
+    if (isLoading) return; 
+    setIsLoading(true);
+
     try {
       const { createdSessionId, setActive } = await googleAuth({
-            redirectUrl: Linking.createURL('/(auth)/(tabs)/feed', {scheme: 'myapp' }) //ok
+        redirectUrl: Linking.createURL('/(auth)/(tabs)/feed', {scheme: 'myapp' }) 
       });
 
-      if (createdSessionId) {
-        setActive!({ session: createdSessionId });
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
       }
     } catch (err) {
-      console.error('OAuth error', err);
+      console.error('Lỗi đăng nhập Google:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -63,41 +80,61 @@ const LoginScreen = () => {
         <Text style={styles.title}>Chọn phương thức đăng nhập để vào KonKet</Text>
 
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.loginButton} onPress={handleFacebookLogin}>
+          
+          {/* NÚT FACEBOOK */}
+          <TouchableOpacity 
+            style={[styles.loginButton, isLoading && { opacity: 0.6 }]} 
+            onPress={handleFacebookLogin}
+            disabled={isLoading}
+          >
             <View style={styles.loginButtonContent}>
-              <Image
-                source={require('@/assets/images/facebook_icon.png')}
-                style={styles.loginButtonImage}
-              />
+              <Image source={require('@/assets/images/facebook_icon.png')} style={styles.loginButtonImage} />
+              
               <Text style={styles.loginButtonText}>Tiếp tục với Facebook</Text>
-              <Ionicons name="chevron-forward" size={24} color={Colors.border} />
+              
+              {isLoading ? (
+                 <ActivityIndicator color={Colors.border} />
+              ) : (
+                 <Ionicons name="chevron-forward" size={24} color={Colors.border} />
+              )}
             </View>
           </TouchableOpacity>
 
-          {/* For tetstingh with a different account */}
-          <TouchableOpacity style={styles.loginButton} onPress={handleGoogleLogin}>
+          {/* NÚT GOOGLE */}
+          <TouchableOpacity 
+            style={[styles.loginButton, isLoading && { opacity: 0.6 }]} 
+            onPress={handleGoogleLogin}
+            disabled={isLoading}
+          >
             <View style={styles.loginButtonContent}>
-              <Image
-                source={require('@/assets/images/google_icon.png')}
-                style={styles.loginButtonImage}
-              />
+              <Image source={require('@/assets/images/google_icon.png')} style={styles.loginButtonImage} />
+              
               <Text style={styles.loginButtonText}>Tiếp tục với Google</Text>
-              <Ionicons name="chevron-forward" size={24} color={Colors.border} />
+              
+              {isLoading ? (
+                 <ActivityIndicator color={Colors.border} />
+              ) : (
+                 <Ionicons name="chevron-forward" size={24} color={Colors.border} />
+              )}
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.loginButton}>
+          {/* NÚT KHÁCH (Giữ nguyên giao diện) */}
+          <TouchableOpacity 
+            style={[styles.loginButton, isLoading && { opacity: 0.6 }]}
+            disabled={isLoading}
+          >
             <View style={styles.loginButtonContent}>
-              <Text style={styles.loginButtonText}>Tiếp tục với tư cách khách</Text>
+              <Text style={[styles.loginButtonText, { marginLeft: 10 }]}>Tiếp tục với tư cách khách</Text>
               <Ionicons name="chevron-forward" size={24} color={Colors.border} />
             </View>
             <Text style={styles.loginButtonSubtitle}>
               Bạn có thể vào KonKet mà không cần hồ sơ, nhưng sẽ không thể đăng bài, 
-            tương tác hoặc nhận các đề xuất cá nhân hóa.
+              tương tác hoặc nhận các đề xuất cá nhân hóa.
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={triggerError}>
+          <TouchableOpacity onPress={triggerError} disabled={isLoading}>
             <Text style={styles.switchAccountButtonText}>Đổi tài khoản</Text>
           </TouchableOpacity>
         </View>
@@ -161,6 +198,5 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
 });
-
 
 export default LoginScreen;

@@ -15,6 +15,7 @@ import type * as push from "../push.js";
 import type * as social from "../social.js";
 import type * as university from "../university.js";
 import type * as users from "../users.js";
+import type * as utils from "../utils.js";
 
 import type {
   ApiFromModules,
@@ -30,6 +31,7 @@ declare const fullApi: ApiFromModules<{
   social: typeof social;
   university: typeof university;
   users: typeof users;
+  utils: typeof utils;
 }>;
 
 /**
