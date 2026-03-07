@@ -195,28 +195,53 @@ export const getThreads = query({
     let threads;
 
     if (args.channelId) {
-        const channel = await ctx.db.get(args.channelId);
-        if (channel && channel.name === 'đại-sảnh' && channel.universityId) {
-            threads = await ctx.db.query('messages')
-              .withIndex('by_university', q => q.eq('universityId', channel.universityId))
-              .filter(q => q.eq(q.field('threadId'), undefined))
-              .order('desc')
-              .paginate(args.paginationOpts);
+      const channel = await ctx.db.get(args.channelId);
+
+      // LOGIC SỬA ĐỔI TẠI ĐÂY:
+      if (channel && channel.name === 'đại-sảnh') {
+        if (channel.universityId) {
+          // Trường hợp 1: Đại sảnh của University (VAA, v.v.)
+          threads = await ctx.db.query('messages')
+            .withIndex('by_university', q => q.eq('universityId', channel.universityId))
+            .filter(q => q.eq(q.field('threadId'), undefined))
+            .order('desc')
+            .paginate(args.paginationOpts);
+        } else if (channel.serverId) {
+          // Trường hợp 2: Đại sảnh của Server tự tạo (Personal Server)
+          // Chúng ta lọc các tin nhắn có serverId trùng với serverId của kênh này
+          threads = await ctx.db.query('messages')
+            .filter(q =>
+              q.and(
+                q.eq(q.field('serverId'), channel.serverId),
+                q.eq(q.field('threadId'), undefined)
+              )
+            )
+            .order('desc')
+            .paginate(args.paginationOpts);
         } else {
-            threads = await ctx.db.query('messages')
-              .withIndex('by_channel', q => q.eq('channelId', args.channelId))
-              .filter(q => q.eq(q.field('threadId'), undefined))
-              .order('desc')
-              .paginate(args.paginationOpts);
+          // Dự phòng nếu kênh không gắn với Uni hay Server nào
+          threads = await ctx.db.query('messages')
+            .withIndex('by_channel', q => q.eq('channelId', args.channelId))
+            .filter(q => q.eq(q.field('threadId'), undefined))
+            .order('desc')
+            .paginate(args.paginationOpts);
         }
+      } else {
+        // Nếu là kênh bình thường (không phải đại sảnh)
+        threads = await ctx.db.query('messages')
+          .withIndex('by_channel', q => q.eq('channelId', args.channelId))
+          .filter(q => q.eq(q.field('threadId'), undefined))
+          .order('desc')
+          .paginate(args.paginationOpts);
+      }
     } else if (args.userId) {
-        threads = await ctx.db.query('messages')
-            .filter((q) => q.eq(q.field('userId'), args.userId))
-            .order('desc').paginate(args.paginationOpts);
+      threads = await ctx.db.query('messages')
+        .filter((q) => q.eq(q.field('userId'), args.userId))
+        .order('desc').paginate(args.paginationOpts);
     } else {
-        threads = await ctx.db.query('messages')
-            .filter((q) => q.eq(q.field('threadId'), undefined))
-            .order('desc').paginate(args.paginationOpts);
+      threads = await ctx.db.query('messages')
+        .filter((q) => q.eq(q.field('threadId'), undefined))
+        .order('desc').paginate(args.paginationOpts);
     }
 
     let page = await Promise.all(
