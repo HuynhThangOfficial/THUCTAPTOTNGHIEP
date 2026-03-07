@@ -197,7 +197,6 @@ export const getThreads = query({
     if (args.channelId) {
       const channel = await ctx.db.get(args.channelId);
 
-      // LOGIC SỬA ĐỔI TẠI ĐÂY:
       if (channel && channel.name === 'đại-sảnh') {
         if (channel.universityId) {
           // Trường hợp 1: Đại sảnh của University (VAA, v.v.)
@@ -208,7 +207,6 @@ export const getThreads = query({
             .paginate(args.paginationOpts);
         } else if (channel.serverId) {
           // Trường hợp 2: Đại sảnh của Server tự tạo (Personal Server)
-          // Chúng ta lọc các tin nhắn có serverId trùng với serverId của kênh này
           threads = await ctx.db.query('messages')
             .filter(q =>
               q.and(
