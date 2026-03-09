@@ -14,6 +14,9 @@ type ThreadProps = {
   thread: Doc<'messages'> & {
     creator: Doc<'users'>;
     isLiked?: boolean;
+    // 👇 NHẬN TRẠNG THÁI ADMIN TỪ BACKEND
+    isServerAdmin?: boolean;
+    amIAdmin?: boolean;
   };
 };
 
@@ -44,7 +47,7 @@ const formatTimeAgo = (timestamp: number) => {
 };
 
 const Thread = ({ thread }: ThreadProps) => {
-  const { content, mediaFiles, likeCount, commentCount, retweetCount, creator, isLiked } = thread;
+  const { content, mediaFiles, likeCount, commentCount, retweetCount, creator, isLiked, isServerAdmin, amIAdmin } = thread;
 
   const { userProfile } = useUserProfile();
   const { showActionSheetWithOptions } = useActionSheet();
@@ -110,26 +113,42 @@ const Thread = ({ thread }: ThreadProps) => {
       Alert.alert('Lịch sử thay đổi', historyList);
     };
 
+  // 👇 LOGIC HIỂN THỊ MENU XÓA DÀNH CHO ADMIN 👇
   const onActionPress = () => {
-    const options = isOwner
-      ? ['Chỉnh sửa', 'Xem lịch sử chỉnh sửa', 'Xóa', 'Hủy']
-      : ['Báo cáo', 'Xem lịch sử chỉnh sửa', 'Hủy'];
+    let options: string[] = [];
+    let icons: any[] = [];
+    let destructiveButtonIndex: number | undefined;
+    let cancelButtonIndex: number;
 
-    const icons = isOwner
-      ? [
-          <Ionicons name="pencil-outline" size={24} color="black" />,
-          <Ionicons name="time-outline" size={24} color="black" />,
-          <Ionicons name="trash-outline" size={24} color="red" />,
-          <Ionicons name="close-outline" size={24} color="black" />,
-        ]
-      : [
-          <Ionicons name="alert-circle-outline" size={24} color="black" />,
-          <Ionicons name="time-outline" size={24} color="black" />,
-          <Ionicons name="close-outline" size={24} color="black" />,
-        ];
-
-    const destructiveButtonIndex = isOwner ? 2 : undefined;
-    const cancelButtonIndex = options.length - 1;
+    if (isOwner) {
+      options = ['Chỉnh sửa', 'Xem lịch sử chỉnh sửa', 'Xóa', 'Hủy'];
+      icons = [
+        <Ionicons name="pencil-outline" size={24} color="black" />,
+        <Ionicons name="time-outline" size={24} color="black" />,
+        <Ionicons name="trash-outline" size={24} color="red" />,
+        <Ionicons name="close-outline" size={24} color="black" />,
+      ];
+      destructiveButtonIndex = 2;
+      cancelButtonIndex = 3;
+    } else if (amIAdmin) {
+      options = ['Báo cáo', 'Xem lịch sử chỉnh sửa', 'Xóa (Quyền Admin)', 'Hủy'];
+      icons = [
+        <Ionicons name="alert-circle-outline" size={24} color="black" />,
+        <Ionicons name="time-outline" size={24} color="black" />,
+        <Ionicons name="trash-outline" size={24} color="red" />,
+        <Ionicons name="close-outline" size={24} color="black" />,
+      ];
+      destructiveButtonIndex = 2;
+      cancelButtonIndex = 3;
+    } else {
+      options = ['Báo cáo', 'Xem lịch sử chỉnh sửa', 'Hủy'];
+      icons = [
+        <Ionicons name="alert-circle-outline" size={24} color="black" />,
+        <Ionicons name="time-outline" size={24} color="black" />,
+        <Ionicons name="close-outline" size={24} color="black" />,
+      ];
+      cancelButtonIndex = 2;
+    }
 
     showActionSheetWithOptions(
       {
@@ -142,26 +161,16 @@ const Thread = ({ thread }: ThreadProps) => {
       },
       (selectedIndex?: number) => {
         if (isOwner) {
-          switch (selectedIndex) {
-            case 0:
-              router.push(`/(auth)/(modal)/edit/${thread._id}`);
-              break;
-            case 1:
-              showHistory();
-              break;
-            case 2:
-              handleDelete();
-              break;
-          }
+          if (selectedIndex === 0) router.push(`/(auth)/(modal)/edit/${thread._id}`);
+          if (selectedIndex === 1) showHistory();
+          if (selectedIndex === 2) handleDelete();
+        } else if (amIAdmin) {
+          if (selectedIndex === 0) Alert.alert('Báo cáo', 'Đã gửi báo cáo.');
+          if (selectedIndex === 1) showHistory();
+          if (selectedIndex === 2) handleDelete();
         } else {
-          switch (selectedIndex) {
-            case 0:
-              Alert.alert('Báo cáo', 'Đã gửi báo cáo.');
-              break;
-            case 1:
-              showHistory();
-              break;
-          }
+          if (selectedIndex === 0) Alert.alert('Báo cáo', 'Đã gửi báo cáo.');
+          if (selectedIndex === 1) showHistory();
         }
       }
     );
@@ -224,12 +233,20 @@ const Thread = ({ thread }: ThreadProps) => {
           <>
             <TouchableOpacity onLongPress={onActionPress} delayLongPress={200} activeOpacity={0.8}>
               <View style={styles.commentBubble}>
-                {/* 👇 THỜI GIAN ĐƯỢC CHUYỂN LÊN NGANG TÊN NGƯỜI DÙNG 👇 */}
                 <View style={styles.commentHeaderRow}>
                   <Link href={`/feed/profile/${creator?._id}`} asChild>
-                    <Text style={styles.commentUsername}>
-                      {creator?.first_name} {creator?.last_name}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={isComment ? styles.commentUsername : styles.username}>
+                        {creator?.first_name}
+                        {creator?.last_name ? ` ${creator.last_name}` : ''}
+                      </Text>
+                      {/* 👇 HIỂN THỊ TAG ADMIN TẠI COMMENT 👇 */}
+                      {isServerAdmin && (
+                        <View style={styles.adminBadge}>
+                          <Text style={styles.adminBadgeText}>Quản trị viên</Text>
+                        </View>
+                      )}
+                    </View>
                   </Link>
                   <Text style={styles.commentInlineTimestamp}>
                     {formatTimeAgo(thread._creationTime)}
@@ -257,26 +274,18 @@ const Thread = ({ thread }: ThreadProps) => {
             )}
 
             <View style={styles.commentActions}>
-              {/* 👇 CÁC ICON ĐÃ ĐƯỢC PHÓNG TO VÀ ĐẨY SANG TRÁI 👇 */}
-              {/* 1. Nút Like (Trái tim) */}
               <TouchableOpacity onPress={() => likeThread({ messageId: thread._id })} hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }} style={styles.commentIconButton}>
                 <Ionicons name={isLiked ? "heart" : "heart-outline"} size={20} color={isLiked ? "red" : "gray"} />
                 {likeCount > 0 && (
                   <Text style={[styles.commentActionText, isLiked && { color: 'red' }]}>{likeCount}</Text>
                 )}
               </TouchableOpacity>
-
-              {/* 2. Nút Phản hồi (Bong bóng chat) */}
               <TouchableOpacity onPress={() => setIsReplyingInline(!isReplyingInline)} hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }} style={styles.commentIconButton}>
                 <Ionicons name="chatbubble-outline" size={20} color="gray" />
               </TouchableOpacity>
-
-              {/* 3. Nút Retweet (Mũi tên xoay vòng) */}
               <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }} style={styles.commentIconButton}>
                 <Ionicons name="repeat-outline" size={20} color="gray" />
               </TouchableOpacity>
-
-              {/* 4. Nút Gửi / Share (Máy bay giấy) */}
               <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }} style={styles.commentIconButton}>
                 <Feather name="send" size={19} color="gray" />
               </TouchableOpacity>
@@ -309,19 +318,26 @@ const Thread = ({ thread }: ThreadProps) => {
           <>
             <View style={styles.header}>
               <View style={styles.headerText}>
-                {/* 👇 THỜI GIAN ĐƯỢC CHUYỂN LÊN NGANG TÊN NGƯỜI DÙNG 👇 */}
                 <View style={styles.postHeaderRow}>
                   <Link href={`/feed/profile/${creator?._id}`} asChild>
-                    <Text style={styles.username}>
-                      {creator?.first_name} {creator?.last_name}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={isComment ? styles.commentUsername : styles.username}>
+                        {creator?.first_name}
+                        {creator?.last_name ? ` ${creator.last_name}` : ''}
+                      </Text>
+                      {/* 👇 HIỂN THỊ TAG ADMIN TẠI POST GỐC 👇 */}
+                      {isServerAdmin && (
+                        <View style={styles.adminBadge}>
+                          <Text style={styles.adminBadgeText}>Quản trị viên</Text>
+                        </View>
+                      )}
+                    </View>
                   </Link>
                   <Text style={styles.inlineTimestamp}>
                     • {formatTimeAgo(thread._creationTime)}
                   </Text>
                 </View>
 
-                {/* Phần badge kênh và trạng thái "Đã sửa" sẽ rớt xuống hàng dưới */}
                 {(channelInfo?.name !== 'đại-sảnh' || (editHistory && editHistory.length > 0)) && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
                      {channelInfo && channelInfo.name !== 'đại-sảnh' && (
@@ -420,10 +436,24 @@ const styles = StyleSheet.create({
   avatar: { width: 40, height: 40, borderRadius: 20, marginRight: 10 },
   headerText: { flex: 1, flexDirection: 'column' },
 
-  // Style cho dòng tên + thời gian của Bài Đăng Gốc
   postHeaderRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
   username: { fontWeight: 'bold', fontSize: 16 },
   inlineTimestamp: { color: '#777', fontSize: 13, marginLeft: 6 },
+
+  // STYLE CHO NÚT ADMIN
+  adminBadge: {
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 6,
+  },
+  adminBadgeText: {
+    color: '#1976D2',
+    fontSize: 10,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+  },
 
   content: { fontSize: 16, marginBottom: 10 },
   mediaImage: { width: 200, height: 200, borderRadius: 10, marginBottom: 10 },
@@ -447,7 +477,6 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
 
-  // Style cho dòng tên + thời gian của Comment Con
   commentHeaderRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginBottom: 3 },
   commentUsername: { fontWeight: 'bold', fontSize: 13, color: '#050505' },
   commentInlineTimestamp: { fontSize: 12, color: '#65676b', marginLeft: 6 },
@@ -461,8 +490,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 6,
-    marginLeft: 14, // Đẩy sát vào mép trái của bong bóng chat
-    gap: 18, // Khoảng cách giữa các icon đã được làm rộng rãi hơn
+    marginLeft: 14,
+    gap: 18,
   },
   commentIconButton: {
     flexDirection: 'row',
@@ -470,7 +499,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   commentActionText: {
-    fontSize: 13, // Cho chữ đếm like to lên chút cùng icon
+    fontSize: 13,
     color: '#65676b',
     fontWeight: 'bold',
   },

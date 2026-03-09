@@ -2,7 +2,7 @@ import { v } from 'convex/values';
 import { mutation, query, QueryCtx, internalMutation } from './_generated/server';
 import { paginationOptsValidator } from 'convex/server';
 import { Id } from './_generated/dataModel';
-import { isHttpUrl } from './utils'; // 👇 IMPORT HÀM TỪ FILE UTILS VÀO ĐÂY
+import { isHttpUrl } from './utils';
 
 async function getCurrentUserId(ctx: QueryCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -50,7 +50,6 @@ export const addThread = mutation({
       }
     }
 
-    // LOGIC THÔNG BÁO: Gửi cho những người bật chuông kênh/server
     if (args.channelId && !args.threadId) {
       const notifyUserIds = new Set<Id<"users">>();
       const targetId = args.serverId || args.universityId;
@@ -99,7 +98,19 @@ export const deleteThread = mutation({
     const userId = await getCurrentUserId(ctx);
     if (!userId) throw new Error("Unauthorized");
     const message = await ctx.db.get(args.messageId);
-    if (!message || message.userId !== userId) throw new Error("Unauthorized");
+    if (!message) throw new Error("Message not found");
+
+    // 👇 LOGIC CẤP QUYỀN XÓA CHO ADMIN 👇
+    let canDelete = false;
+    if (message.userId === userId) {
+      canDelete = true;
+    } else if (message.serverId) {
+      const server = await ctx.db.get(message.serverId);
+      if (server?.adminIds?.includes(userId)) canDelete = true;
+    }
+
+    if (!canDelete) throw new Error("Bạn không có quyền xóa bài viết này");
+
     await ctx.db.delete(args.messageId);
 
     const relatedLikes = await ctx.db.query('likes')
@@ -123,7 +134,6 @@ export const updateThread = mutation({
     const message = await ctx.db.get(args.messageId);
     if (!message || message.userId !== userId) throw new Error("Unauthorized");
 
-    // Nhật ký thay đổi ảnh từ commit của Script 1
     let changeLog = "";
     if (args.mediaFiles !== undefined) {
       const oldMedia = message.mediaFiles || [];
@@ -170,10 +180,7 @@ export const getEditHistory = query({
 
 const getMessageCreator = async (ctx: QueryCtx, userId: Id<'users'>) => {
   const user = await ctx.db.get(userId);
-  
-  // 👇 ĐÃ CẬP NHẬT CHUẨN BEST PRACTICE TẠI ĐÂY
   if (!user?.imageUrl || isHttpUrl(user.imageUrl)) return user;
-  
   const url = await ctx.storage.getUrl(user.imageUrl as Id<'_storage'>);
   return { ...user, imageUrl: url ?? undefined };
 };
@@ -203,14 +210,12 @@ export const getThreads = query({
 
       if (channel && channel.name === 'đại-sảnh') {
         if (channel.universityId) {
-          // Trường hợp 1: Đại sảnh của University (VAA, v.v.)
           threads = await ctx.db.query('messages')
             .withIndex('by_university', q => q.eq('universityId', channel.universityId))
             .filter(q => q.eq(q.field('threadId'), undefined))
             .order('desc')
             .paginate(args.paginationOpts);
         } else if (channel.serverId) {
-          // Trường hợp 2: Đại sảnh của Server tự tạo (Personal Server)
           threads = await ctx.db.query('messages')
             .filter(q =>
               q.and(
@@ -221,7 +226,6 @@ export const getThreads = query({
             .order('desc')
             .paginate(args.paginationOpts);
         } else {
-          // Dự phòng nếu kênh không gắn với Uni hay Server nào
           threads = await ctx.db.query('messages')
             .withIndex('by_channel', q => q.eq('channelId', args.channelId))
             .filter(q => q.eq(q.field('threadId'), undefined))
@@ -229,7 +233,6 @@ export const getThreads = query({
             .paginate(args.paginationOpts);
         }
       } else {
-        // Nếu là kênh bình thường (không phải đại sảnh)
         threads = await ctx.db.query('messages')
           .withIndex('by_channel', q => q.eq('channelId', args.channelId))
           .filter(q => q.eq(q.field('threadId'), undefined))
@@ -251,13 +254,26 @@ export const getThreads = query({
         const creator = await getMessageCreator(ctx, thread.userId);
         const mediaUrls = await getMediaUrls(ctx, thread.mediaFiles);
         let isLiked = false;
+        let isServerAdmin = false;
+        let amIAdmin = false;
+
         if (currentUserId) {
           const like = await ctx.db.query('likes')
             .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', thread._id))
             .unique();
           isLiked = !!like;
         }
-        return { ...thread, mediaFiles: mediaUrls, creator, isLiked };
+
+        // 👇 LOGIC XÁC ĐỊNH TAG ADMIN VÀ QUYỀN TRUY CẬP 👇
+        if (thread.serverId) {
+           const server = await ctx.db.get(thread.serverId);
+           if (server?.adminIds) {
+               if (server.adminIds.includes(thread.userId)) isServerAdmin = true;
+               if (currentUserId && server.adminIds.includes(currentUserId)) amIAdmin = true;
+           }
+        }
+
+        return { ...thread, mediaFiles: mediaUrls, creator, isLiked, isServerAdmin, amIAdmin };
       })
     );
 
@@ -285,11 +301,11 @@ export const likeThread = mutation({
     if (existingLike) {
       await ctx.db.delete(existingLike._id);
       await ctx.db.patch(args.messageId, { likeCount: Math.max(0, (message.likeCount || 0) - 1) });
-      return { liked: false }; 
+      return { liked: false };
     } else {
       await ctx.db.insert('likes', { userId, messageId: args.messageId });
       await ctx.db.patch(args.messageId, { likeCount: (message.likeCount || 0) + 1 });
-      return { liked: true }; 
+      return { liked: true };
     }
   },
 });
@@ -325,14 +341,27 @@ export const getThreadById = query({
     const creator = await getMessageCreator(ctx, message.userId);
     const mediaUrls = await getMediaUrls(ctx, message.mediaFiles);
     const currentUserId = await getCurrentUserId(ctx);
+
     let isLiked = false;
+    let isServerAdmin = false;
+    let amIAdmin = false;
+
     if (currentUserId) {
       const like = await ctx.db.query('likes')
         .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', args.messageId))
         .unique();
       isLiked = !!like;
     }
-    return { ...message, mediaFiles: mediaUrls, creator, isLiked };
+
+    if (message.serverId) {
+       const server = await ctx.db.get(message.serverId);
+       if (server?.adminIds) {
+           if (server.adminIds.includes(message.userId)) isServerAdmin = true;
+           if (currentUserId && server.adminIds.includes(currentUserId)) amIAdmin = true;
+       }
+    }
+
+    return { ...message, mediaFiles: mediaUrls, creator, isLiked, isServerAdmin, amIAdmin };
   },
 });
 
@@ -350,13 +379,25 @@ export const getThreadComments = query({
         const creator = await getMessageCreator(ctx, comment.userId);
         const mediaUrls = await getMediaUrls(ctx, comment.mediaFiles);
         let isLiked = false;
+        let isServerAdmin = false;
+        let amIAdmin = false;
+
         if (currentUserId) {
            const like = await ctx.db.query('likes')
             .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', comment._id))
             .unique();
            isLiked = !!like;
         }
-        return { ...comment, mediaFiles: mediaUrls, creator, isLiked };
+
+        if (comment.serverId) {
+           const server = await ctx.db.get(comment.serverId);
+           if (server?.adminIds) {
+               if (server.adminIds.includes(comment.userId)) isServerAdmin = true;
+               if (currentUserId && server.adminIds.includes(currentUserId)) amIAdmin = true;
+           }
+        }
+
+        return { ...comment, mediaFiles: mediaUrls, creator, isLiked, isServerAdmin, amIAdmin };
       })
     );
   },
@@ -404,8 +445,7 @@ export const getLikers = query({
     const likers = await Promise.all(likes.map(async (like) => {
       const user = await ctx.db.get(like.userId);
       if (!user) return null;
-      
-      // 👇 ĐÃ CẬP NHẬT CHUẨN BEST PRACTICE TẠI ĐÂY
+
       if (user.imageUrl && !isHttpUrl(user.imageUrl)) {
         user.imageUrl = await ctx.storage.getUrl(user.imageUrl as Id<"_storage">) ?? user.imageUrl;
       }
@@ -414,8 +454,6 @@ export const getLikers = query({
     return likers.filter((u) => u !== null);
   },
 });
-
-// --- LOGIC CHUÔNG THÔNG BÁO ---
 
 export const toggleChannelSubscription = mutation({
   args: { channelId: v.id('channels') },
@@ -546,8 +584,7 @@ export const getNotifications = query({
     return await Promise.all(notifs.map(async (n) => {
       const sender = n.senderId ? await ctx.db.get(n.senderId) : null;
       let imageUrl = sender?.imageUrl;
-      
-      // 👇 ĐÃ CẬP NHẬT CHUẨN BEST PRACTICE TẠI ĐÂY
+
       if (imageUrl && !isHttpUrl(imageUrl)) {
         imageUrl = await ctx.storage.getUrl(imageUrl as Id<'_storage'>) || imageUrl;
       }

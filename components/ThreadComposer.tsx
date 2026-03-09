@@ -234,7 +234,10 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <Image source={{ uri: userProfile?.imageUrl || defaultAvatar }} style={styles.avatar} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.username}>{userProfile?.first_name} {userProfile?.last_name}</Text>
+            <Text style={styles.username}>
+              {userProfile?.first_name}
+              {userProfile?.last_name ? ` ${userProfile.last_name}` : ''}
+            </Text>
             {!isReply && !editId ? (
                 <TouchableOpacity
                   style={[styles.channelBadge, selectedChannelName === 'Chọn kênh...' && { borderColor: 'red', backgroundColor: '#ffe6e6' }]}

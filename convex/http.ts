@@ -10,6 +10,7 @@ const handleClerkWebhook = httpAction(async (ctx, request) => {
 
   switch (type) {
     case 'user.created':
+      const safeUsername = data.username || data.first_name || data.email_addresses?.[0]?.email_address?.split('@')[0] || "nguoidung";
       await ctx.runMutation(internal.users.createUser, {
         clerkId: data.id,
         // Chuyển null thành undefined để khớp với v.optional trong schema
@@ -19,7 +20,7 @@ const handleClerkWebhook = httpAction(async (ctx, request) => {
         email: data.email_addresses?.[0]?.email_address ?? "",
         imageUrl: data.image_url ?? undefined,
         // Schema của bạn cho phép v.null() ở username nên giữ nguyên hoặc ?? null
-        username: data.username ?? null,
+        username: safeUsername,
         followersCount: 0,
       });
       break;

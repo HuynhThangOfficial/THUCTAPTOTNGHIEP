@@ -45,6 +45,7 @@ export default defineSchema({
     icon: v.string(),
     creatorId: v.id("users"),
     memberIds: v.array(v.id("users")),
+    adminIds: v.array(v.id("users")),
   }),
 
   channels: defineTable({

@@ -222,12 +222,11 @@ export const getMyServers = query({
   },
 });
 
-// SỬA: Thêm iconStorageId và thay đổi kết quả trả về
 export const createServer = mutation({
   args: {
     name: v.string(),
     template: v.string(),
-    iconStorageId: v.optional(v.id("_storage")) // THÊM MỚI
+    iconStorageId: v.optional(v.id("_storage"))
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -254,6 +253,13 @@ export const createServer = mutation({
       };
     }
 
+    // kiểm tra giới hạn 100 server
+    const allServers = await ctx.db.query('servers').collect();
+    const myMembershipCount = allServers.filter(s => s.memberIds.includes(user._id)).length;
+    if (myMembershipCount >= 100) {
+      return { success: false, message: "Bạn đã đạt giới hạn tối đa 100 server." };
+    }
+
     // XỬ LÝ ICON
     let finalIcon = `https://ui-avatars.com/api/?name=${args.name.charAt(0)}&background=random&color=fff`;
     if (args.iconStorageId) {
@@ -267,6 +273,7 @@ export const createServer = mutation({
       icon: finalIcon, // SỬA: dùng ảnh đã upload hoặc avatar mặc định
       creatorId: user._id,
       memberIds: [user._id],
+      adminIds: [user._id], // Người tạo là Admin
     });
 
     let categoryName = 'KÊNH VĂN BẢN';
@@ -307,7 +314,7 @@ export const createServer = mutation({
       });
     }
 
-    return { success: true, serverId: newServerId }; // SỬA: Trả về object success
+    return { success: true, serverId: newServerId };
   },
 });
 
@@ -346,6 +353,13 @@ export const addFriendToServer = mutation({
   handler: async (ctx, args) => {
     const server = await ctx.db.get(args.serverId);
     if (!server) throw new Error('Lỗi máy chủ');
+
+    // Kiểm tra giới hạn của bạn bè
+    const allServers = await ctx.db.query('servers').collect();
+    const friendServerCount = allServers.filter(s => s.memberIds.includes(args.friendId)).length;
+    if (friendServerCount >= 100) {
+      throw new Error("Người dùng này đã tham gia tối đa 100 server.");
+    }
 
     const members = [...server.memberIds];
 
@@ -502,4 +516,27 @@ export const getAllPostableWorkspaces = query({
       servers: myServers,
     };
   },
+});
+
+// =========================================================
+// XÓA THÀNH VIÊN KHỎI MÁY CHỦ
+// =========================================================
+export const removeMember = mutation({
+  args: { serverId: v.id("servers"), targetUserId: v.id("users") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Chưa đăng nhập");
+
+    const user = await ctx.db.query("users").withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject)).unique();
+    const server = await ctx.db.get(args.serverId);
+
+    if (!server || !user) throw new Error("Dữ liệu không hợp lệ");
+    if (!server.adminIds || !server.adminIds.includes(user._id)) throw new Error("Chỉ quản trị viên mới có quyền này");
+    if (args.targetUserId === server.creatorId) throw new Error("Không thể xóa chủ server");
+
+    const newMembers = server.memberIds.filter(id => id !== args.targetUserId);
+    const newAdmins = (server.adminIds || []).filter(id => id !== args.targetUserId);
+
+    await ctx.db.patch(args.serverId, { memberIds: newMembers, adminIds: newAdmins });
+  }
 });
