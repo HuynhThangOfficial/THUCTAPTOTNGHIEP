@@ -87,7 +87,7 @@ const TabsWithSwipe = () => {
             }}
           />
           <Tabs.Screen
-            name="favorites"
+            name="notifications"
             options={{
               title: 'Thông báo',
               // Sử dụng icon Bell cho tab Thông báo như thiết kế của bạn
