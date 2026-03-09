@@ -15,6 +15,15 @@ const Layout = () => {
 
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
+          {/* 👇 ĐIỂM DANH CÁC TRANG CHỨC NĂNG (VIP) Ở ĐÂY 👇 */}
+          <Stack.Screen name="chat/[id]" options={{ title: 'Đoạn chat', headerTitleAlign: 'center' }} />
+          <Stack.Screen name="search" options={{ title: 'Tìm kiếm', headerTitleAlign: 'center' }} />
+          <Stack.Screen name="follow-list" options={{ title: 'Theo dõi', headerTitleAlign: 'center' }} />
+          <Stack.Screen name="likes-list" options={{ title: 'Lượt thích', headerTitleAlign: 'center' }} />
+          <Stack.Screen name="profile/[id]" options={{ title: 'Hồ sơ', headerTitleAlign: 'center' }} />
+          <Stack.Screen name="settings" options={{ title: 'Cài đặt', headerTitleAlign: 'center' }} />
+          {/* 👆 KẾT THÚC ĐIỂM DANH 👆 */}
+
           <Stack.Screen
             name="(modal)/create"
             options={{

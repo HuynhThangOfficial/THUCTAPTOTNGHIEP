@@ -40,7 +40,7 @@ const ProfileSearchResult = ({ user }: ProfileSearchResultProps) => {
       style={styles.container}
       onPress={() => {
         router.push({
-          pathname: '/(public)/profile/[id]',
+          pathname: '/(auth)/profile/[id]',
           params: { id: user._id }
         });
       }}

@@ -90,7 +90,7 @@ const Page = () => {
                 />
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={() => router.push('/(public)/search' as any)} style={styles.iconButton}>
+            <TouchableOpacity onPress={() => router.push('/search' as any)} style={styles.iconButton}>
               <Ionicons name="search-outline" size={28} color="gray" />
             </TouchableOpacity>
           </View>
@@ -125,7 +125,7 @@ const Page = () => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       />
 
-      {/* MODAL 1: CÀI ĐẶT THÔNG BÁO (Hợp nhất UI 4 dòng) */}
+      {/* MODAL 1: CÀI ĐẶT THÔNG BÁO */}
       <Modal visible={isBellModalVisible} transparent animationType="fade">
         <TouchableWithoutFeedback onPress={() => setBellModalVisible(false)}>
           <View style={styles.modalOverlay}>
@@ -136,7 +136,13 @@ const Page = () => {
                 {activeChannelName !== 'đại-sảnh' && (
                   <TouchableOpacity
                     style={[styles.dropdownItem, subStatus?.channelSubbed && styles.dropdownItemActive]}
-                    onPress={() => activeChannelId && toggleChannel({ channelId: activeChannelId })}
+                    onPress={async () => {
+                      if (activeChannelId) {
+                        try {
+                          await toggleChannel({ channelId: activeChannelId });
+                        } catch (e) {}
+                      }
+                    }}
                   >
                     <Text style={[styles.dropdownItemText, subStatus?.channelSubbed && styles.dropdownItemTextActive]}>Thông báo kênh này</Text>
                     {subStatus?.channelSubbed && <Ionicons name="checkmark" size={18} color="#007aff" />}
@@ -184,7 +190,7 @@ const Page = () => {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* MODAL 2: TÙY CHỈNH TỪNG KÊNH (Fix tên dài ...) */}
+      {/* MODAL 2: TÙY CHỈNH TỪNG KÊNH */}
       <Modal visible={isAdvancedSettingsVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.bellMenu, { width: 320, maxHeight: '70%' }]}>
@@ -198,7 +204,14 @@ const Page = () => {
                   <Text style={styles.channelSettingName} numberOfLines={1} ellipsizeMode="tail">#{channel.name}</Text>
                   <Switch
                     value={channel.isSubscribed}
-                    onValueChange={() => toggleChannel({ channelId: channel._id })}
+                    // 👇 FIX LỖI TYPE VOID TẠI ĐÂY 👇
+                    onValueChange={async (value) => {
+                      try {
+                        await toggleChannel({ channelId: channel._id });
+                      } catch (error) {
+                        console.log(error);
+                      }
+                    }}
                     trackColor={{ false: "#d3d3d3", true: "#007aff" }}
                   />
                 </View>
@@ -208,7 +221,7 @@ const Page = () => {
         </View>
       </Modal>
 
-      {/* MODAL SẮP XẾP (Trả về width 70%) */}
+      {/* MODAL SẮP XẾP */}
       <Modal visible={isSortModalVisible} transparent animationType="fade">
          <TouchableWithoutFeedback onPress={() => setSortModalVisible(false)}>
             <View style={styles.modalOverlay}>

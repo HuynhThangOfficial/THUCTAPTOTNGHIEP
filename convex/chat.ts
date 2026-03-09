@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { internal } from './_generated/api';
+import { isHttpUrl } from './utils'; // 👇 IMPORT HÀM BEST PRACTICE VÀO ĐÂY
 
 // 1. Tạo hoặc lấy cuộc trò chuyện giữa 2 người
 export const getOrCreateConversation = mutation({
@@ -150,7 +151,10 @@ export const getInbox = query({
       const otherUserId = c.participantIds.find(id => id !== currentUser._id);
       const otherUser = await ctx.db.get(otherUserId!);
       let imageUrl = otherUser?.imageUrl;
-      if (imageUrl && !imageUrl.startsWith('http')) imageUrl = await ctx.storage.getUrl(imageUrl as any) || imageUrl;
+      
+      // 👇 ĐÃ CẬP NHẬT CHUẨN BEST PRACTICE TẠI ĐÂY
+      if (imageUrl && !isHttpUrl(imageUrl)) imageUrl = await ctx.storage.getUrl(imageUrl as any) || imageUrl;
+      
       return { ...c, otherUser: { ...otherUser, imageUrl } };
     }));
     return inbox.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -171,7 +175,10 @@ export const getConversationInfo = query({
     const otherUser = await ctx.db.get(otherUserId);
     if (!otherUser) return null;
     let imageUrl = otherUser.imageUrl;
-    if (imageUrl && !imageUrl.startsWith('http')) imageUrl = await ctx.storage.getUrl(imageUrl as any) || imageUrl;
+    
+    // 👇 ĐÃ CẬP NHẬT CHUẨN BEST PRACTICE TẠI ĐÂY
+    if (imageUrl && !isHttpUrl(imageUrl)) imageUrl = await ctx.storage.getUrl(imageUrl as any) || imageUrl;
+    
     return { ...otherUser, imageUrl };
   }
 });
@@ -211,3 +218,11 @@ export const deleteForSelf = mutation({
 });
 
 export const generateUploadUrl = mutation(async (ctx) => await ctx.storage.generateUploadUrl());
+
+// 👇 HÀM MỚI ĐƯỢC THÊM VÀO ĐỂ FIX LỖI 👇
+export const getRawConversation = query({
+  args: { conversationId: v.id('conversations') },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.conversationId);
+  }
+});

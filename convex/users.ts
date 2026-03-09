@@ -1,7 +1,8 @@
 import { v } from 'convex/values';
 import { internalMutation, mutation, query, QueryCtx } from './_generated/server';
 import { Id } from './_generated/dataModel';
-import { internal } from './_generated/api'; // 👇 ĐÃ THÊM IMPORT
+import { internal } from './_generated/api';
+import { isHttpUrl } from './utils'; // 👇 IMPORT HÀM BEST PRACTICE VÀO ĐÂY
 
 // --- 1. CÁC HÀM LẤY THÔNG TIN USER ---
 
@@ -13,7 +14,8 @@ export const getUserByClerkId = query({
       .filter((q) => q.eq(q.field('clerkId'), args.clerkId))
       .unique();
 
-    if (!user?.imageUrl || user.imageUrl.startsWith('http')) {
+    // Dùng hàm isHttpUrl: Code đọc hiểu ngay lập tức như tiếng Anh
+    if (!user?.imageUrl || isHttpUrl(user.imageUrl)) {
       return user;
     }
     const url = await ctx.storage.getUrl(user.imageUrl as Id<'_storage'>);
@@ -25,7 +27,8 @@ export const getUserById = query({
   args: { userId: v.id('users') },
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.userId);
-    if (!user?.imageUrl || user.imageUrl.startsWith('http')) {
+    
+    if (!user?.imageUrl || isHttpUrl(user.imageUrl)) {
       return user;
     }
     const url = await ctx.storage.getUrl(user.imageUrl as Id<'_storage'>);
@@ -88,23 +91,35 @@ export const updateLastSeen = mutation({
   },
 });
 
+export const updateActiveStatus = mutation({
+  args: { isEnabled: v.boolean() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Chưa đăng nhập");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+
+    if (!user) throw new Error("Không tìm thấy người dùng");
+
+    await ctx.db.patch(user._id, { 
+      showActiveStatus: args.isEnabled 
+    });
+  },
+});
+
 export const generateUploadUrl = mutation(async (ctx) => {
   await getCurrentUserOrThrow(ctx);
   return await ctx.storage.generateUploadUrl();
 });
 
-// 👇 ĐÂY LÀ HÀM ĐÃ ĐƯỢC FIX LỖI AVATAR 👇
 export const updateImage = mutation({
   args: { storageId: v.id('_storage'), _id: v.id('users') },
   handler: async (ctx, args) => {
-    // 1. Biến cái mã ID thành link web thật
     const imageUrl = await ctx.storage.getUrl(args.storageId);
-    
-    if (!imageUrl) {
-      throw new Error("Không thể lấy đường dẫn ảnh từ server.");
-    }
-
-    // 2. Lưu link web đó vào database thay vì lưu mã ID
+    if (!imageUrl) throw new Error("Không thể lấy đường dẫn ảnh từ server.");
     await ctx.db.patch(args._id, { imageUrl: imageUrl });
   },
 });
@@ -121,7 +136,7 @@ export const searchUsers = query({
 
     const usersWithImage = await Promise.all(
       users.map(async (user) => {
-        if (!user?.imageUrl || user.imageUrl.startsWith('http')) {
+        if (!user?.imageUrl || isHttpUrl(user.imageUrl)) {
           return user;
         }
         const url = await ctx.storage.getUrl(user.imageUrl as Id<'_storage'>);
@@ -205,7 +220,6 @@ export const followUser = mutation({
         });
       }
 
-      // 👇 GỬI THÔNG BÁO KHI CÓ NGƯỜI FOLLOW 👇
       await ctx.runMutation(internal.messages.createInternalNotification, {
          receiverId: args.targetUserId,
          type: 'follow',
@@ -268,7 +282,9 @@ export const getFollowers = query({
       follows.map(async (f) => {
         const user = await ctx.db.get(f.followerId);
         if (!user) return null;
-        if (user.imageUrl && !user.imageUrl.startsWith("http")) {
+        
+        // Code sạch hơn rất nhiều
+        if (user.imageUrl && !isHttpUrl(user.imageUrl)) {
             user.imageUrl = await ctx.storage.getUrl(user.imageUrl as Id<"_storage">) ?? user.imageUrl;
         }
         return user;
@@ -290,7 +306,8 @@ export const getFollowing = query({
       follows.map(async (f) => {
         const user = await ctx.db.get(f.followingId);
         if (!user) return null;
-        if (user.imageUrl && !user.imageUrl.startsWith("http")) {
+        
+        if (user.imageUrl && !isHttpUrl(user.imageUrl)) {
             user.imageUrl = await ctx.storage.getUrl(user.imageUrl as Id<"_storage">) ?? user.imageUrl;
         }
         return user;
@@ -360,7 +377,7 @@ export const getFriends = query({
       const user = await ctx.db.get(f.followingId);
       if (!user) return null;
 
-      if (user.imageUrl && !user.imageUrl.startsWith("http")) {
+      if (user.imageUrl && !isHttpUrl(user.imageUrl)) {
          user.imageUrl = await ctx.storage.getUrl(user.imageUrl as Id<"_storage">) ?? user.imageUrl;
       }
       return user;

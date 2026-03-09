@@ -78,7 +78,7 @@ const Thread = ({ thread }: ThreadProps) => {
 
   const handleViewLikesList = () => {
     router.push({
-      pathname: '/(public)/likes-list' as any,
+      pathname: '/(auth)/likes-list' as any,
       params: { messageId: thread._id }
     });
   };

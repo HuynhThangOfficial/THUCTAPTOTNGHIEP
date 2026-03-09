@@ -16,6 +16,7 @@ export const User = {
   pushToken: v.optional(v.string()),
   lastSeen: v.optional(v.number()),
   isOnline: v.optional(v.boolean()),
+  showActiveStatus: v.optional(v.boolean()),
 };
 
 export default defineSchema({
