@@ -42,6 +42,7 @@ export default function SideMenu() {
   const generateUploadUrl = useMutation(api.users.generateUploadUrl);
   const createChannel = useMutation(api.university.createChannel);
   const deleteChannel = useMutation(api.university.deleteChannel);
+  const leaveServer = useMutation(api.university.leaveServer);
 
   const { activeUniversityId, setActiveUniversityId, activeServerId, setActiveServerId, activeChannelId, setActiveChannelId, setActiveChannelName } = useChannel();
 
@@ -59,17 +60,24 @@ export default function SideMenu() {
 
   const [isInviteOnlyModalVisible, setInviteOnlyModalVisible] = useState(false);
 
+
+  const [isServerMenuVisible, setServerMenuVisible] = useState(false);
+  // 👇 MỚI: Thêm state quản lý modal xem thành viên
+  const [isMemberListModalVisible, setMemberListModalVisible] = useState(false);
   const [isCreateChannelModalVisible, setCreateChannelModalVisible] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelType, setNewChannelType] = useState<'category' | 'channel'>('channel');
   const [selectedCategoryId, setSelectedCategoryId] = useState<Id<'channels'> | undefined>(undefined);
-
   const channelsData = useQuery(api.university.getChannels, {
     universityId: activeUniversityId || undefined,
     serverId: activeServerId || undefined
   });
 
-  // BẢO VỆ APP KHỎI LỖI CRASH KHI SERVER BỊ XÓA
+  // 👇 MỚI: Lấy danh sách thành viên của server hiện tại
+  const serverMembers = useQuery(api.university.getServerMembers, {
+    serverId: activeServerId || undefined
+  });
+
   useEffect(() => {
     if (activeServerId && myServers) {
       const isServerStillAlive = myServers.some(s => s._id === activeServerId);
@@ -108,14 +116,14 @@ export default function SideMenu() {
   const isOwner = activeServerId && currentWorkspace && 'creatorId' in currentWorkspace && currentWorkspace.creatorId === userProfile?._id;
 
   const switchToUniversity = (id: Id<'universities'>) => {
-    if (id === activeUniversityId) return; // Chặn nhảy trang nếu đã ở đây
+    if (id === activeUniversityId) return;
     setActiveServerId(null);
     setActiveUniversityId(id);
     setActiveChannelId(null);
   };
 
   const switchToServer = (id: Id<'servers'>) => {
-    if (id === activeServerId) return; // Chặn nhảy trang nếu đã ở đây
+    if (id === activeServerId) return;
     setActiveUniversityId(null);
     setActiveServerId(id);
     setActiveChannelId(null);
@@ -139,7 +147,7 @@ export default function SideMenu() {
     setServerIconUri(null);
     setCreateStep(1);
     setSearchQuery('');
-    setInvitedUsers({}); // Reset UI state
+    setInvitedUsers({});
     setNewlyCreatedId(null);
   };
 
@@ -282,7 +290,17 @@ export default function SideMenu() {
 
       <View style={[styles.channelRail, { paddingTop: top, paddingBottom: bottom }]}>
         <View style={styles.serverHeader}>
-          <Text style={styles.serverName} numberOfLines={1}>{currentWorkspace?.name || "Chọn Không Gian"}</Text>
+          <TouchableOpacity
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+            onPress={() => {
+              if (activeServerId) setServerMenuVisible(true);
+            }}
+            disabled={!activeServerId}
+          >
+            <Text style={styles.serverName} numberOfLines={1}>{currentWorkspace?.name || "Chọn Không Gian"}</Text>
+            {activeServerId && <Ionicons name="chevron-down" size={16} color="gray" style={{marginLeft: 5}}/>}
+          </TouchableOpacity>
+
           {isOwner && (
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
                <TouchableOpacity onPress={() => { setNewChannelType('category'); setSelectedCategoryId(undefined); setNewChannelName(''); setCreateChannelModalVisible(true); }}><Ionicons name="folder-open-outline" size={20} color="gray" /></TouchableOpacity>
@@ -373,6 +391,105 @@ export default function SideMenu() {
       <Modal visible={isCreateChannelModalVisible} transparent animationType="fade">
          <View style={styles.modalOverlay}><View style={styles.smallModalContainer}><Text style={styles.smallModalTitle}>Tạo {newChannelType === 'category' ? 'Danh Mục' : 'Kênh'}</Text><TextInput style={styles.textInput} placeholder={newChannelType === 'category' ? "Tên danh mục mới" : "tên-kênh-mới"} value={newChannelName} onChangeText={setNewChannelName} autoFocus /><View style={styles.modalButtonRow}><TouchableOpacity onPress={() => setCreateChannelModalVisible(false)} style={styles.cancelBtn}><Text style={styles.cancelBtnText}>Hủy</Text></TouchableOpacity><TouchableOpacity onPress={handleCreateChannelSubmit} style={styles.submitBtn}><Text style={styles.submitBtnText}>Tạo</Text></TouchableOpacity></View></View></View>
       </Modal>
+
+      <Modal visible={isServerMenuVisible} transparent animationType="slide">
+        <TouchableOpacity
+          style={styles.bottomSheetOverlay}
+          activeOpacity={1}
+          onPress={() => setServerMenuVisible(false)}
+        >
+          <View style={styles.bottomSheetContainer}>
+            <View style={styles.bottomSheetHeader}>
+              <Image source={getIconSource(currentWorkspace?.icon)} style={styles.bottomSheetIcon} />
+              <Text style={styles.bottomSheetTitle} numberOfLines={1}>{currentWorkspace?.name}</Text>
+            </View>
+
+            {/* 👇 SỬA LẠI SỰ KIỆN KHI BẤM NÚT NÀY 👇 */}
+            <TouchableOpacity style={styles.bottomSheetItem} onPress={() => {
+              setServerMenuVisible(false);
+              setMemberListModalVisible(true);
+            }}>
+              <Ionicons name="people" size={24} color="white" />
+              <Text style={styles.bottomSheetItemText}>Xem thành viên</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.bottomSheetItem} onPress={() => {
+              setServerMenuVisible(false);
+              Alert.alert("Báo cáo", "Cảm ơn bạn. Quản trị viên sẽ xem xét máy chủ này.");
+            }}>
+              <Ionicons name="flag" size={24} color="white" />
+              <Text style={styles.bottomSheetItemText}>Báo cáo máy chủ</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.bottomSheetItem} onPress={() => {
+              setServerMenuVisible(false);
+              if (isOwner) {
+                 Alert.alert("Thông báo", "Bạn là chủ máy chủ, hãy dùng Cài đặt (Icon bánh răng) để Xóa máy chủ thay vì Thoát.");
+                 return;
+              }
+              Alert.alert("Thoát máy chủ", `Bạn có chắc chắn muốn rời khỏi "${currentWorkspace?.name}" không?`, [
+                { text: "Hủy", style: "cancel" },
+                { text: "Thoát", style: "destructive", onPress: async () => {
+                    if (activeServerId) {
+                      try {
+                        await leaveServer({ serverId: activeServerId });
+                        if (universities && universities.length > 0) {
+                          switchToUniversity(universities[0]._id);
+                        }
+                      } catch (error: any) {
+                        Alert.alert("Lỗi", error.message);
+                      }
+                    }
+                }}
+              ]);
+            }}>
+              <Ionicons name="log-out" size={24} color="#ff4d4f" />
+              <Text style={[styles.bottomSheetItemText, {color: '#ff4d4f'}]}>Thoát Server</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* 👇 MỚI: Modal Danh sách thành viên 👇 */}
+      <Modal visible={isMemberListModalVisible} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{flex: 1, backgroundColor: '#f2f3f5'}}>
+          <View style={[styles.modalHeader, { backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+            <Text style={{fontSize: 18, fontWeight: 'bold'}}>Thành viên máy chủ</Text>
+            <TouchableOpacity onPress={() => setMemberListModalVisible(false)}>
+              <Text style={{fontSize: 16, color: '#007aff', fontWeight: 'bold'}}>Đóng</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{padding: 20}}>
+            <Text style={{fontSize: 12, fontWeight: 'bold', color: 'gray', marginBottom: 15, textTransform: 'uppercase'}}>
+              Thành viên — {serverMembers?.length || 0}
+            </Text>
+
+            {serverMembers?.map(member => (
+              <View key={member._id} style={{flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 15, borderRadius: 8, marginBottom: 10}}>
+                <Image source={{uri: member.imageUrl}} style={{width: 40, height: 40, borderRadius: 20, marginRight: 15}} />
+
+                <View style={{flex: 1}}>
+                  <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                    <Text style={{fontWeight: 'bold', fontSize: 16}}>{member.first_name}</Text>
+
+                    {/* Hiển thị Tag phân quyền */}
+                    {member.isCreator && (
+                      <Text style={{fontSize: 10, backgroundColor: '#ffd700', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, marginLeft: 8, fontWeight: 'bold'}}>CHỦ SERVER</Text>
+                    )}
+                    {!member.isCreator && member.isAdmin && (
+                      <Text style={{fontSize: 10, backgroundColor: '#ff4d4f', color: 'white', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, marginLeft: 8, fontWeight: 'bold'}}>ADMIN</Text>
+                    )}
+                  </View>
+                  <Text style={{color: 'gray', fontSize: 13}}>@{member.username}</Text>
+                </View>
+
+              </View>
+            ))}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
     </View>
   );
 }
@@ -417,4 +534,48 @@ const styles = StyleSheet.create({
   cancelBtnText: { color: 'gray', fontWeight: 'bold' },
   submitBtn: { backgroundColor: '#5865F2', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8, alignItems: 'center' },
   submitBtnText: { color: 'white', fontWeight: 'bold', fontSize: 15 },
+  bottomSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  bottomSheetContainer: {
+    backgroundColor: '#1e1f22',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  bottomSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2b2d31',
+    paddingBottom: 15,
+    marginBottom: 10,
+  },
+  bottomSheetIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    marginRight: 15,
+    backgroundColor: '#313338'
+  },
+  bottomSheetTitle: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+    flex: 1,
+  },
+  bottomSheetItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+  },
+  bottomSheetItemText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 15,
+  },
 });

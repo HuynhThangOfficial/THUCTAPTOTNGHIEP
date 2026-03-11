@@ -222,7 +222,7 @@ export const getMyServers = query({
   },
 });
 
-// THÊM: Lấy chi tiết Server để check tồn tại ở Frontend
+// Lấy chi tiết Server để check tồn tại ở Frontend
 export const getServerDetails = query({
   args: { serverId: v.id("servers") },
   handler: async (ctx, args) => {
@@ -230,19 +230,30 @@ export const getServerDetails = query({
   },
 });
 
-// THÊM: Lấy danh sách thành viên để kiểm tra trạng thái Add
+// Lấy danh sách thành viên để kiểm tra trạng thái Add
 export const getServerMembers = query({
-  args: { serverId: v.id("servers") },
+  args: { serverId: v.optional(v.id("servers")) },
   handler: async (ctx, args) => {
+    if (!args.serverId) return [];
+
     const server = await ctx.db.get(args.serverId);
     if (!server) return [];
 
     const members = await Promise.all(
-      server.memberIds.map(async (id) => {
+      (server.memberIds || []).map(async (id) => {
         const user = await ctx.db.get(id);
         if (!user) return null;
+
+        let finalImageUrl = user.imageUrl;
+        if (finalImageUrl && !finalImageUrl.startsWith("http")) {
+          // Nếu imageUrl không bắt đầu bằng http (nghĩa là nó là Storage ID)
+          finalImageUrl = await ctx.storage.getUrl(finalImageUrl as Id<"_storage">) || finalImageUrl;
+        }
+
+        // Trả về thông tin user kèm theo cờ phân quyền
         return {
           ...user,
+          imageUrl: finalImageUrl,
           isAdmin: server.adminIds?.includes(user._id) || false,
           isCreator: server.creatorId === user._id,
         };
@@ -616,5 +627,47 @@ export const removeMember = mutation({
           )
           .collect();
         for (const sub of userSubs) await ctx.db.delete(sub._id);
+  }
+});
+
+export const leaveServer = mutation({
+  args: { serverId: v.id('servers') },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Chưa đăng nhập");
+
+    const user = await ctx.db.query("users").withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject)).unique();
+    const server = await ctx.db.get(args.serverId);
+
+    if (!server || !user) throw new Error("Dữ liệu không hợp lệ");
+
+    // Chủ server không được tự thoát, chỉ được xóa server
+    if (server.creatorId === user._id) {
+      throw new Error("Bạn là chủ máy chủ nên không thể tự thoát. Hãy dùng chức năng Xóa máy chủ.");
+    }
+
+    // 1. Xóa khỏi mảng memberIds (và adminIds nếu có)
+    const newMembers = server.memberIds.filter(id => id !== user._id);
+    const newAdmins = (server.adminIds || []).filter(id => id !== user._id);
+    await ctx.db.patch(args.serverId, { memberIds: newMembers, adminIds: newAdmins });
+
+    // 2. Xóa khỏi bảng server_members (Nếu bạn đang dùng bảng này)
+    const memberRecord = await ctx.db.query("server_members")
+      .withIndex("by_server_user", q => q.eq("serverId", args.serverId).eq("userId", user._id))
+      .unique();
+    if (memberRecord) await ctx.db.delete(memberRecord._id);
+
+    // 3. Xóa mọi thông báo (subscriptions) của người này trong server
+    const userSubs = await ctx.db.query('channel_subscriptions')
+      .filter(q =>
+        q.and(
+          q.eq(q.field('userId'), user._id),
+          q.eq(q.field('serverId'), args.serverId)
+        )
+      )
+      .collect();
+    for (const sub of userSubs) await ctx.db.delete(sub._id);
+
+    return { success: true };
   }
 });
