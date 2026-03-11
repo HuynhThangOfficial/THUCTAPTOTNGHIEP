@@ -207,6 +207,9 @@ export const getThreads = query({
 
     if (args.channelId) {
       const channel = await ctx.db.get(args.channelId);
+      if (!channel) {
+        return { page: [], isDone: true, continueCursor: "" };
+      }
 
       if (channel && channel.name === 'đại-sảnh') {
         if (channel.universityId) {

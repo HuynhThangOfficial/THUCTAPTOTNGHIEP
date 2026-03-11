@@ -222,6 +222,37 @@ export const getMyServers = query({
   },
 });
 
+// THÊM: Lấy chi tiết Server để check tồn tại ở Frontend
+export const getServerDetails = query({
+  args: { serverId: v.id("servers") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.serverId);
+  },
+});
+
+// THÊM: Lấy danh sách thành viên để kiểm tra trạng thái Add
+export const getServerMembers = query({
+  args: { serverId: v.id("servers") },
+  handler: async (ctx, args) => {
+    const server = await ctx.db.get(args.serverId);
+    if (!server) return [];
+
+    const members = await Promise.all(
+      server.memberIds.map(async (id) => {
+        const user = await ctx.db.get(id);
+        if (!user) return null;
+        return {
+          ...user,
+          isAdmin: server.adminIds?.includes(user._id) || false,
+          isCreator: server.creatorId === user._id,
+        };
+      })
+    );
+
+    return members.filter((m) => m !== null);
+  },
+});
+
 export const createServer = mutation({
   args: {
     name: v.string(),
@@ -253,14 +284,12 @@ export const createServer = mutation({
       };
     }
 
-    // kiểm tra giới hạn 100 server
     const allServers = await ctx.db.query('servers').collect();
     const myMembershipCount = allServers.filter(s => s.memberIds.includes(user._id)).length;
     if (myMembershipCount >= 100) {
       return { success: false, message: "Bạn đã đạt giới hạn tối đa 100 server." };
     }
 
-    // XỬ LÝ ICON
     let finalIcon = `https://ui-avatars.com/api/?name=${args.name.charAt(0)}&background=random&color=fff`;
     if (args.iconStorageId) {
       const url = await ctx.storage.getUrl(args.iconStorageId);
@@ -270,10 +299,10 @@ export const createServer = mutation({
     const newServerId = await ctx.db.insert('servers', {
       name: args.name,
       slug: args.name.toLowerCase().replace(/ /g, '-'),
-      icon: finalIcon, // SỬA: dùng ảnh đã upload hoặc avatar mặc định
+      icon: finalIcon,
       creatorId: user._id,
       memberIds: [user._id],
-      adminIds: [user._id], // Người tạo là Admin
+      adminIds: [user._id],
     });
 
     let categoryName = 'KÊNH VĂN BẢN';
@@ -354,20 +383,40 @@ export const addFriendToServer = mutation({
     const server = await ctx.db.get(args.serverId);
     if (!server) throw new Error('Lỗi máy chủ');
 
-    // Kiểm tra giới hạn của bạn bè
-    const allServers = await ctx.db.query('servers').collect();
-    const friendServerCount = allServers.filter(s => s.memberIds.includes(args.friendId)).length;
-    if (friendServerCount >= 100) {
+    // 1. Kiểm tra giới hạn 100 server (Kiểm tra bằng bảng server_members mới)
+    const memberships = await ctx.db
+      .query("server_members")
+      .withIndex("by_user", (q) => q.eq("userId", args.friendId))
+      .collect();
+
+    if (memberships.length >= 100) {
       throw new Error("Người dùng này đã tham gia tối đa 100 server.");
     }
 
-    const members = [...server.memberIds];
+    // 2. Kiểm tra xem người này đã có trong server_members chưa
+    const existingMember = await ctx.db
+      .query("server_members")
+      .withIndex("by_server_user", (q) =>
+        q.eq("serverId", args.serverId).eq("userId", args.friendId)
+      )
+      .unique();
 
-    if (!members.includes(args.friendId)) {
-      members.push(args.friendId);
-      await ctx.db.patch(args.serverId, {
-        memberIds: members,
+    // 3. Nếu chưa có thì THÊM VÀO BẢNG server_members
+    if (!existingMember) {
+      await ctx.db.insert("server_members", {
+        serverId: args.serverId,
+        userId: args.friendId,
+        role: "member", // Mặc định người được mời vào là member thường
+        joinedAt: Date.now(),
       });
+
+      if (server.memberIds !== undefined) {
+         const members = [...server.memberIds];
+         if (!members.includes(args.friendId)) {
+           members.push(args.friendId);
+           await ctx.db.patch(args.serverId, { memberIds: members });
+         }
+      }
     }
   },
 });
@@ -375,24 +424,50 @@ export const addFriendToServer = mutation({
 export const deleteServer = mutation({
   args: { serverId: v.id('servers') },
   handler: async (ctx, args) => {
+    // 1. Xóa tất cả các kênh và tin nhắn (giữ nguyên code cũ của bạn)
     const channels = await ctx.db
       .query('channels')
-      .withIndex('by_server', (q) =>
-        q.eq('serverId', args.serverId)
-      )
+      .withIndex('by_server', (q) => q.eq('serverId', args.serverId))
       .collect();
 
-    for (const c of channels) {
-      await ctx.db.delete(c._id);
+    for (const channel of channels) {
+      const messages = await ctx.db
+        .query('messages')
+        .withIndex('by_channel', (q) => q.eq('channelId', channel._id))
+        .collect();
+      for (const msg of messages) {
+        await ctx.db.delete(msg._id);
+      }
+      const channelSubs = await ctx.db.query('channel_subscriptions')
+        .withIndex('by_channel', q => q.eq('channelId', channel._id))
+        .collect();
+      for (const cs of channelSubs) await ctx.db.delete(cs._id);
+      await ctx.db.delete(channel._id);
     }
 
+    // 2. Xóa subscription của server (chuông máy chủ)
+    const serverSubs = await ctx.db.query('channel_subscriptions')
+      .filter(q => q.eq(q.field('serverId'), args.serverId))
+      .collect();
+    for (const sub of serverSubs) {
+      await ctx.db.delete(sub._id);
+    }
+
+    const serverMembers = await ctx.db
+      .query("server_members")
+      .withIndex("by_server", (q) => q.eq("serverId", args.serverId))
+      .collect();
+    for (const member of serverMembers) {
+      await ctx.db.delete(member._id);
+    }
+
+    // Cuối cùng mới xóa server
     await ctx.db.delete(args.serverId);
+
+    return { success: true };
   },
 });
 
-// =========================================================
-// TẠO DANH MỤC & KÊNH TRONG MÁY CHỦ (GIỮ NGUYÊN)
-// =========================================================
 export const createChannel = mutation({
   args: {
     serverId: v.id('servers'),
@@ -440,9 +515,6 @@ export const createChannel = mutation({
   }
 });
 
-// =========================================================
-// XÓA KÊNH VÀ DANH MỤC (GIỮ NGUYÊN)
-// =========================================================
 export const deleteChannel = mutation({
   args: { channelId: v.id('channels') },
   handler: async (ctx, args) => {
@@ -502,10 +574,8 @@ export const getAllPostableWorkspaces = query({
 
     if (!user) return { universities: [], servers: [] };
 
-    // 1. Lấy tất cả các trường đại học (VAA, v.v.)
     const universities = await ctx.db.query('universities').collect();
 
-    // 2. Lấy tất cả server mà người dùng là chủ sở hữu hoặc thành viên
     const allServers = await ctx.db.query('servers').collect();
     const myServers = allServers.filter(
       (s) => s.creatorId === user._id || s.memberIds.includes(user._id)
@@ -518,9 +588,6 @@ export const getAllPostableWorkspaces = query({
   },
 });
 
-// =========================================================
-// XÓA THÀNH VIÊN KHỎI MÁY CHỦ
-// =========================================================
 export const removeMember = mutation({
   args: { serverId: v.id("servers"), targetUserId: v.id("users") },
   handler: async (ctx, args) => {
@@ -538,5 +605,16 @@ export const removeMember = mutation({
     const newAdmins = (server.adminIds || []).filter(id => id !== args.targetUserId);
 
     await ctx.db.patch(args.serverId, { memberIds: newMembers, adminIds: newAdmins });
+
+    // Xóa subscription của user bị đuổi
+    const userSubs = await ctx.db.query('channel_subscriptions')
+          .filter(q =>
+            q.and(
+              q.eq(q.field('userId'), args.targetUserId),
+              q.eq(q.field('serverId'), args.serverId)
+            )
+          )
+          .collect();
+        for (const sub of userSubs) await ctx.db.delete(sub._id);
   }
 });

@@ -152,4 +152,14 @@ export default defineSchema({
     messageId: v.optional(v.id("messages")),
     isRead: v.boolean(),
   }).index("by_user", ["userId"]),
+
+  server_members: defineTable({
+    serverId: v.id("servers"),
+    userId: v.id("users"),
+    role: v.union(v.literal("owner"), v.literal("admin"), v.literal("member")),
+    joinedAt: v.number(),
+  })
+    .index("by_server", ["serverId"])
+    .index("by_user", ["userId"])
+    .index("by_server_user", ["serverId", "userId"]),
 });

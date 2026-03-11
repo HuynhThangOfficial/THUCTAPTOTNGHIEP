@@ -69,11 +69,25 @@ export default function SideMenu() {
     serverId: activeServerId || undefined
   });
 
+  // BẢO VỆ APP KHỎI LỖI CRASH KHI SERVER BỊ XÓA
+  useEffect(() => {
+    if (activeServerId && myServers) {
+      const isServerStillAlive = myServers.some(s => s._id === activeServerId);
+
+      if (!isServerStillAlive) {
+        if (universities && universities.length > 0) {
+          switchToUniversity(universities[0]._id);
+          Alert.alert("Thông báo", "Máy chủ không còn tồn tại hoặc bạn đã rời khỏi máy chủ này.");
+        }
+      }
+    }
+  }, [activeServerId, !!myServers, !!universities]);
+
   useEffect(() => {
     if (universities && universities.length > 0 && !activeUniversityId && !activeServerId) {
        setActiveUniversityId(universities[0]._id);
     }
-  }, [universities]);
+  }, [!!universities, activeUniversityId, activeServerId]);
 
   useEffect(() => {
     const chans = channelsData?.channels || [];
@@ -82,7 +96,7 @@ export default function SideMenu() {
        setActiveChannelId(defaultChannel._id);
        setActiveChannelName(defaultChannel.name);
     }
-  }, [channelsData, activeUniversityId, activeServerId]);
+  }, [!!channelsData, activeUniversityId, activeServerId]);
 
   if (universities === undefined || channelsData === undefined) {
     return <View style={[styles.container, {justifyContent:'center', alignItems: 'center'}]}><ActivityIndicator color="#000" /></View>;
@@ -93,8 +107,20 @@ export default function SideMenu() {
   const currentWorkspace = activeUniversityId ? universities.find(u => u._id === activeUniversityId) : myServers?.find(s => s._id === activeServerId);
   const isOwner = activeServerId && currentWorkspace && 'creatorId' in currentWorkspace && currentWorkspace.creatorId === userProfile?._id;
 
-  const switchToUniversity = (id: Id<'universities'>) => { setActiveServerId(null); setActiveUniversityId(id); setActiveChannelId(null); };
-  const switchToServer = (id: Id<'servers'>) => { setActiveUniversityId(null); setActiveServerId(id); setActiveChannelId(null); };
+  const switchToUniversity = (id: Id<'universities'>) => {
+    if (id === activeUniversityId) return; // Chặn nhảy trang nếu đã ở đây
+    setActiveServerId(null);
+    setActiveUniversityId(id);
+    setActiveChannelId(null);
+  };
+
+  const switchToServer = (id: Id<'servers'>) => {
+    if (id === activeServerId) return; // Chặn nhảy trang nếu đã ở đây
+    setActiveUniversityId(null);
+    setActiveServerId(id);
+    setActiveChannelId(null);
+  };
+
   const toggleGroup = (groupId: string) => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] })); };
 
   const handleCreateServerClick = async (templateName: string) => {
@@ -113,6 +139,8 @@ export default function SideMenu() {
     setServerIconUri(null);
     setCreateStep(1);
     setSearchQuery('');
+    setInvitedUsers({}); // Reset UI state
+    setNewlyCreatedId(null);
   };
 
   const pickIcon = async () => {
@@ -183,17 +211,30 @@ export default function SideMenu() {
   };
 
   const handleDeleteServer = () => {
-    Alert.alert("Cảnh báo", "Bạn có chắc chắn muốn xóa máy chủ này?", [
-      { text: "Hủy", style: "cancel" },
-      { text: "Xóa", style: "destructive", onPress: async () => {
-          if (activeServerId) {
-             await deleteServer({ serverId: activeServerId });
-             setSettingsModalVisible(false);
-             switchToUniversity(universities[0]._id);
+      Alert.alert("Cảnh báo", "Bạn có chắc chắn muốn xóa máy chủ này?", [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: () => {
+            if (activeServerId) {
+              const serverIdToDelete = activeServerId;
+              setSettingsModalVisible(false);
+              if (universities && universities.length > 0) {
+                switchToUniversity(universities[0]._id);
+              }
+              setTimeout(async () => {
+                try {
+                  await deleteServer({ serverId: serverIdToDelete });
+                } catch (error) {
+                  console.error("Lỗi khi xóa server:", error);
+                }
+              }, 300);
+            }
           }
-      }}
-    ]);
-  };
+        }
+      ]);
+    };
 
   const renderInviteList = () => (
     <View style={{flex: 1}}>
@@ -285,7 +326,7 @@ export default function SideMenu() {
 
       <Modal visible={isCreateModalVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{flex: 1, backgroundColor: '#fff'}}>
-          <View style={styles.modalHeader}><TouchableOpacity onPress={() => { setCreateModalVisible(false); setSelectedTemplate(null); }}><Ionicons name="close" size={28} color="gray" /></TouchableOpacity></View>
+          <View style={styles.modalHeader}><TouchableOpacity onPress={() => { setCreateModalVisible(false); setSelectedTemplate(null); setInvitedUsers({}); }}><Ionicons name="close" size={28} color="gray" /></TouchableOpacity></View>
           <ScrollView style={styles.modalBody}>
             {!selectedTemplate ? (
               <>
@@ -307,7 +348,7 @@ export default function SideMenu() {
                   <TouchableOpacity style={[styles.submitBtn, {width: '100%', marginTop: 20}]} onPress={handleFinalCreateServer}><Text style={styles.submitBtnText}>Tạo máy chủ</Text></TouchableOpacity>
                 </View>
               ) : (
-                <View style={{flex: 1, height: 600}}><Text style={styles.modalTitle}>Mời bạn bè</Text>{renderInviteList()}<TouchableOpacity onPress={() => { setCreateModalVisible(false); setSelectedTemplate(null); if(newlyCreatedId) switchToServer(newlyCreatedId); }} style={[styles.submitBtn, {marginTop: 20}]}><Text style={styles.submitBtnText}>Hoàn tất</Text></TouchableOpacity></View>
+                <View style={{flex: 1, height: 600}}><Text style={styles.modalTitle}>Mời bạn bè</Text>{renderInviteList()}<TouchableOpacity onPress={() => { setCreateModalVisible(false); setSelectedTemplate(null); setInvitedUsers({}); if(newlyCreatedId) switchToServer(newlyCreatedId); }} style={[styles.submitBtn, {marginTop: 20}]}><Text style={styles.submitBtnText}>Hoàn tất</Text></TouchableOpacity></View>
               )
             )}
           </ScrollView>
