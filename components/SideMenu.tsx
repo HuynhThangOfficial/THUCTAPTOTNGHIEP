@@ -60,42 +60,60 @@ export default function SideMenu() {
 
   const [isInviteOnlyModalVisible, setInviteOnlyModalVisible] = useState(false);
 
-
   const [isServerMenuVisible, setServerMenuVisible] = useState(false);
-  // 👇 MỚI: Thêm state quản lý modal xem thành viên
   const [isMemberListModalVisible, setMemberListModalVisible] = useState(false);
   const [isCreateChannelModalVisible, setCreateChannelModalVisible] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelType, setNewChannelType] = useState<'category' | 'channel'>('channel');
   const [selectedCategoryId, setSelectedCategoryId] = useState<Id<'channels'> | undefined>(undefined);
+
   const channelsData = useQuery(api.university.getChannels, {
     universityId: activeUniversityId || undefined,
     serverId: activeServerId || undefined
   });
 
-  // 👇 MỚI: Lấy danh sách thành viên của server hiện tại
   const serverMembers = useQuery(api.university.getServerMembers, {
     serverId: activeServerId || undefined
   });
 
+  // 👇 CHỐT CHẶN 1: Tự động dập tắt Đại học nếu bị kích hoạt nhầm cùng lúc với Server 👇
   useEffect(() => {
+    if (activeServerId && activeUniversityId) {
+      setActiveUniversityId(null as any);
+    }
+  }, [activeServerId, activeUniversityId]);
+
+  // 👇 CHỐT CHẶN 2: Trì hoãn cơ chế tự động bật Đại học để tránh hoảng loạn 👇
+  useEffect(() => {
+    let fallbackTimer: NodeJS.Timeout;
+    if (universities && universities.length > 0 && !activeUniversityId && !activeServerId) {
+       // Đợi 100ms xem có phải search.tsx đang load vào Server không, nếu không mới bật Đại học
+       fallbackTimer = setTimeout(() => {
+         setActiveUniversityId(universities[0]._id);
+       }, 100);
+    }
+    return () => clearTimeout(fallbackTimer);
+  }, [!!universities, activeUniversityId, activeServerId]);
+
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
     if (activeServerId && myServers) {
       const isServerStillAlive = myServers.some(s => s._id === activeServerId);
 
       if (!isServerStillAlive) {
-        if (universities && universities.length > 0) {
-          switchToUniversity(universities[0]._id);
-          Alert.alert("Thông báo", "Máy chủ không còn tồn tại hoặc bạn đã rời khỏi máy chủ này.");
-        }
+          timeoutId = setTimeout(() => {
+          if (myServers && !myServers.some(s => s._id === activeServerId)) {
+            if (universities && universities.length > 0) {
+                switchToUniversity(universities[0]._id);
+                Alert.alert("Thông báo", "Máy chủ không còn tồn tại hoặc bạn đã bị xóa khỏi máy chủ này.");
+             }
+          }
+        }, 2000);
       }
     }
-  }, [activeServerId, !!myServers, !!universities]);
-
-  useEffect(() => {
-    if (universities && universities.length > 0 && !activeUniversityId && !activeServerId) {
-       setActiveUniversityId(universities[0]._id);
-    }
-  }, [!!universities, activeUniversityId, activeServerId]);
+    return () => clearTimeout(timeoutId); // Dọn dẹp bộ nhớ
+  }, [activeServerId, myServers?.length, universities?.length]);
 
   useEffect(() => {
     const chans = channelsData?.channels || [];
@@ -117,16 +135,16 @@ export default function SideMenu() {
 
   const switchToUniversity = (id: Id<'universities'>) => {
     if (id === activeUniversityId) return;
-    setActiveServerId(null);
+    setActiveServerId(null as any);
     setActiveUniversityId(id);
-    setActiveChannelId(null);
+    setActiveChannelId(null as any);
   };
 
   const switchToServer = (id: Id<'servers'>) => {
     if (id === activeServerId) return;
-    setActiveUniversityId(null);
+    setActiveUniversityId(null as any);
     setActiveServerId(id);
-    setActiveChannelId(null);
+    setActiveChannelId(null as any);
   };
 
   const toggleGroup = (groupId: string) => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] })); };
@@ -187,7 +205,7 @@ export default function SideMenu() {
       { text: "Hủy", style: "cancel" },
       { text: "Xóa", style: "destructive", onPress: async () => {
           await deleteChannel({ channelId: target._id });
-          if (activeChannelId === target._id || isCategory) setActiveChannelId(null);
+          if (activeChannelId === target._id || isCategory) setActiveChannelId(null as any);
       }}
     ]);
   };
@@ -404,12 +422,11 @@ export default function SideMenu() {
               <Text style={styles.bottomSheetTitle} numberOfLines={1}>{currentWorkspace?.name}</Text>
             </View>
 
-            {/* 👇 SỬA LẠI SỰ KIỆN KHI BẤM NÚT NÀY 👇 */}
             <TouchableOpacity style={styles.bottomSheetItem} onPress={() => {
               setServerMenuVisible(false);
               setMemberListModalVisible(true);
             }}>
-              <Ionicons name="people" size={24} color="white" />
+              <Ionicons name="people" size={24} color="black" />
               <Text style={styles.bottomSheetItemText}>Xem thành viên</Text>
             </TouchableOpacity>
 
@@ -417,7 +434,7 @@ export default function SideMenu() {
               setServerMenuVisible(false);
               Alert.alert("Báo cáo", "Cảm ơn bạn. Quản trị viên sẽ xem xét máy chủ này.");
             }}>
-              <Ionicons name="flag" size={24} color="white" />
+              <Ionicons name="flag" size={24} color="black" />
               <Text style={styles.bottomSheetItemText}>Báo cáo máy chủ</Text>
             </TouchableOpacity>
 
@@ -450,7 +467,6 @@ export default function SideMenu() {
         </TouchableOpacity>
       </Modal>
 
-      {/* 👇 MỚI: Modal Danh sách thành viên 👇 */}
       <Modal visible={isMemberListModalVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{flex: 1, backgroundColor: '#f2f3f5'}}>
           <View style={[styles.modalHeader, { backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
@@ -472,8 +488,6 @@ export default function SideMenu() {
                 <View style={{flex: 1}}>
                   <View style={{flexDirection: 'row', alignItems: 'center'}}>
                     <Text style={{fontWeight: 'bold', fontSize: 16}}>{member.first_name}</Text>
-
-                    {/* Hiển thị Tag phân quyền */}
                     {member.isCreator && (
                       <Text style={{fontSize: 10, backgroundColor: '#ffd700', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, marginLeft: 8, fontWeight: 'bold'}}>CHỦ SERVER</Text>
                     )}
@@ -540,7 +554,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bottomSheetContainer: {
-    backgroundColor: '#1e1f22',
+    backgroundColor: '#ffffff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
@@ -550,7 +564,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#2b2d31',
+    borderBottomColor: '#f0f0f0',
     paddingBottom: 15,
     marginBottom: 10,
   },
@@ -562,7 +576,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#313338'
   },
   bottomSheetTitle: {
-    color: 'white',
+    color: 'black',
     fontSize: 20,
     fontWeight: 'bold',
     flex: 1,
@@ -573,7 +587,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   bottomSheetItemText: {
-    color: 'white',
+    color: 'black',
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 15,

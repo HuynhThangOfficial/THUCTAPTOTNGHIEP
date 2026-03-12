@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { mutation, query, QueryCtx, internalMutation } from './_generated/server';
 import { paginationOptsValidator } from 'convex/server';
-import { Id } from './_generated/dataModel';
+import { Id, Doc } from './_generated/dataModel';
 import { isHttpUrl } from './utils';
 
 async function getCurrentUserId(ctx: QueryCtx) {
@@ -606,5 +606,70 @@ export const createInternalNotification = internalMutation({
   args: { receiverId: v.id('users'), type: v.string(), senderId: v.id('users') },
   handler: async (ctx, args) => {
      await ctx.db.insert('notifications', { userId: args.receiverId, senderId: args.senderId, type: args.type, isRead: false });
+  }
+});
+
+export const searchMessages = query({
+  args: {
+    search: v.string(),
+    channelId: v.optional(v.id("channels")),
+    serverId: v.optional(v.id("servers"))
+  },
+  handler: async (ctx, args) => {
+    let messages: Doc<"messages">[] = [];
+    const currentUserId = await getCurrentUserId(ctx); // Cần ID người dùng để check quyền và like
+
+    // 1. Tìm trong 1 kênh cụ thể
+    if (args.channelId) {
+      messages = await ctx.db.query("messages")
+        .withIndex("by_channel", q => q.eq("channelId", args.channelId))
+        .collect();
+    }
+    // 2. Hoặc tìm trong TOÀN BỘ server
+    else if (args.serverId) {
+      const channels = await ctx.db.query("channels")
+        .withIndex("by_server", q => q.eq("serverId", args.serverId))
+        .collect();
+      const channelIds = channels.map(c => c._id);
+
+      const allMessages = await ctx.db.query("messages").collect();
+      messages = allMessages.filter(m => channelIds.includes(m.channelId as Id<"channels">));
+    }
+
+    // 3. Lọc nội dung chứa từ khóa (chỉ lấy bài gốc, không lấy comment)
+    const matchedMessages = messages.filter(m =>
+      m.threadId === undefined && // Bỏ qua comment
+      m.content && m.content.toLowerCase().includes(args.search.toLowerCase())
+    );
+
+    // 4. Format dữ liệu CHUẨN như getThreads để UI hiển thị đầy đủ tính năng
+    return Promise.all(matchedMessages.map(async (thread) => {
+      // Dùng hàm có sẵn để dịch ID ảnh thành URL
+      const creator = await getMessageCreator(ctx, thread.userId);
+      const mediaUrls = await getMediaUrls(ctx, thread.mediaFiles);
+
+      let isLiked = false;
+      let isServerAdmin = false;
+      let amIAdmin = false;
+
+      // Check xem người dùng hiện tại đã like bài này chưa
+      if (currentUserId) {
+        const like = await ctx.db.query('likes')
+          .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', thread._id))
+          .unique();
+        isLiked = !!like;
+      }
+
+      // Check quyền Admin cho nút 3 chấm
+      if (thread.serverId) {
+         const server = await ctx.db.get(thread.serverId);
+         if (server?.adminIds) {
+             if (server.adminIds.includes(thread.userId)) isServerAdmin = true;
+             if (currentUserId && server.adminIds.includes(currentUserId)) amIAdmin = true;
+         }
+      }
+
+      return { ...thread, mediaFiles: mediaUrls, creator, isLiked, isServerAdmin, amIAdmin };
+    }));
   }
 });

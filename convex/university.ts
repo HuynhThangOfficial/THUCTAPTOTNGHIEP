@@ -671,3 +671,81 @@ export const leaveServer = mutation({
     return { success: true };
   }
 });
+
+export const searchServers = query({
+  args: { search: v.string() },
+  handler: async (ctx, args) => {
+    // 👇 Lấy thông tin user hiện tại để check xem họ đã tham gia server chưa
+    const identity = await ctx.auth.getUserIdentity();
+    const user = identity ? await ctx.db.query("users").withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject)).unique() : null;
+
+    // Lấy toàn bộ máy chủ
+    const allServers = await ctx.db.query("servers").collect();
+
+    // Lọc theo tên máy chủ không phân biệt hoa thường
+    const matchedServers = allServers.filter(server =>
+      server.name.toLowerCase().includes(args.search.toLowerCase())
+    );
+
+    // Dịch ảnh StorageId ra URL thực tế
+    return Promise.all(matchedServers.map(async (server) => {
+        // ÉP KIỂU BẰNG (server as any) ĐỂ TYPESCRIPT BỎ QUA LỖI
+        let iconUrl = (server as any).iconStorageId
+            ? await ctx.storage.getUrl((server as any).iconStorageId as Id<"_storage">)
+            : null;
+
+        // 👇 THÊM DÒNG NÀY: Kiểm tra xem user có nằm trong danh sách thành viên không
+        const isJoined = user ? server.memberIds?.includes(user._id) : false;
+
+        // 👇 Trả về thêm biến isJoined cho Frontend
+        return { ...server, icon: iconUrl || server.icon, isJoined };
+    }));
+  }
+});
+
+export const joinServer = mutation({
+  args: { serverId: v.id("servers") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Chưa đăng nhập");
+
+    const user = await ctx.db.query("users").withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject)).unique();
+    if (!user) throw new Error("Không tìm thấy user");
+
+    const server = await ctx.db.get(args.serverId);
+    if (!server) throw new Error("Máy chủ không tồn tại");
+
+    // 1. Kiểm tra giới hạn 100 server
+    const memberships = await ctx.db.query("server_members")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    if (memberships.length >= 100) {
+      throw new Error("Bạn đã tham gia tối đa 100 server.");
+    }
+
+    // 2. Kiểm tra xem đã tham gia chưa
+    const existingMember = await ctx.db.query("server_members")
+      .withIndex("by_server_user", (q) => q.eq("serverId", args.serverId).eq("userId", user._id))
+      .unique();
+
+    // 3. Nếu chưa tham gia thì tự động thêm vào
+    if (!existingMember) {
+      await ctx.db.insert("server_members", {
+        serverId: args.serverId,
+        userId: user._id,
+        role: "member",
+        joinedAt: Date.now(),
+      });
+
+      if (server.memberIds !== undefined) {
+         const members = [...server.memberIds];
+         if (!members.includes(user._id)) {
+           members.push(user._id);
+           await ctx.db.patch(args.serverId, { memberIds: members });
+         }
+      }
+    }
+    return { success: true };
+  }
+});
