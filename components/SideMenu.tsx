@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, ActivityIndicator, LayoutAnimation, Platform, UIManager, Modal, SafeAreaView, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, ActivityIndicator, LayoutAnimation, Platform, UIManager, Modal, SafeAreaView, Alert, TextInput, Switch } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -66,6 +66,12 @@ export default function SideMenu() {
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelType, setNewChannelType] = useState<'category' | 'channel'>('channel');
   const [selectedCategoryId, setSelectedCategoryId] = useState<Id<'channels'> | undefined>(undefined);
+  const [isAnonymousChannel, setIsAnonymousChannel] = useState(false);
+
+  // 👇 STATE GHIM & NÂNG CẤP 👇
+  const [pinnedServers, setPinnedServers] = useState<string[]>([]);
+  const [pinnedChannels, setPinnedChannels] = useState<string[]>([]);
+  const [isUpgradeModalVisible, setUpgradeModalVisible] = useState(false);
 
   const channelsData = useQuery(api.university.getChannels, {
     universityId: activeUniversityId || undefined,
@@ -76,44 +82,21 @@ export default function SideMenu() {
     serverId: activeServerId || undefined
   });
 
-  // 👇 CHỐT CHẶN 1: Tự động dập tắt Đại học nếu bị kích hoạt nhầm cùng lúc với Server 👇
   useEffect(() => {
     if (activeServerId && activeUniversityId) {
       setActiveUniversityId(null as any);
     }
   }, [activeServerId, activeUniversityId]);
 
-  // 👇 CHỐT CHẶN 2: Trì hoãn cơ chế tự động bật Đại học để tránh hoảng loạn 👇
   useEffect(() => {
     let fallbackTimer: NodeJS.Timeout;
     if (universities && universities.length > 0 && !activeUniversityId && !activeServerId) {
-       // Đợi 100ms xem có phải search.tsx đang load vào Server không, nếu không mới bật Đại học
        fallbackTimer = setTimeout(() => {
          setActiveUniversityId(universities[0]._id);
        }, 100);
     }
     return () => clearTimeout(fallbackTimer);
   }, [!!universities, activeUniversityId, activeServerId]);
-
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    if (activeServerId && myServers) {
-      const isServerStillAlive = myServers.some(s => s._id === activeServerId);
-
-      if (!isServerStillAlive) {
-          timeoutId = setTimeout(() => {
-          if (myServers && !myServers.some(s => s._id === activeServerId)) {
-            if (universities && universities.length > 0) {
-                switchToUniversity(universities[0]._id);
-                Alert.alert("Thông báo", "Máy chủ không còn tồn tại hoặc bạn đã bị xóa khỏi máy chủ này.");
-             }
-          }
-        }, 2000);
-      }
-    }
-    return () => clearTimeout(timeoutId); // Dọn dẹp bộ nhớ
-  }, [activeServerId, myServers?.length, universities?.length]);
 
   useEffect(() => {
     const chans = channelsData?.channels || [];
@@ -133,6 +116,12 @@ export default function SideMenu() {
   const currentWorkspace = activeUniversityId ? universities.find(u => u._id === activeUniversityId) : myServers?.find(s => s._id === activeServerId);
   const isOwner = activeServerId && currentWorkspace && 'creatorId' in currentWorkspace && currentWorkspace.creatorId === userProfile?._id;
 
+  // Giả lập lấy số lần nâng cấp (Nitro) của máy chủ hiện tại
+  // @ts-ignore
+  const serverBoostCount = currentWorkspace?.boostCount || 0; 
+  const MAX_CHANNELS_BASE = 30;
+  const currentChannelLimit = MAX_CHANNELS_BASE + (serverBoostCount * 5);
+
   const switchToUniversity = (id: Id<'universities'>) => {
     if (id === activeUniversityId) return;
     setActiveServerId(null as any);
@@ -148,6 +137,78 @@ export default function SideMenu() {
   };
 
   const toggleGroup = (groupId: string) => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] })); };
+
+  // 👇 HÀM KIỂM TRA GIỚI HẠN KÊNH TRƯỚC KHI TẠO 👇
+  const checkLimitAndOpenCreate = (type: 'category' | 'channel', parentId?: Id<'channels'>) => {
+    const currentTotalChannels = channels.length + groups.length;
+
+    if (currentTotalChannels >= currentChannelLimit) {
+      Alert.alert(
+        "Đã đạt giới hạn kênh!",
+        `Máy chủ này đã tạo tối đa ${currentChannelLimit} kênh/danh mục.\n\nHãy Nâng Cấp Máy Chủ để mở rộng thêm không gian!`,
+        [
+          { text: "Hủy", style: "cancel" },
+          { text: "Nâng cấp ngay", onPress: () => setUpgradeModalVisible(true) }
+        ]
+      );
+      return;
+    }
+
+    setNewChannelType(type);
+    setSelectedCategoryId(parentId);
+    setNewChannelName('');
+    setIsAnonymousChannel(false);
+    setCreateChannelModalVisible(true);
+  };
+
+  // 👇 HÀM TƯƠNG TÁC LONG PRESS ĐỂ GHIM HOẶC XÓA 👇
+  const handleChannelLongPress = (target: any, isCategory: boolean) => {
+    if (target.name === 'đại-sảnh') { Alert.alert("Không hợp lệ", "Không thể thao tác kênh mặc định!"); return; }
+    
+    const isPinned = pinnedChannels.includes(target._id);
+    
+    Alert.alert(`Tùy chọn ${isCategory ? 'Danh mục' : 'Kênh'}`, `Bạn muốn làm gì với "${target.name}"?`, [
+      { text: "Hủy", style: "cancel" },
+      { text: isPinned ? "Bỏ ghim" : "Ghim lên đầu", onPress: () => {
+          setPinnedChannels(prev => isPinned ? prev.filter(id => id !== target._id) : [...prev, target._id]);
+      }},
+      ...(isOwner ? [{ text: "Xóa", style: "destructive" as const, onPress: async () => {
+          await deleteChannel({ channelId: target._id });
+          if (activeChannelId === target._id || isCategory) setActiveChannelId(null as any);
+      }}] : [])
+    ]);
+  };
+
+  const togglePinServer = (serverId: string) => {
+    setPinnedServers(prev => prev.includes(serverId) ? prev.filter(id => id !== serverId) : [...prev, serverId]);
+  };
+
+  // XỬ LÝ SẮP XẾP SERVER & KÊNH
+  const sortedServers = myServers ? [...myServers].sort((a, b) => {
+    const aPinned = pinnedServers.includes(a._id);
+    const bPinned = pinnedServers.includes(b._id);
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+    return 0;
+  }) : [];
+
+  const sortedGroups = [...groups].sort((a, b) => {
+    const aPinned = pinnedChannels.includes(a._id);
+    const bPinned = pinnedChannels.includes(b._id);
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+    return a.sortOrder - b.sortOrder;
+  });
+
+  const getSortedChannels = (channelList: any[]) => {
+    return [...channelList].sort((a, b) => {
+      const aPinned = pinnedChannels.includes(a._id);
+      const bPinned = pinnedChannels.includes(b._id);
+      if (aPinned && !bPinned) return -1; // Thằng nào ghim thì bay lên đầu
+      if (!aPinned && bPinned) return 1;
+      return a.sortOrder - b.sortOrder;   // Không ghim thì nằm im theo thứ tự cũ
+    });
+  };
 
   const handleCreateServerClick = async (templateName: string) => {
     const serverName = `Máy chủ của ${userProfile?.first_name || 'Tôi'}`;
@@ -199,22 +260,19 @@ export default function SideMenu() {
     setInvitedUsers(prev => ({ ...prev, [userId]: true }));
   };
 
-  const handleLongPressDelete = (target: any, isCategory: boolean) => {
-    if (target.name === 'đại-sảnh') { Alert.alert("Không hợp lệ", "Không thể xóa kênh mặc định!"); return; }
-    Alert.alert(`Xóa ${isCategory ? 'Danh mục' : 'Kênh'}`, `Bạn có chắc chắn muốn xóa "${target.name}"?`, [
-      { text: "Hủy", style: "cancel" },
-      { text: "Xóa", style: "destructive", onPress: async () => {
-          await deleteChannel({ channelId: target._id });
-          if (activeChannelId === target._id || isCategory) setActiveChannelId(null as any);
-      }}
-    ]);
-  };
-
   const handleCreateChannelSubmit = async () => {
     if (newChannelName.trim() === '' || !activeServerId) return;
-    await createChannel({ serverId: activeServerId, name: newChannelName.trim(), type: newChannelType, parentId: selectedCategoryId });
+    await createChannel({ 
+      serverId: activeServerId, 
+      name: newChannelName.trim(), 
+      type: newChannelType, 
+      parentId: selectedCategoryId,
+      // @ts-ignore
+      isAnonymous: isAnonymousChannel
+    });
     setCreateChannelModalVisible(false);
     setNewChannelName('');
+    setIsAnonymousChannel(false);
   };
 
   const handleSaveName = async () => {
@@ -239,22 +297,13 @@ export default function SideMenu() {
   const handleDeleteServer = () => {
       Alert.alert("Cảnh báo", "Bạn có chắc chắn muốn xóa máy chủ này?", [
         { text: "Hủy", style: "cancel" },
-        {
-          text: "Xóa",
-          style: "destructive",
-          onPress: () => {
+        { text: "Xóa", style: "destructive", onPress: () => {
             if (activeServerId) {
               const serverIdToDelete = activeServerId;
               setSettingsModalVisible(false);
-              if (universities && universities.length > 0) {
-                switchToUniversity(universities[0]._id);
-              }
+              if (universities && universities.length > 0) switchToUniversity(universities[0]._id);
               setTimeout(async () => {
-                try {
-                  await deleteServer({ serverId: serverIdToDelete });
-                } catch (error) {
-                  console.error("Lỗi khi xóa server:", error);
-                }
+                try { await deleteServer({ serverId: serverIdToDelete }); } catch (error) { console.error(error); }
               }, 300);
             }
           }
@@ -296,9 +345,16 @@ export default function SideMenu() {
               </TouchableOpacity>
             ))}
             <View style={styles.railSeparator} />
-            {myServers?.map((server) => (
+            
+            {/* LẤY DANH SÁCH SERVER ĐÃ ĐƯỢC SẮP XẾP (CÓ GHIM) */}
+            {sortedServers.map((server) => (
               <TouchableOpacity key={server._id} style={styles.serverItem} onPress={() => switchToServer(server._id)}>
                 <Image source={getIconSource(server.icon)} style={styles.serverIcon} resizeMode="cover" />
+                {pinnedServers.includes(server._id) && (
+                  <View style={{position: 'absolute', bottom: -2, right: 6, backgroundColor: '#fff', borderRadius: 10, padding: 2}}>
+                    <Ionicons name="pin" size={10} color="#000" style={{transform: [{rotate: '45deg'}]}} />
+                  </View>
+                )}
                 {server._id === activeServerId && <View style={styles.activePill} />}
               </TouchableOpacity>
             ))}
@@ -310,9 +366,7 @@ export default function SideMenu() {
         <View style={styles.serverHeader}>
           <TouchableOpacity
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
-            onPress={() => {
-              if (activeServerId) setServerMenuVisible(true);
-            }}
+            onPress={() => { if (activeServerId) setServerMenuVisible(true); }}
             disabled={!activeServerId}
           >
             <Text style={styles.serverName} numberOfLines={1}>{currentWorkspace?.name || "Chọn Không Gian"}</Text>
@@ -321,33 +375,53 @@ export default function SideMenu() {
 
           {isOwner && (
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 12}}>
-               <TouchableOpacity onPress={() => { setNewChannelType('category'); setSelectedCategoryId(undefined); setNewChannelName(''); setCreateChannelModalVisible(true); }}><Ionicons name="folder-open-outline" size={20} color="gray" /></TouchableOpacity>
+               <TouchableOpacity onPress={() => checkLimitAndOpenCreate('category')}><Ionicons name="folder-open-outline" size={20} color="gray" /></TouchableOpacity>
                <TouchableOpacity onPress={() => { setEditServerName(currentWorkspace?.name || ''); setSettingsModalVisible(true); }}><Ionicons name="settings-outline" size={20} color="gray" /></TouchableOpacity>
             </View>
           )}
         </View>
-        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-            {channels.filter(c => !c.parentId).map((channel) => (
-                <TouchableOpacity key={channel._id} style={[styles.channelItem, activeChannelId === channel._id && styles.activeChannel]} onPress={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} onLongPress={() => isOwner && handleLongPressDelete(channel, false)}>
+<ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+            
+            {/* 👇 ĐÃ SỬA: Bọc hàm getSortedChannels vào đây 👇 */}
+            {getSortedChannels(channels.filter(c => !c.parentId)).map((channel) => (
+                <TouchableOpacity key={channel._id} style={[styles.channelItem, activeChannelId === channel._id && styles.activeChannel]} onPress={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} onLongPress={() => handleChannelLongPress(channel, false)}>
                     <MaterialCommunityIcons name="pound" size={20} color={activeChannelId === channel._id ? "black" : "gray"} />
-                    <Text style={[styles.channelText, activeChannelId === channel._id && {color: 'black', fontWeight: 'bold'}]}>{channel.name}</Text>
+                    <Text style={[styles.channelText, activeChannelId === channel._id && {color: 'black', fontWeight: 'bold'}]}>
+                      {channel.name} 
+                      {/* @ts-ignore */}
+                      {channel.isAnonymous && " 🎭"}
+                    </Text>
+                    {pinnedChannels.includes(channel._id) && <Ionicons name="pin" size={12} color="gray" style={{transform: [{rotate: '45deg'}]}} />}
                 </TouchableOpacity>
             ))}
-            {groups.map((group) => {
+
+            {sortedGroups.map((group) => {
               const isExpanded = expandedGroups[group._id] ?? true;
-              const childChannels = channels.filter(c => c.parentId === group._id);
+              // 👇 ĐÃ SỬA: Bọc hàm getSortedChannels vào childChannels 👇
+              const childChannels = getSortedChannels(channels.filter(c => c.parentId === group._id));
+              const isGroupPinned = pinnedChannels.includes(group._id);
+
               return (
                 <View key={group._id} style={{ marginTop: 16 }}>
                   <View style={[styles.categoryHeader, {justifyContent: 'space-between', paddingRight: 10}]}>
-                    <TouchableOpacity style={{flexDirection: 'row', alignItems: 'center', flex: 1}} onPress={() => toggleGroup(group._id)} onLongPress={() => isOwner && handleLongPressDelete(group, true)}>
-                      <Ionicons name={isExpanded ? "chevron-down" : "chevron-forward"} size={12} color="gray" /><Text style={styles.categoryTitle}>{group.name}</Text>
+                    <TouchableOpacity style={{flexDirection: 'row', alignItems: 'center', flex: 1}} onPress={() => toggleGroup(group._id)} onLongPress={() => handleChannelLongPress(group, true)}>
+                      <Ionicons name={isExpanded ? "chevron-down" : "chevron-forward"} size={12} color="gray" />
+                      <Text style={styles.categoryTitle}>{group.name}</Text>
+                      {isGroupPinned && <Ionicons name="pin" size={12} color="gray" style={{marginLeft: 4, transform: [{rotate: '45deg'}]}} />}
                     </TouchableOpacity>
-                    {isOwner && (<TouchableOpacity onPress={() => { setNewChannelType('channel'); setSelectedCategoryId(group._id); setNewChannelName(''); setCreateChannelModalVisible(true); }}><Ionicons name="add" size={18} color="gray" /></TouchableOpacity>)}
+                    {isOwner && (<TouchableOpacity onPress={() => checkLimitAndOpenCreate('channel', group._id)}><Ionicons name="add" size={18} color="gray" /></TouchableOpacity>)}
                   </View>
+
+                  {/* Vòng lặp hiển thị kênh con bên trong Category */}
                   {isExpanded && childChannels.map(channel => (
-                    <TouchableOpacity key={channel._id} style={[styles.channelItem, activeChannelId === channel._id && styles.activeChannel]} onPress={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} onLongPress={() => isOwner && handleLongPressDelete(channel, false)}>
+                    <TouchableOpacity key={channel._id} style={[styles.channelItem, activeChannelId === channel._id && styles.activeChannel]} onPress={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} onLongPress={() => handleChannelLongPress(channel, false)}>
                         <MaterialCommunityIcons name="pound" size={20} color={activeChannelId === channel._id ? "black" : "gray"} />
-                        <Text style={[styles.channelText, activeChannelId === channel._id && {color: 'black', fontWeight: 'bold'}]}>{channel.name}</Text>
+                        <Text style={[styles.channelText, activeChannelId === channel._id && {color: 'black', fontWeight: 'bold'}]}>
+                          {channel.name} 
+                          {/* @ts-ignore */}
+                          {channel.isAnonymous && " 🎭"}
+                        </Text>
+                        {pinnedChannels.includes(channel._id) && <Ionicons name="pin" size={12} color="gray" style={{transform: [{rotate: '45deg'}]}} />}
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -407,55 +481,79 @@ export default function SideMenu() {
       <Modal visible={isInviteOnlyModalVisible} animationType="slide" presentationStyle="pageSheet"><SafeAreaView style={{flex: 1, backgroundColor: '#fff', padding: 20}}><View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20}}><Text style={{fontSize: 22, fontWeight: 'bold'}}>Mời bạn bè</Text><TouchableOpacity onPress={() => setInviteOnlyModalVisible(false)}><Text style={{color: '#007aff', fontWeight: 'bold', fontSize: 16}}>Xong</Text></TouchableOpacity></View>{renderInviteList()}</SafeAreaView></Modal>
 
       <Modal visible={isCreateChannelModalVisible} transparent animationType="fade">
-         <View style={styles.modalOverlay}><View style={styles.smallModalContainer}><Text style={styles.smallModalTitle}>Tạo {newChannelType === 'category' ? 'Danh Mục' : 'Kênh'}</Text><TextInput style={styles.textInput} placeholder={newChannelType === 'category' ? "Tên danh mục mới" : "tên-kênh-mới"} value={newChannelName} onChangeText={setNewChannelName} autoFocus /><View style={styles.modalButtonRow}><TouchableOpacity onPress={() => setCreateChannelModalVisible(false)} style={styles.cancelBtn}><Text style={styles.cancelBtnText}>Hủy</Text></TouchableOpacity><TouchableOpacity onPress={handleCreateChannelSubmit} style={styles.submitBtn}><Text style={styles.submitBtnText}>Tạo</Text></TouchableOpacity></View></View></View>
+         <View style={styles.modalOverlay}>
+           <View style={styles.smallModalContainer}>
+             <Text style={styles.smallModalTitle}>Tạo {newChannelType === 'category' ? 'Danh Mục' : 'Kênh'}</Text>
+             <TextInput style={styles.textInput} placeholder={newChannelType === 'category' ? "Tên danh mục mới" : "tên-kênh-mới"} value={newChannelName} onChangeText={setNewChannelName} autoFocus />
+             
+             {newChannelType === 'channel' && (
+               <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                 <View style={{flex: 1, paddingRight: 10}}>
+                   <Text style={{ fontWeight: 'bold', fontSize: 15, color: '#333' }}>Kênh ẩn danh (Confession)</Text>
+                   <Text style={{ fontSize: 12, color: 'gray', marginTop: 4 }}>Thành viên đăng bài trong kênh này sẽ bị ẩn danh tính hoàn toàn.</Text>
+                 </View>
+                 <Switch 
+                   value={isAnonymousChannel} 
+                   onValueChange={setIsAnonymousChannel} 
+                   trackColor={{ false: "#767577", true: "#5865F2" }}
+                   thumbColor={isAnonymousChannel ? "#fff" : "#f4f3f4"}
+                 />
+               </View>
+             )}
+
+             <View style={styles.modalButtonRow}>
+               <TouchableOpacity onPress={() => { setCreateChannelModalVisible(false); setIsAnonymousChannel(false); }} style={styles.cancelBtn}><Text style={styles.cancelBtnText}>Hủy</Text></TouchableOpacity>
+               <TouchableOpacity onPress={handleCreateChannelSubmit} style={styles.submitBtn}><Text style={styles.submitBtnText}>Tạo</Text></TouchableOpacity>
+             </View>
+           </View>
+         </View>
       </Modal>
 
       <Modal visible={isServerMenuVisible} transparent animationType="slide">
-        <TouchableOpacity
-          style={styles.bottomSheetOverlay}
-          activeOpacity={1}
-          onPress={() => setServerMenuVisible(false)}
-        >
+        <TouchableOpacity style={styles.bottomSheetOverlay} activeOpacity={1} onPress={() => setServerMenuVisible(false)}>
           <View style={styles.bottomSheetContainer}>
             <View style={styles.bottomSheetHeader}>
               <Image source={getIconSource(currentWorkspace?.icon)} style={styles.bottomSheetIcon} />
-              <Text style={styles.bottomSheetTitle} numberOfLines={1}>{currentWorkspace?.name}</Text>
+              <View style={{flex: 1}}>
+                 <Text style={styles.bottomSheetTitle} numberOfLines={1}>{currentWorkspace?.name}</Text>
+                 {/* @ts-ignore */}
+                 {currentWorkspace?.boostCount > 0 && (
+                   <Text style={{fontSize: 12, color: '#ff73fa', fontWeight: 'bold'}}>✨ Đã Nâng Cấp Cấp {(currentWorkspace as any).boostCount}</Text>
+                 )}
+              </View>
             </View>
-
-            <TouchableOpacity style={styles.bottomSheetItem} onPress={() => {
-              setServerMenuVisible(false);
-              setMemberListModalVisible(true);
-            }}>
-              <Ionicons name="people" size={24} color="black" />
-              <Text style={styles.bottomSheetItemText}>Xem thành viên</Text>
+            
+            {/* 👇 NÚT NÂNG CẤP MÁY CHỦ 👇 */}
+            <TouchableOpacity style={styles.bottomSheetItem} onPress={() => { setServerMenuVisible(false); setUpgradeModalVisible(true); }}>
+              <FontAwesome5 name="gem" size={20} color="#ff73fa" />
+              <Text style={[styles.bottomSheetItemText, {color: '#ff73fa'}]}>Nâng Cấp Máy Chủ</Text>
+            </TouchableOpacity>
+            
+            {/* 👇 NÚT GHIM MÁY CHỦ 👇 */}
+            <TouchableOpacity style={styles.bottomSheetItem} onPress={() => { setServerMenuVisible(false); togglePinServer(activeServerId!); }}>
+              <Ionicons name="pin" size={24} color="black" />
+              <Text style={styles.bottomSheetItemText}>{pinnedServers.includes(activeServerId!) ? "Bỏ ghim máy chủ" : "Ghim máy chủ lên đầu"}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.bottomSheetItem} onPress={() => {
-              setServerMenuVisible(false);
-              Alert.alert("Báo cáo", "Cảm ơn bạn. Quản trị viên sẽ xem xét máy chủ này.");
-            }}>
-              <Ionicons name="flag" size={24} color="black" />
-              <Text style={styles.bottomSheetItemText}>Báo cáo máy chủ</Text>
+            <TouchableOpacity style={styles.bottomSheetItem} onPress={() => { setServerMenuVisible(false); setMemberListModalVisible(true); }}>
+              <Ionicons name="people" size={24} color="black" /><Text style={styles.bottomSheetItemText}>Xem thành viên</Text>
             </TouchableOpacity>
-
+            
+            <TouchableOpacity style={styles.bottomSheetItem} onPress={() => { setServerMenuVisible(false); Alert.alert("Báo cáo", "Cảm ơn bạn. Quản trị viên sẽ xem xét máy chủ này."); }}>
+              <Ionicons name="flag" size={24} color="black" /><Text style={styles.bottomSheetItemText}>Báo cáo máy chủ</Text>
+            </TouchableOpacity>
+            
             <TouchableOpacity style={styles.bottomSheetItem} onPress={() => {
               setServerMenuVisible(false);
-              if (isOwner) {
-                 Alert.alert("Thông báo", "Bạn là chủ máy chủ, hãy dùng Cài đặt (Icon bánh răng) để Xóa máy chủ thay vì Thoát.");
-                 return;
-              }
+              if (isOwner) { Alert.alert("Thông báo", "Bạn là chủ máy chủ, hãy dùng Cài đặt (Icon bánh răng) để Xóa máy chủ thay vì Thoát."); return; }
               Alert.alert("Thoát máy chủ", `Bạn có chắc chắn muốn rời khỏi "${currentWorkspace?.name}" không?`, [
                 { text: "Hủy", style: "cancel" },
                 { text: "Thoát", style: "destructive", onPress: async () => {
                     if (activeServerId) {
                       try {
                         await leaveServer({ serverId: activeServerId });
-                        if (universities && universities.length > 0) {
-                          switchToUniversity(universities[0]._id);
-                        }
-                      } catch (error: any) {
-                        Alert.alert("Lỗi", error.message);
-                      }
+                        if (universities && universities.length > 0) switchToUniversity(universities[0]._id);
+                      } catch (error: any) { Alert.alert("Lỗi", error.message); }
                     }
                 }}
               ]);
@@ -471,35 +569,87 @@ export default function SideMenu() {
         <SafeAreaView style={{flex: 1, backgroundColor: '#f2f3f5'}}>
           <View style={[styles.modalHeader, { backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
             <Text style={{fontSize: 18, fontWeight: 'bold'}}>Thành viên máy chủ</Text>
-            <TouchableOpacity onPress={() => setMemberListModalVisible(false)}>
-              <Text style={{fontSize: 16, color: '#007aff', fontWeight: 'bold'}}>Đóng</Text>
-            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setMemberListModalVisible(false)}><Text style={{fontSize: 16, color: '#007aff', fontWeight: 'bold'}}>Đóng</Text></TouchableOpacity>
           </View>
-
           <ScrollView style={{padding: 20}}>
-            <Text style={{fontSize: 12, fontWeight: 'bold', color: 'gray', marginBottom: 15, textTransform: 'uppercase'}}>
-              Thành viên — {serverMembers?.length || 0}
-            </Text>
-
+            <Text style={{fontSize: 12, fontWeight: 'bold', color: 'gray', marginBottom: 15, textTransform: 'uppercase'}}>Thành viên — {serverMembers?.length || 0}</Text>
             {serverMembers?.map(member => (
               <View key={member._id} style={{flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 15, borderRadius: 8, marginBottom: 10}}>
                 <Image source={{uri: member.imageUrl}} style={{width: 40, height: 40, borderRadius: 20, marginRight: 15}} />
-
                 <View style={{flex: 1}}>
                   <View style={{flexDirection: 'row', alignItems: 'center'}}>
                     <Text style={{fontWeight: 'bold', fontSize: 16}}>{member.first_name}</Text>
-                    {member.isCreator && (
-                      <Text style={{fontSize: 10, backgroundColor: '#ffd700', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, marginLeft: 8, fontWeight: 'bold'}}>CHỦ SERVER</Text>
-                    )}
-                    {!member.isCreator && member.isAdmin && (
-                      <Text style={{fontSize: 10, backgroundColor: '#ff4d4f', color: 'white', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, marginLeft: 8, fontWeight: 'bold'}}>ADMIN</Text>
-                    )}
+                    {member.isCreator && (<Text style={{fontSize: 10, backgroundColor: '#ffd700', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, marginLeft: 8, fontWeight: 'bold'}}>CHỦ SERVER</Text>)}
+                    {!member.isCreator && member.isAdmin && (<Text style={{fontSize: 10, backgroundColor: '#ff4d4f', color: 'white', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, marginLeft: 8, fontWeight: 'bold'}}>QTV</Text>)}
                   </View>
                   <Text style={{color: 'gray', fontSize: 13}}>@{member.username}</Text>
                 </View>
-
               </View>
             ))}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ========================================== */}
+      {/* 💎 GIAO DIỆN MODAL NÂNG CẤP MÁY CHỦ (NITRO) 💎 */}
+      {/* ========================================== */}
+      <Modal visible={isUpgradeModalVisible} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{flex: 1, backgroundColor: '#fff'}}>
+          <View style={styles.upgradeHeader}>
+            <TouchableOpacity onPress={() => setUpgradeModalVisible(false)} hitSlop={{top:10, bottom:10, left:10, right:10}}>
+              <Ionicons name="close" size={28} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.upgradeHeaderTitle}>Nâng Cấp Máy Chủ</Text>
+            <TouchableOpacity><Ionicons name="settings-outline" size={24} color="#000" /></TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+             {/* Banner Top */}
+             <View style={styles.upgradeBanner}>
+               <Text style={styles.upgradeBannerText}>Nâng cấp máy chủ này để mở khóa các đặc quyền ✨</Text>
+               <Image source={getIconSource(currentWorkspace?.icon)} style={styles.upgradeBannerIcon} />
+               <Text style={styles.upgradeBannerTitle}>{currentWorkspace?.name}</Text>
+               {/* @ts-ignore */}
+               <Text style={styles.upgradeBannerSubtitle}>💎 {currentWorkspace?.boostCount > 0 ? `Đã Nâng Cấp Cấp ${currentWorkspace.boostCount}` : 'Không Có Nâng Cấp'}</Text>
+               <Text style={styles.channelLimitInfo}>Giới hạn kênh: {channels.length + groups.length} / {currentChannelLimit}</Text>
+
+               <TouchableOpacity style={styles.upgradeBtnPrimary} onPress={() => Alert.alert("Nâng cấp", "Tính năng thanh toán Nitro đang được phát triển!")}>
+                  <Text style={styles.upgradeBtnTextPrimary}>Nâng Cấp Máy Chủ Này</Text>
+               </TouchableOpacity>
+               <TouchableOpacity style={styles.upgradeBtnSecondary}>
+                  <Text style={styles.upgradeBtnTextSecondary}>Nhận Nitro</Text>
+               </TouchableOpacity>
+             </View>
+
+             <View style={{padding: 20}}>
+                <Text style={styles.upgradeLevelsTitle}>CÁC ĐẶC QUYỀN BỔ SUNG</Text>
+                
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 15, paddingVertical: 10}}>
+                  {/* Cấp 1 */}
+                  <View style={styles.levelCard}>
+                     <View style={styles.levelCardHeader}>
+                        <Text style={styles.levelCardTitle}>Cấp 1</Text>
+                     </View>
+                     <View style={styles.levelCardFeature}><Text>📺</Text><Text style={styles.featureText}>+5 Giới hạn số lượng Kênh</Text></View>
+                     <View style={styles.levelCardFeature}><Text>😎</Text><Text style={styles.featureText}>100 Ô Emoji tùy chỉnh</Text></View>
+                     <View style={styles.levelCardFeature}><Text>🎵</Text><Text style={styles.featureText}>Chất lượng Âm thanh 128kbps</Text></View>
+                     <View style={styles.levelCardFeature}><Text>🖼️</Text><Text style={styles.featureText}>Biểu Tượng Máy Chủ Động</Text></View>
+                     <Text style={styles.levelPriceText}>💎 Yêu cầu: 2 Nâng cấp</Text>
+                  </View>
+
+                  {/* Cấp 2 */}
+                  <View style={styles.levelCard}>
+                     <View style={styles.levelCardHeader}>
+                        <Text style={styles.levelCardTitle}>Cấp 2</Text>
+                     </View>
+                     <View style={styles.levelCardFeature}><Text>📺</Text><Text style={styles.featureText}>+10 Giới hạn số lượng Kênh</Text></View>
+                     <View style={styles.levelCardFeature}><Text>🎥</Text><Text style={styles.featureText}>Stream video HD</Text></View>
+                     <View style={styles.levelCardFeature}><Text>⬆️</Text><Text style={styles.featureText}>Dung lượng tải lên 50MB</Text></View>
+                     <View style={styles.levelCardFeature}><Text>🎭</Text><Text style={styles.featureText}>Biểu ngữ máy chủ tùy biến</Text></View>
+                     <Text style={styles.levelPriceText}>💎 Yêu cầu: 7 Nâng cấp</Text>
+                  </View>
+                </ScrollView>
+             </View>
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -548,48 +698,32 @@ const styles = StyleSheet.create({
   cancelBtnText: { color: 'gray', fontWeight: 'bold' },
   submitBtn: { backgroundColor: '#5865F2', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8, alignItems: 'center' },
   submitBtnText: { color: 'white', fontWeight: 'bold', fontSize: 15 },
-  bottomSheetOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  bottomSheetContainer: {
-    backgroundColor: '#ffffff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 40,
-  },
-  bottomSheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-    paddingBottom: 15,
-    marginBottom: 10,
-  },
-  bottomSheetIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    marginRight: 15,
-    backgroundColor: '#313338'
-  },
-  bottomSheetTitle: {
-    color: 'black',
-    fontSize: 20,
-    fontWeight: 'bold',
-    flex: 1,
-  },
-  bottomSheetItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 15,
-  },
-  bottomSheetItemText: {
-    color: 'black',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 15,
-  },
+  bottomSheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  bottomSheetContainer: { backgroundColor: '#ffffff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
+  bottomSheetHeader: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#f0f0f0', paddingBottom: 15, marginBottom: 10 },
+  bottomSheetIcon: { width: 48, height: 48, borderRadius: 16, marginRight: 15, backgroundColor: '#313338' },
+  bottomSheetTitle: { color: 'black', fontSize: 20, fontWeight: 'bold' },
+  bottomSheetItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15 },
+  bottomSheetItemText: { color: 'black', fontSize: 16, fontWeight: 'bold', marginLeft: 15 },
+
+  // Giao diện Nâng Cấp Máy Chủ
+  upgradeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, backgroundColor: '#fff' },
+  upgradeHeaderTitle: { fontSize: 18, fontWeight: 'bold' },
+  upgradeBanner: { backgroundColor: '#8a2be2', alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
+  upgradeBannerText: { color: 'white', fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
+  upgradeBannerIcon: { width: 70, height: 70, borderRadius: 35, borderWidth: 3, borderColor: 'white', marginBottom: 10 },
+  upgradeBannerTitle: { color: 'white', fontSize: 20, fontWeight: 'bold' },
+  upgradeBannerSubtitle: { color: '#ffd700', fontSize: 14, fontWeight: 'bold', marginTop: 5 },
+  channelLimitInfo: { color: '#e0e0e0', fontSize: 13, marginTop: 8, marginBottom: 20 },
+  upgradeBtnPrimary: { backgroundColor: '#5865F2', paddingVertical: 14, width: '100%', borderRadius: 25, alignItems: 'center', marginBottom: 12 },
+  upgradeBtnTextPrimary: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  upgradeBtnSecondary: { backgroundColor: 'white', paddingVertical: 14, width: '100%', borderRadius: 25, alignItems: 'center' },
+  upgradeBtnTextSecondary: { color: '#5865F2', fontWeight: 'bold', fontSize: 16 },
+  upgradeLevelsTitle: { fontSize: 16, fontWeight: 'bold', color: 'gray', marginTop: 10, marginBottom: 10 },
+  levelCard: { backgroundColor: '#f2f3f5', padding: 20, borderRadius: 16, width: 260, borderWidth: 1, borderColor: '#e0e0e0' },
+  levelCardHeader: { backgroundColor: '#8a2be2', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 12, alignSelf: 'flex-start', marginBottom: 15 },
+  levelCardTitle: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  levelCardFeature: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  featureText: { fontSize: 14, color: '#333', marginLeft: 10, fontWeight: '500' },
+  levelPriceText: { color: '#ff73fa', fontWeight: 'bold', marginTop: 10, fontSize: 14 }
 });

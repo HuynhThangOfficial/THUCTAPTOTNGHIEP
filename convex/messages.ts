@@ -26,21 +26,47 @@ export const addThread = mutation({
     const userId = await getCurrentUserId(ctx);
     if (!userId) throw new Error("Unauthorized");
 
+let isAnon = false;
+    let finalChannelId = args.channelId;
+    let finalServerId = args.serverId;
+    let finalUniId = args.universityId;
+
+    if (args.threadId) {
+      // 1. NẾU LÀ BÌNH LUẬN -> TUYỆT ĐỐI KHÔNG CHO ẨN DANH (isAnon bắt buộc = false)
+      isAnon = false; 
+      
+      const parentPost = await ctx.db.get(args.threadId);
+      if (parentPost) {
+        finalChannelId = finalChannelId || parentPost.channelId;
+        finalServerId = finalServerId || parentPost.serverId;
+        finalUniId = finalUniId || parentPost.universityId;
+      }
+    } else if (finalChannelId) {
+      // 2. NẾU LÀ BÀI VIẾT GỐC -> Mới kiểm tra xem kênh có bật ẩn danh không
+      const channel = await ctx.db.get(finalChannelId);
+      // @ts-ignore
+      if (channel?.isAnonymous) isAnon = true;
+    }
+
+    // LƯU VÀO DATABASE
     const messageId = await ctx.db.insert('messages', {
       userId,
       content: args.content,
       mediaFiles: args.mediaFiles,
       websiteUrl: args.websiteUrl,
       threadId: args.threadId,
-      channelId: args.channelId,
-      serverId: args.serverId,
-      universityId: args.universityId,
+      channelId: finalChannelId,
+      serverId: finalServerId,
+      universityId: finalUniId,
       parentId: args.parentId,
       likeCount: 0,
       commentCount: 0,
       retweetCount: 0,
+      // @ts-ignore
+      isAnonymous: isAnon, // Chỉ bài gốc mới được true, bình luận luôn false
     });
 
+    // Cập nhật số bình luận của bài gốc
     if (args.threadId) {
       const originalMessage = await ctx.db.get(args.threadId);
       if (originalMessage) {
@@ -50,6 +76,7 @@ export const addThread = mutation({
       }
     }
 
+    // Xử lý gửi thông báo (Giữ nguyên logic cũ của bạn)
     if (args.channelId && !args.threadId) {
       const notifyUserIds = new Set<Id<"users">>();
       const targetId = args.serverId || args.universityId;
@@ -78,7 +105,7 @@ export const addThread = mutation({
         if (uid !== userId) {
           await ctx.db.insert('notifications', {
             userId: uid,
-            senderId: userId,
+            senderId: userId, // Dù ẩn danh vẫn lưu senderId ở DB để sau này cần tra cứu (nhưng FE sẽ ko hiện)
             type: 'post',
             channelId: args.channelId,
             messageId: messageId,
@@ -100,7 +127,6 @@ export const deleteThread = mutation({
     const message = await ctx.db.get(args.messageId);
     if (!message) throw new Error("Message not found");
 
-    // 👇 LOGIC CẤP QUYỀN XÓA CHO ADMIN 👇
     let canDelete = false;
     if (message.userId === userId) {
       canDelete = true;
@@ -199,11 +225,12 @@ export const getThreads = query({
       paginationOpts: paginationOptsValidator,
       userId: v.optional(v.id('users')),
       channelId: v.optional(v.id('channels')),
-      sortBy: v.optional(v.string())
+      sortBy: v.optional(v.string()),
+      filterType: v.optional(v.string()) 
   },
   handler: async (ctx, args) => {
     const currentUserId = await getCurrentUserId(ctx);
-    let threads;
+    let threadsResult;
 
     if (args.channelId) {
       const channel = await ctx.db.get(args.channelId);
@@ -213,50 +240,70 @@ export const getThreads = query({
 
       if (channel && channel.name === 'đại-sảnh') {
         if (channel.universityId) {
-          threads = await ctx.db.query('messages')
+          threadsResult = await ctx.db.query('messages')
             .withIndex('by_university', q => q.eq('universityId', channel.universityId))
             .filter(q => q.eq(q.field('threadId'), undefined))
             .order('desc')
             .paginate(args.paginationOpts);
         } else if (channel.serverId) {
-          threads = await ctx.db.query('messages')
-            .filter(q =>
-              q.and(
-                q.eq(q.field('serverId'), channel.serverId),
-                q.eq(q.field('threadId'), undefined)
-              )
-            )
+          threadsResult = await ctx.db.query('messages')
+            .withIndex('by_server', q => q.eq('serverId', channel.serverId))
+            .filter(q => q.eq(q.field('threadId'), undefined))
             .order('desc')
             .paginate(args.paginationOpts);
         } else {
-          threads = await ctx.db.query('messages')
-            .withIndex('by_channel', q => q.eq('channelId', args.channelId))
+          threadsResult = await ctx.db.query('messages')
             .filter(q => q.eq(q.field('threadId'), undefined))
             .order('desc')
             .paginate(args.paginationOpts);
         }
       } else {
-        threads = await ctx.db.query('messages')
+        threadsResult = await ctx.db.query('messages')
           .withIndex('by_channel', q => q.eq('channelId', args.channelId))
           .filter(q => q.eq(q.field('threadId'), undefined))
           .order('desc')
           .paginate(args.paginationOpts);
       }
-    } else if (args.userId) {
-      threads = await ctx.db.query('messages')
-        .filter((q) => q.eq(q.field('userId'), args.userId))
-        .order('desc').paginate(args.paginationOpts);
+} else if (args.userId) {
+      if (args.filterType === 'replies') {
+        threadsResult = await ctx.db.query('messages')
+          .filter((q) => q.and(
+             q.eq(q.field('userId'), args.userId),
+             q.neq(q.field('threadId'), undefined),
+             // 👇 CHỈNH LẠI: Lấy bài có isAnonymous bằng false HOẶC không tồn tại trường này (bài cũ)
+             q.or(
+                q.eq(q.field('isAnonymous'), false),
+                q.eq(q.field('isAnonymous'), undefined)
+             )
+          ))
+          .order('desc').paginate(args.paginationOpts);
+      } else {
+        threadsResult = await ctx.db.query('messages')
+          .filter((q) => q.and(
+             q.eq(q.field('userId'), args.userId),
+             q.eq(q.field('threadId'), undefined),
+             // 👇 CHỈNH LẠI TƯƠNG TỰ Ở ĐÂY 👇
+             q.or(
+                q.eq(q.field('isAnonymous'), false),
+                q.eq(q.field('isAnonymous'), undefined)
+             )
+          ))
+          .order('desc').paginate(args.paginationOpts);
+      }
     } else {
-      threads = await ctx.db.query('messages')
+      threadsResult = await ctx.db.query('messages')
         .filter((q) => q.eq(q.field('threadId'), undefined))
         .order('desc').paginate(args.paginationOpts);
     }
 
+    if (!threadsResult) return { page: [], isDone: true, continueCursor: "" };
+
     let page = await Promise.all(
-      threads.page.map(async (thread) => {
+      threadsResult.page.map(async (thread) => {
         const creator = await getMessageCreator(ctx, thread.userId);
         const mediaUrls = await getMediaUrls(ctx, thread.mediaFiles);
         let isLiked = false;
+        let isReposted = false; // 👇 KHAI BÁO isReposted
         let isServerAdmin = false;
         let amIAdmin = false;
 
@@ -265,9 +312,14 @@ export const getThreads = query({
             .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', thread._id))
             .unique();
           isLiked = !!like;
+
+          // 👇 CHECK XEM USER ĐÃ REPOST CHƯA 👇
+          const repost = await ctx.db.query('retweets')
+            .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', thread._id))
+            .unique();
+          isReposted = !!repost;
         }
 
-        // 👇 LOGIC XÁC ĐỊNH TAG ADMIN VÀ QUYỀN TRUY CẬP 👇
         if (thread.serverId) {
            const server = await ctx.db.get(thread.serverId);
            if (server?.adminIds) {
@@ -276,7 +328,7 @@ export const getThreads = query({
            }
         }
 
-        return { ...thread, mediaFiles: mediaUrls, creator, isLiked, isServerAdmin, amIAdmin };
+        return { ...thread, mediaFiles: mediaUrls, creator, isLiked, isReposted, isServerAdmin, amIAdmin };
       })
     );
 
@@ -284,7 +336,7 @@ export const getThreads = query({
         page = page.sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0));
     }
 
-    return { ...threads, page };
+    return { ...threadsResult, page, isDone: threadsResult.isDone ?? false };
   },
 });
 
@@ -314,12 +366,22 @@ export const likeThread = mutation({
 });
 
 export const getFavoriteThreads = query({
-  args: { paginationOpts: paginationOptsValidator },
+  args: { 
+    userId: v.optional(v.id('users')), // Nhận userId để phân biệt
+    paginationOpts: paginationOptsValidator 
+  },
   handler: async (ctx, args) => {
-    const userId = await getCurrentUserId(ctx);
-    if (!userId) return { page: [], isDone: true, continueCursor: "" };
+    const currentUserId = await getCurrentUserId(ctx);
+    const targetUserId = args.userId || currentUserId;
+    
+    if (!targetUserId) return { page: [], isDone: true, continueCursor: "" };
+
+    if (targetUserId !== currentUserId) {
+       return { page: [], isDone: true, continueCursor: "" };
+    }
+
     const favorites = await ctx.db.query('likes')
-      .withIndex('by_user_message', (q) => q.eq('userId', userId))
+      .withIndex('by_user_message', (q) => q.eq('userId', targetUserId))
       .order('desc')
       .paginate(args.paginationOpts);
 
@@ -327,12 +389,22 @@ export const getFavoriteThreads = query({
       favorites.page.map(async (fav) => {
         const thread = await ctx.db.get(fav.messageId);
         if (!thread) return null;
+        
         const creator = await getMessageCreator(ctx, thread.userId);
         const mediaUrls = await getMediaUrls(ctx, thread.mediaFiles);
-        return { ...thread, mediaFiles: mediaUrls, creator, isLiked: true };
+        let isReposted = false;
+
+        if (currentUserId) {
+          const repost = await ctx.db.query('retweets')
+            .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', thread._id))
+            .unique();
+          isReposted = !!repost;
+        }
+
+        return { ...thread, mediaFiles: mediaUrls, creator, isLiked: true, isReposted };
       })
     );
-    return { ...favorites, page: threads.filter((t) => t !== null) };
+    return { ...favorites, page: threads.filter((t) => t !== null), isDone: favorites.isDone ?? false };
   },
 });
 
@@ -346,6 +418,7 @@ export const getThreadById = query({
     const currentUserId = await getCurrentUserId(ctx);
 
     let isLiked = false;
+    let isReposted = false;
     let isServerAdmin = false;
     let amIAdmin = false;
 
@@ -354,6 +427,11 @@ export const getThreadById = query({
         .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', args.messageId))
         .unique();
       isLiked = !!like;
+
+      const repost = await ctx.db.query('retweets')
+        .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', args.messageId))
+        .unique();
+      isReposted = !!repost;
     }
 
     if (message.serverId) {
@@ -364,7 +442,7 @@ export const getThreadById = query({
        }
     }
 
-    return { ...message, mediaFiles: mediaUrls, creator, isLiked, isServerAdmin, amIAdmin };
+    return { ...message, mediaFiles: mediaUrls, creator, isLiked, isReposted, isServerAdmin, amIAdmin };
   },
 });
 
@@ -382,6 +460,7 @@ export const getThreadComments = query({
         const creator = await getMessageCreator(ctx, comment.userId);
         const mediaUrls = await getMediaUrls(ctx, comment.mediaFiles);
         let isLiked = false;
+        let isReposted = false;
         let isServerAdmin = false;
         let amIAdmin = false;
 
@@ -390,6 +469,11 @@ export const getThreadComments = query({
             .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', comment._id))
             .unique();
            isLiked = !!like;
+
+           const repost = await ctx.db.query('retweets')
+            .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', comment._id))
+            .unique();
+           isReposted = !!repost;
         }
 
         if (comment.serverId) {
@@ -400,7 +484,7 @@ export const getThreadComments = query({
            }
         }
 
-        return { ...comment, mediaFiles: mediaUrls, creator, isLiked, isServerAdmin, amIAdmin };
+        return { ...comment, mediaFiles: mediaUrls, creator, isLiked, isReposted, isServerAdmin, amIAdmin };
       })
     );
   },
@@ -617,16 +701,13 @@ export const searchMessages = query({
   },
   handler: async (ctx, args) => {
     let messages: Doc<"messages">[] = [];
-    const currentUserId = await getCurrentUserId(ctx); // Cần ID người dùng để check quyền và like
+    const currentUserId = await getCurrentUserId(ctx);
 
-    // 1. Tìm trong 1 kênh cụ thể
     if (args.channelId) {
       messages = await ctx.db.query("messages")
         .withIndex("by_channel", q => q.eq("channelId", args.channelId))
         .collect();
-    }
-    // 2. Hoặc tìm trong TOÀN BỘ server
-    else if (args.serverId) {
+    } else if (args.serverId) {
       const channels = await ctx.db.query("channels")
         .withIndex("by_server", q => q.eq("serverId", args.serverId))
         .collect();
@@ -636,31 +717,32 @@ export const searchMessages = query({
       messages = allMessages.filter(m => channelIds.includes(m.channelId as Id<"channels">));
     }
 
-    // 3. Lọc nội dung chứa từ khóa (chỉ lấy bài gốc, không lấy comment)
     const matchedMessages = messages.filter(m =>
-      m.threadId === undefined && // Bỏ qua comment
+      m.threadId === undefined &&
       m.content && m.content.toLowerCase().includes(args.search.toLowerCase())
     );
 
-    // 4. Format dữ liệu CHUẨN như getThreads để UI hiển thị đầy đủ tính năng
     return Promise.all(matchedMessages.map(async (thread) => {
-      // Dùng hàm có sẵn để dịch ID ảnh thành URL
       const creator = await getMessageCreator(ctx, thread.userId);
       const mediaUrls = await getMediaUrls(ctx, thread.mediaFiles);
 
       let isLiked = false;
+      let isReposted = false;
       let isServerAdmin = false;
       let amIAdmin = false;
 
-      // Check xem người dùng hiện tại đã like bài này chưa
       if (currentUserId) {
         const like = await ctx.db.query('likes')
           .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', thread._id))
           .unique();
         isLiked = !!like;
+
+        const repost = await ctx.db.query('retweets')
+          .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', thread._id))
+          .unique();
+        isReposted = !!repost;
       }
 
-      // Check quyền Admin cho nút 3 chấm
       if (thread.serverId) {
          const server = await ctx.db.get(thread.serverId);
          if (server?.adminIds) {
@@ -669,7 +751,154 @@ export const searchMessages = query({
          }
       }
 
-      return { ...thread, mediaFiles: mediaUrls, creator, isLiked, isServerAdmin, amIAdmin };
+      return { ...thread, mediaFiles: mediaUrls, creator, isLiked, isReposted, isServerAdmin, amIAdmin };
     }));
   }
+});
+
+export const toggleRepost = mutation({
+  args: { messageId: v.id('messages') },
+  handler: async (ctx, args) => {
+    const userId = await getCurrentUserId(ctx);
+    if (!userId) throw new Error("Unauthorized");
+    
+    const existingRepost = await ctx.db.query('retweets')
+      .withIndex('by_user_message', (q) => q.eq('userId', userId).eq('messageId', args.messageId))
+      .unique();
+      
+    const message = await ctx.db.get(args.messageId);
+    if (!message) throw new Error("Message not found");
+
+    if (existingRepost) {
+      await ctx.db.delete(existingRepost._id);
+      await ctx.db.patch(args.messageId, { retweetCount: Math.max(0, (message.retweetCount || 0) - 1) });
+      return { reposted: false };
+    } else {
+      await ctx.db.insert('retweets', { userId, messageId: args.messageId });
+      await ctx.db.patch(args.messageId, { retweetCount: (message.retweetCount || 0) + 1 });
+      return { reposted: true };
+    }
+  },
+});
+
+export const getUserReposts = query({
+  args: { 
+    userId: v.id('users'),
+    paginationOpts: paginationOptsValidator 
+  },
+  handler: async (ctx, args) => {
+    const currentUserId = await getCurrentUserId(ctx);
+    const reposts = await ctx.db.query('retweets')
+      .withIndex('by_user', (q) => q.eq('userId', args.userId))
+      .order('desc')
+      .paginate(args.paginationOpts);
+
+    if (!reposts) return { page: [], isDone: true, continueCursor: "" };
+
+    const threads = await Promise.all(
+      reposts.page.map(async (repost) => {
+        const thread = await ctx.db.get(repost.messageId);
+        if (!thread) return null;
+        
+        const creator = await getMessageCreator(ctx, thread.userId);
+        const mediaUrls = await getMediaUrls(ctx, thread.mediaFiles);
+        let isLiked = false;
+        let isServerAdmin = false;
+        let amIAdmin = false;
+
+        if (currentUserId) {
+          const like = await ctx.db.query('likes')
+            .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', thread._id))
+            .unique();
+          isLiked = !!like;
+        }
+
+        if (thread.serverId) {
+           const server = await ctx.db.get(thread.serverId);
+           if (server?.adminIds) {
+               if (server.adminIds.includes(thread.userId)) isServerAdmin = true;
+               if (currentUserId && server.adminIds.includes(currentUserId)) amIAdmin = true;
+           }
+        }
+
+        return { ...thread, mediaFiles: mediaUrls, creator, isLiked, isServerAdmin, amIAdmin, isReposted: true };
+      })
+    );
+    
+    return { ...reposts, page: threads.filter((t) => t !== null), isDone: reposts.isDone ?? false };
+  },
+});
+
+export const getShareSuggestions = query({
+  args: { searchQuery: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const userId = await getCurrentUserId(ctx);
+    if (!userId) return [];
+
+    // NẾU CÓ TỪ KHÓA TÌM KIẾM -> Tìm toàn bộ người dùng (kể cả người lạ)
+    if (args.searchQuery && args.searchQuery.trim().length > 0) {
+       const users = await ctx.db.query("users")
+         .withSearchIndex("searchUsers", q => q.search("username", args.searchQuery as string))
+         .take(20);
+       return users.filter(u => u._id !== userId);
+    }
+
+    // NẾU KHÔNG TÌM KIẾM -> Lọc theo thứ tự: Bạn bè (Mutual) > Đang theo dõi > Người theo dõi
+    const follows = await ctx.db.query("follows").collect();
+    const myFollowings = follows.filter(f => f.followerId === userId).map(f => f.followingId);
+    const myFollowers = follows.filter(f => f.followingId === userId).map(f => f.followerId);
+
+    const mutuals = myFollowings.filter(id => myFollowers.includes(id));
+    const justFollowing = myFollowings.filter(id => !mutuals.includes(id));
+    const justFollowers = myFollowers.filter(id => !mutuals.includes(id));
+
+    // Gom lại theo thứ tự ưu tiên và loại bỏ trùng lặp
+    const orderedIds = [...new Set([...mutuals, ...justFollowing, ...justFollowers])];
+    
+    const suggestedUsers = [];
+    for (const id of orderedIds.slice(0, 20)) { // Lấy top 20 gợi ý
+       const user = await ctx.db.get(id);
+       if (user) suggestedUsers.push(user);
+    }
+    return suggestedUsers;
+  }
+});
+
+// 2. Hàm Gửi Tin nhắn (Chứa Link bài viết)
+export const sendShareMessage = mutation({
+  args: { conversationId: v.id("conversations"), content: v.string() },
+  handler: async (ctx, args) => {
+     const userId = await getCurrentUserId(ctx);
+     if (!userId) throw new Error("Unauthorized");
+     
+     // 💡 TƯƠNG LAI: Chỗ này bạn có thể check xem người kia có chặn tin nhắn từ người lạ không
+     // Ví dụ: if (targetUser.blockStrangers && !isFriend) throw new Error("Bị chặn");
+
+     // Lưu tin nhắn vào DB
+     await ctx.db.insert("direct_messages", {
+        conversationId: args.conversationId,
+        senderId: userId,
+        content: args.content,
+        status: "sent"
+     });
+     
+     // Cập nhật lại phòng chat để nó nhảy lên đầu danh sách
+     await ctx.db.patch(args.conversationId, {
+        updatedAt: Date.now(),
+        lastMessageText: "Đã chia sẻ một bài viết"
+     });
+  }
+});
+
+export const incrementShareCount = mutation({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) return;
+    
+    const currentShareCount = message.shareCount || 0;
+    await ctx.db.patch(args.messageId, {
+      shareCount: currentShareCount + 1,
+    });
+  },
 });

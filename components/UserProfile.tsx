@@ -7,11 +7,8 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { Id } from '@/convex/_generated/dataModel';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-
-// IMPORT HÀM BEST PRACTICE TỪ CONVEX
 import { isHttpUrl } from '@/convex/utils';
 
-// Helper: Xử lý hiển thị Avatar an toàn 100%
 const getValidAvatar = (url?: string | null): string => {
   if (isHttpUrl(url)) return url as string;
   return 'https://www.gravatar.com/avatar/?d=mp';
@@ -19,11 +16,10 @@ const getValidAvatar = (url?: string | null): string => {
 
 type UserProfileProps = {
   userId?: string;
-  onSettingsPress?: () => void; // Đã đổi tên chuẩn ở đây
+  onSettingsPress?: () => void;
   showBackButton?: boolean;
 };
 
-// 👇 ĐÃ ĐỒNG BỘ TÊN onSettingsPress Ở DÒNG NÀY 👇
 export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }: UserProfileProps) => {
   const { userProfile } = useUserProfile();
   const router = useRouter();
@@ -33,16 +29,13 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
 
   const profile = useQuery(api.users.getUserById, currentId ? { userId: currentId as Id<'users'> } : "skip");
   
-  // 1. LOGIC FOLLOW & STATS
   const isFollowing = useQuery(api.users.isFollowing, currentId ? { targetUserId: currentId as Id<'users'> } : "skip");
   const followingList = useQuery(api.users.getFollowing, currentId ? { userId: currentId as Id<'users'> } : "skip");
   const followingCount = followingList?.length || 0;
-  
   const postCount = useQuery(api.users.getPostCount, currentId ? { userId: currentId as Id<'users'> } : "skip") || 0;
 
   const followMutation = useMutation(api.users.followUser);
   const unfollowMutation = useMutation(api.users.unfollowUser);
-
   const startChat = useMutation(api.chat.getOrCreateConversation);
 
   const handleToggleFollow = async () => {
@@ -59,24 +52,19 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
     try {
       const conversationId = await startChat({ otherUserId: currentId as Id<'users'> });
       router.push(`/(auth)/chat/${conversationId}` as any);
-    } catch (error) {
-      console.error("Lỗi khi tạo phòng chat:", error);
-    }
+    } catch (error) { console.error(error); }
   };
 
   const handleShare = async () => {
     try {
-      await Share.share({
-        message: `Khám phá trang cá nhân của ${profile?.first_name} ${profile?.last_name}!`,
-      });
+      await Share.share({ message: `Khám phá trang cá nhân của ${profile?.first_name} ${profile?.last_name}!` });
     } catch (error) { console.log(error); }
   };
 
-  if (!profile) return <View style={styles.container} />;
+  if (!profile) return null;
 
   return (
     <View style={styles.container}>
-      {/* --- HEADER --- */}
       <View style={styles.headerRow}>
         {showBackButton ? (
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -87,25 +75,22 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
           <MaterialCommunityIcons name="web" size={24} color="black" />
         )}
         <View style={styles.rightIcons}>
-          {/* 👇 Nút Chia sẻ và Menu Cài đặt chỉ dành cho chính chủ 👇 */}
           {isSelf && (
             <>
               <TouchableOpacity onPress={handleShare}>
                 <Ionicons name="share-outline" size={24} color="black" />
               </TouchableOpacity>
               <TouchableOpacity onPress={onSettingsPress}>
-<Ionicons name="settings-outline" size={26} color="black" />
+                <Ionicons name="settings-outline" size={26} color="black" />
               </TouchableOpacity>
             </>
           )}
         </View>
       </View>
 
-      {/* --- PROFILE INFO --- */}
       <View style={styles.profileContainer}>
         <View style={styles.userInfoColumn}>
           <Image source={{ uri: getValidAvatar(profile?.imageUrl) }} style={styles.image} />
-          
           <View style={styles.textStack}>
              <Text style={styles.name}>{profile?.first_name} {profile?.last_name}</Text>
              <Text style={styles.email}>{profile?.email}</Text>
@@ -114,15 +99,7 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
 
         {isSelf && (
           <Link
-            href={`/(modal)/edit-profile?biostring=${
-              profile?.bio ? encodeURIComponent(profile?.bio) : ''
-            }&linkstring=${
-              profile?.websiteUrl ? encodeURIComponent(profile?.websiteUrl) : ''
-            }&linkTitlestring=${
-              profile?.linkTitle ? encodeURIComponent(profile?.linkTitle) : ''
-            }&userId=${profile?._id}&imageUrl=${
-              profile?.imageUrl ? encodeURIComponent(profile?.imageUrl) : ''
-            }`}
+            href={`/(modal)/edit-profile?biostring=${profile?.bio ? encodeURIComponent(profile?.bio) : ''}&linkstring=${profile?.websiteUrl ? encodeURIComponent(profile?.websiteUrl) : ''}&linkTitlestring=${profile?.linkTitle ? encodeURIComponent(profile?.linkTitle) : ''}&userId=${profile?._id}&imageUrl=${profile?.imageUrl ? encodeURIComponent(profile?.imageUrl) : ''}`}
             asChild>
             <TouchableOpacity style={styles.editButtonTop}>
               <Ionicons name="create-outline" size={20} color="black" />
@@ -132,23 +109,19 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
         )}
       </View>
     
-      {/* --- STATS ROW (SỐ LIỆU) --- */}
       <View style={styles.statsRow}>
         <TouchableOpacity onPress={() => router.push({ pathname: '/follow-list', params: { userId: profile?._id, initialTab: 'followers' } })}>
           <Text style={styles.followersText}>
             <Text style={{ fontWeight: 'bold' }}>{profile?.followersCount || 0}</Text> người theo dõi
           </Text>
         </TouchableOpacity>
-
         <Text style={styles.dot}>·</Text>
-
         <TouchableOpacity onPress={() => router.push({ pathname: '/follow-list', params: { userId: profile?._id, initialTab: 'following' } })}>
           <Text style={styles.followersText}>
             <Text style={{ fontWeight: 'bold' }}>{followingCount}</Text> đang theo dõi
           </Text>
         </TouchableOpacity>
         <Text style={styles.dot}>·</Text>
-
         <View style={styles.statItem}>
           <Text style={styles.followersText}>
             <Text style={{ fontWeight: 'bold' }}>{postCount}</Text> bài viết
@@ -156,7 +129,6 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
         </View>
       </View>
 
-      {/* --- BIO & LINK --- */}
       <View style={styles.bioContainer}>
         <Text style={styles.bioText}>{profile?.bio ? profile?.bio : 'Chưa thêm tiểu sử'}</Text>
         
@@ -167,18 +139,17 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
               let url = profile.websiteUrl;
               if (!url) return;
               if (!isHttpUrl(url)) url = 'https://' + url;
-              Linking.openURL(url).catch(err => console.error("Err", err));
+              Linking.openURL(url);
             }}
           >
             <Ionicons name="link-outline" size={16} color="gray" style={{ marginRight: 4 }} />
-            <Text style={[styles.linkText, profile.linkTitle ? { fontWeight: 'bold', color: '#0095f6' } : undefined]} numberOfLines={1} ellipsizeMode="tail">
+            <Text style={[styles.linkText, profile.linkTitle ? { fontWeight: 'bold', color: '#0095f6' } : undefined]} numberOfLines={1}>
               {profile.linkTitle || profile.websiteUrl}
             </Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {/* --- BUTTONS (Cho người khác) --- */}
       {!isSelf && (
         <View style={styles.buttonRow}>
             <TouchableOpacity 
@@ -190,10 +161,7 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.messageButton}
-              onPress={handleMessagePress}
-            >
+            <TouchableOpacity style={styles.messageButton} onPress={handleMessagePress}>
               <Text style={styles.messageButtonText}>Nhắn tin</Text>
             </TouchableOpacity>
         </View>
@@ -203,7 +171,8 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, paddingTop: 0, backgroundColor: '#fff' },
+  // 👇 Đã ép sát bottom và bỏ mọi flex 👇
+  container: { paddingHorizontal: 16, paddingTop: 0, paddingBottom: 5, backgroundColor: '#fff', flex: 0 }, 
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, height: 40 },
   backButton: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   backText: { fontSize: 16 },
@@ -224,18 +193,15 @@ const styles = StyleSheet.create({
   dot: { fontSize: 14, color: 'gray' },
   followersText: { fontSize: 15, color: '#000' },
   
-  bioContainer: { marginBottom: 16 },
+  bioContainer: { marginBottom: 0 }, // Đã set về 0 để không cắn xuống dưới
   bioText: { fontSize: 15, color: '#000', marginBottom: 4, lineHeight: 20 },
   linkRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  linkText: { fontSize: 15, color: '#0095f6', fontWeight: '500', flex: 1 },
+  linkText: { fontSize: 15, color: '#0095f6', fontWeight: '500' }, // Chắc chắn đã mất flex: 1
   
-  buttonRow: { flexDirection: 'row', justifyContent: 'space-evenly', marginTop: 5, gap: 16 },
+  buttonRow: { flexDirection: 'row', justifyContent: 'space-evenly', marginTop: 10, gap: 16 },
   
   messageButton: { flex: 1, padding: 10, borderRadius: 5, borderWidth: 1, borderColor: Colors.border, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' },
   messageButtonText: { fontWeight: 'bold', color: '#000' },
-
-  button: { flex: 1, padding: 10, borderRadius: 5, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' },
-  buttonText: { fontWeight: 'bold' },
   fullButton: { flex: 1, padding: 10, borderRadius: 5, borderWidth: 1, borderColor: '#000', backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
   fullButtonText: { fontWeight: 'bold', color: 'white' },
 });

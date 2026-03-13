@@ -39,13 +39,14 @@ export default defineSchema({
     sortOrder: v.number(),
   }),
 
+  // 👇 Đã thêm v.optional cho adminIds để không bị lỗi lúc migrate 👇
   servers: defineTable({
     name: v.string(),
     slug: v.string(),
     icon: v.string(),
     creatorId: v.id("users"),
     memberIds: v.array(v.id("users")),
-    adminIds: v.array(v.id("users")),
+    adminIds: v.optional(v.array(v.id("users"))), 
   }),
 
   channels: defineTable({
@@ -56,27 +57,42 @@ export default defineSchema({
     parentId: v.optional(v.id("channels")),
     sortOrder: v.number(),
     description: v.optional(v.string()),
+    isAnonymous: v.optional(v.boolean()),
   })
     .index("by_university", ["universityId"])
     .index("by_server", ["serverId"]),
 
-  messages: defineTable({
-    userId: v.id("users"),
+messages: defineTable({
+    channelId: v.optional(v.id("channels")),
+    commentCount: v.number(),
     content: v.string(),
     likeCount: v.number(),
-    commentCount: v.number(),
-    retweetCount: v.number(),
     mediaFiles: v.optional(v.array(v.string())),
-    websiteUrl: v.optional(v.string()),
-    universityId: v.optional(v.id("universities")),
-    serverId: v.optional(v.id("servers")),
-    channelId: v.optional(v.id("channels")),
-    threadId: v.optional(v.id("messages")),
     parentId: v.optional(v.id("messages")),
+    retweetCount: v.number(),
+    serverId: v.optional(v.id("servers")),
+    shareCount: v.optional(v.number()),
+    threadId: v.optional(v.id("messages")),
+    universityId: v.optional(v.id("universities")),
+    userId: v.id("users"),
+    websiteUrl: v.optional(v.string()),
+    
+    // 👇 BẮT BUỘC PHẢI CÓ DÒNG NÀY ĐỂ DATABASE CHẤP NHẬN BÀI ẨN DANH 👇
+    isAnonymous: v.optional(v.boolean()), 
   })
-    .index("by_channel", ["channelId"])
-    .index("by_threadId", ["threadId"])
-    .index("by_university", ["universityId"]),
+  .index("by_university", ["universityId"])
+  .index("by_server", ["serverId"])
+  .index("by_channel", ["channelId"])
+  .index("by_threadId", ["threadId"])
+  .index("by_user", ["userId"]),
+
+  // 👇 THÊM BẢNG retweets CHO TÍNH NĂNG ĐĂNG LẠI 👇
+  retweets: defineTable({
+    userId: v.id("users"),
+    messageId: v.id("messages"),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_message", ["userId", "messageId"]),
 
   likes: defineTable({
     userId: v.id("users"),
@@ -94,7 +110,7 @@ export default defineSchema({
     participantIds: v.array(v.id("users")),
     updatedAt: v.number(),
     lastMessageText: v.optional(v.string()),
-    typingUserId: v.optional(v.id("users")), // NEW: Từ Script 1
+    typingUserId: v.optional(v.id("users")), 
   }).index("by_participant", ["participantIds"]),
 
   direct_messages: defineTable({
@@ -104,7 +120,7 @@ export default defineSchema({
     status: v.union(v.literal("sent"), v.literal("delivered"), v.literal("read")),
     isDeleted: v.optional(v.boolean()),
     isPinned: v.optional(v.boolean()),
-    isSystem: v.optional(v.boolean()), // NEW: Từ Script 1
+    isSystem: v.optional(v.boolean()), 
     imageId: v.optional(v.id("_storage")),
     deletedBy: v.optional(v.array(v.id("users"))),
     replyToMessageId: v.optional(v.id("direct_messages")),
@@ -135,7 +151,6 @@ export default defineSchema({
   channel_subscriptions: defineTable({
     userId: v.id("users"),
     channelId: v.optional(v.id("channels")),
-    // Chấp nhận ID của cả Server hoặc University như bạn đã sửa
     serverId: v.optional(v.union(v.id('servers'), v.id('universities'))),
     isSubscribed: v.boolean(),
   })

@@ -4,7 +4,7 @@ import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -12,7 +12,20 @@ import Toast from 'react-native-root-toast';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 
-// Hàm format thời gian Online cho Header
+// --- CÁC HÀM TIỆN ÍCH ---
+const isHttpUrl = (url?: string | null): boolean => {
+  if (!url) return false;
+  return url.startsWith('http://') || url.startsWith('https://');
+};
+
+const getValidAvatar = (url?: string | null): string => {
+  if (isHttpUrl(url)) return url as string;
+  return 'https://www.gravatar.com/avatar/?d=mp';
+};
+
+// 👇 AVATAR MẶC ĐỊNH CHO ẨN DANH 👇
+const DEFAULT_ANON_AVATAR = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
+
 const formatLastSeen = (timestamp?: number) => {
   if (!timestamp) return ''; 
   const now = new Date();
@@ -37,7 +50,6 @@ const formatLastSeen = (timestamp?: number) => {
   return `Hoạt động vào ${day}/${month}/${year}`;
 };
 
-// --- HÀM MỚI: Format thời gian cho Thanh phân cách giữa khung chat ---
 const formatTimeDivider = (timestamp: number) => {
   const date = new Date(timestamp);
   const now = new Date();
@@ -45,15 +57,11 @@ const formatTimeDivider = (timestamp: number) => {
   const minutes = date.getMinutes().toString().padStart(2, '0');
   const timeStr = `${hours}:${minutes}`;
 
-  if (date.toDateString() === now.toDateString()) {
-    return timeStr; // Cùng ngày thì chỉ hiện giờ
-  }
+  if (date.toDateString() === now.toDateString()) return timeStr;
   
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  if (date.toDateString() === yesterday.toDateString()) {
-    return `Hôm qua, ${timeStr}`;
-  }
+  if (date.toDateString() === yesterday.toDateString()) return `Hôm qua, ${timeStr}`;
 
   const day = date.getDate().toString().padStart(2, '0');
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -61,8 +69,116 @@ const formatTimeDivider = (timestamp: number) => {
   return `${day}/${month}/${year} ${timeStr}`;
 };
 
+const formatTimeAgo = (timestamp: number) => {
+  const now = new Date();
+  const postDate = new Date(timestamp);
+  const diffMs = now.getTime() - postDate.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMins < 1) return 'Vừa xong';
+  if (diffMins < 60) return `${diffMins} phút`;
+  if (diffHours < 24) return `${diffHours} giờ`;
+  if (diffDays < 7) return `${diffDays} ngày`;
+
+  const day = postDate.getDate();
+  const month = postDate.getMonth() + 1;
+  return `${day} thg ${month}`;
+};
+
 const EMOJIS = ['❤️', '😂', '😮', '😢', '😡', '👍'];
 
+// =================================================================
+// 🟢 COMPONENT THẺ BÀI VIẾT ĐÃ FIX LỖI LỘ TÊN ẨN DANH
+// =================================================================
+const SharedPostPreview = ({ postId }: { postId: string }) => {
+  const thread = useQuery(api.messages.getThreadById, { messageId: postId as Id<'messages'> });
+  const router = useRouter();
+
+  if (thread === undefined) {
+    return (
+      <View style={[styles.sharedPostPreviewCard, { justifyContent: 'center', alignItems: 'center', height: 100 }]}>
+        <ActivityIndicator size="small" color="#888" />
+      </View>
+    );
+  }
+
+  if (thread === null) {
+    return (
+      <View style={[styles.sharedPostPreviewCard, { paddingVertical: 20 }]}>
+        <Text style={{ fontStyle: 'italic', color: 'gray', textAlign: 'center' }}>Bài viết không còn tồn tại</Text>
+      </View>
+    );
+  }
+
+  // 👇 LẤY MẶT NẠ NẾU BÀI VIẾT LÀ ẨN DANH 👇
+  // @ts-ignore
+  const isAnon = thread.isAnonymous === true;
+  const displayAvatar = isAnon ? DEFAULT_ANON_AVATAR : getValidAvatar(thread.creator?.imageUrl);
+  const displayName = isAnon ? "Thành viên ẩn danh" : `${thread.creator?.first_name || 'Người dùng'}`;
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      style={styles.sharedPostPreviewCard}
+      onPress={() => router.push(`/(auth)/(tabs)/feed/${postId}` as any)}
+    >
+      {/* 1. HEADER */}
+      <View style={styles.sharedPostHeader}>
+        <Image source={{ uri: displayAvatar }} style={styles.sharedPostAvatar} />
+        <Text style={styles.sharedPostUsername}>{displayName}</Text>
+        <Text style={styles.sharedPostTime}>• {formatTimeAgo(thread._creationTime)}</Text>
+      </View>
+      
+      {/* 2. NỘI DUNG */}
+      <Text style={styles.sharedPostContent} numberOfLines={3}>
+        {thread.content}
+      </Text>
+      
+      {/* 3. DÀN 4 NÚT TƯƠNG TÁC CHUẨN THREADS */}
+      <View style={styles.sharedPostStats}>
+        <View style={styles.sharedStatItem}>
+          <Ionicons 
+            name={thread.isLiked ? "heart" : "heart-outline"} 
+            size={15} 
+            color={thread.isLiked ? "red" : "gray"} 
+          />
+          <Text style={[styles.sharedStatText, thread.isLiked && { color: "red" }]}>
+            {thread.likeCount || 0}
+          </Text>
+        </View>
+        
+        <View style={styles.sharedStatItem}>
+          <Ionicons name="chatbubble-outline" size={15} color="gray" />
+          <Text style={styles.sharedStatText}>{thread.commentCount || 0}</Text>
+        </View>
+        
+        <View style={styles.sharedStatItem}>
+          <Ionicons 
+            name={thread.isReposted ? "repeat" : "repeat-outline"} 
+            size={17} 
+            color={thread.isReposted ? "#00BA7C" : "gray"} 
+          />
+          <Text style={[styles.sharedStatText, thread.isReposted && { color: "#00BA7C" }]}>
+            {thread.retweetCount || 0}
+          </Text>
+        </View>
+        
+        <View style={styles.sharedStatItem}>
+          <Feather name="send" size={14} color="gray" />
+          {/* @ts-ignore */}
+          <Text style={styles.sharedStatText}>{thread.shareCount || 0}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+
+// =================================================================
+// 🟢 MÀN HÌNH CHÍNH (CHAT ROOM)
+// =================================================================
 const ChatRoom = () => {
   const { id } = useLocalSearchParams(); 
   const { userProfile } = useUserProfile();
@@ -102,6 +218,8 @@ const ChatRoom = () => {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const filteredMessages = messages?.filter(m => !m.deletedBy?.includes(userProfile?._id as Id<"users">)) || [];
+  const reversedMessages = [...filteredMessages].reverse(); 
+
   const pinnedMessages = filteredMessages.filter(m => m.isPinned && !m.isDeleted && !m.isSystem);
 
   useEffect(() => {
@@ -198,7 +316,7 @@ const ChatRoom = () => {
   const handleSelectEmoji = async (emoji: string) => { if (!activeMessage) return; await toggleReaction({ messageId: activeMessage._id, emoji }); closeActionMenu(); };
 
   const scrollToMessage = (messageId: string) => {
-    const index = filteredMessages.findIndex(m => m._id === messageId);
+    const index = reversedMessages.findIndex(m => m._id === messageId);
     if (index !== -1) { flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 }); setIsPinnedExpanded(false); }
   };
 
@@ -215,7 +333,7 @@ const ChatRoom = () => {
         </TouchableOpacity>
         {otherUser ? (
           <View style={styles.headerUserInfo}>
-            <Image source={{ uri: otherUser.imageUrl || 'https://www.gravatar.com/avatar/?d=mp' }} style={styles.headerAvatar} />
+            <Image source={{ uri: getValidAvatar(otherUser.imageUrl) }} style={styles.headerAvatar} />
             <View style={styles.headerTextContainer}>
               <Text style={styles.headerName}>{otherUser.first_name} {otherUser.last_name}</Text>
               <Text style={styles.statusText}>{formatLastSeen(otherUser.lastSeen)}</Text>
@@ -253,10 +371,11 @@ const ChatRoom = () => {
         </View>
       )}
 
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#f2f3f5' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#fff' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <FlatList
           ref={flatListRef}
-          data={filteredMessages}
+          data={reversedMessages}
+          inverted={true}
           keyExtractor={(item) => item._id}
           contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
           onScrollToIndexFailed={info => {
@@ -264,18 +383,17 @@ const ChatRoom = () => {
             wait.then(() => { flatListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 }); });
           }}
           renderItem={({ item, index }) => {
-            // --- LOGIC GOM NHÓM & THỜI GIAN ---
-            const prevItem = index > 0 ? filteredMessages[index - 1] : null;
-            const nextItem = index < filteredMessages.length - 1 ? filteredMessages[index + 1] : null;
+            const olderItem = index < reversedMessages.length - 1 ? reversedMessages[index + 1] : null;
+            const newerItem = index > 0 ? reversedMessages[index - 1] : null;
 
-            // Kiểm tra hiển thị thanh Thời gian (Cách > 1 tiếng hoặc là tin đầu tiên)
-            const showTimeDivider = !prevItem || (item._creationTime - prevItem._creationTime > 3600000);
-            
-            // Logic Bo góc & Khoảng cách (Cách < 2 phút & Cùng người gửi)
-            const isFirstInGroup = !prevItem || prevItem.senderId !== item.senderId || (item._creationTime - prevItem._creationTime > 120000) || showTimeDivider;
-            const isLastInGroup = !nextItem || nextItem.senderId !== item.senderId || (nextItem._creationTime - item._creationTime > 120000);
+            const showTimeDivider = !olderItem || (item._creationTime - olderItem._creationTime > 3600000);
+            const isFirstInGroup = !olderItem || olderItem.senderId !== item.senderId || (item._creationTime - olderItem._creationTime > 120000) || showTimeDivider;
+            const isLastInGroup = !newerItem || newerItem.senderId !== item.senderId || (newerItem._creationTime - item._creationTime > 120000);
 
-            // 1. Nếu là tin nhắn Hệ thống
+            // KIỂM TRA LINK CHIA SẺ
+            const isSharedPost = item.content && item.content.trim().startsWith('https://konket.app/feed/');
+            const postId = isSharedPost ? item.content.trim().split('/').pop() : null;
+
             if (item.isSystem) {
               return (
                   <>
@@ -291,16 +409,14 @@ const ChatRoom = () => {
               );
             }
 
-            // 2. Tin nhắn bình thường
             const isMe = item.senderId === userProfile?._id;
             const repliedMsg = item.replyToMessageId ? messages?.find(m => m._id === item.replyToMessageId) : null;
             const uniqueEmojis = item.reactions ? [...new Set(item.reactions.map((r: any) => r.emoji))] : [];
-            const isLastOverallMessage = filteredMessages.length > 0 && item._id === filteredMessages[filteredMessages.length - 1]._id;
+            const isLastOverallMessage = index === 0; 
             const hasReactions = uniqueEmojis.length > 0 && !item.isDeleted;
 
             return (
               <>
-                {/* THANH PHÂN CÁCH THỜI GIAN */}
                 {showTimeDivider && (
                   <View style={styles.timeDividerContainer}>
                     <Text style={styles.timeDividerText}>{formatTimeDivider(item._creationTime)}</Text>
@@ -310,7 +426,7 @@ const ChatRoom = () => {
                 <View style={[
                   styles.bubbleWrapper, 
                   isMe ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' },
-                  { marginBottom: isLastInGroup ? 8 : 2 }, // Khảng cách thu hẹp nếu đang gom nhóm
+                  { marginBottom: isLastInGroup ? 8 : 2 },
                   hasReactions && { marginBottom: 20 }
                 ]}>
                   
@@ -329,9 +445,8 @@ const ChatRoom = () => {
                         styles.bubble, 
                         isMe ? styles.myBubble : styles.theirBubble,
                         item.isDeleted && styles.deletedBubble,
-                        item.imageUrl && !item.isDeleted && { padding: 4, backgroundColor: isMe ? '#007aff' : '#fff', borderWidth: 0 },
-                        
-                        // SMART CORNER RADIUS (BO GÓC THÔNG MINH)
+                        item.imageUrl && !item.isDeleted && { padding: 4, backgroundColor: isMe ? '#007aff' : '#f0f0f0', borderWidth: 0 },
+                        isSharedPost && !item.isDeleted && { padding: 0, backgroundColor: 'transparent', borderWidth: 0 },
                         isMe && { borderTopRightRadius: isFirstInGroup ? 18 : 4, borderBottomRightRadius: isLastInGroup ? 18 : 4 },
                         !isMe && { borderTopLeftRadius: isFirstInGroup ? 18 : 4, borderBottomLeftRadius: isLastInGroup ? 18 : 4 },
                       ]}
@@ -344,7 +459,10 @@ const ChatRoom = () => {
                         </View>
                       )}
 
-                      {item.imageUrl && !item.isDeleted ? (
+                      {/* 👇 RENDER THẺ BÀI VIẾT NẾU CÓ LINK 👇 */}
+                      {isSharedPost && !item.isDeleted && postId ? (
+                        <SharedPostPreview postId={postId} />
+                      ) : item.imageUrl && !item.isDeleted ? (
                         <TouchableOpacity activeOpacity={0.9} onPress={() => setViewerImage(item.imageUrl)}>
                           <Image source={{ uri: item.imageUrl }} style={{ width: 220, height: 280, borderRadius: 14 }} resizeMode="cover" />
                         </TouchableOpacity>
@@ -377,7 +495,7 @@ const ChatRoom = () => {
               </>
             );
           }}
-          ListFooterComponent={() => isOtherPersonTyping ? <View style={styles.typingIndicatorContainer}><Text style={styles.typingText}>Đang nhập...</Text></View> : null}
+          ListHeaderComponent={() => isOtherPersonTyping ? <View style={styles.typingIndicatorContainer}><Text style={styles.typingText}>Đang nhập...</Text></View> : null}
         />
 
         {replyingTo && (
@@ -404,7 +522,6 @@ const ChatRoom = () => {
               <TouchableOpacity onPress={() => setIsGalleryVisible(false)} style={{ padding: 5 }}><Ionicons name="close" size={24} color="#555" /></TouchableOpacity>
               <Text style={{ fontWeight: 'bold', fontSize: 16 }}>Chọn ảnh ({selectedPhotos.length})</Text>
               <TouchableOpacity onPress={handleSendSelectedImages} disabled={selectedPhotos.length === 0} style={{ padding: 5 }}>
-                {/* ĐÃ THAY CHỮ GỬI THÀNH ICON SEND */}
                 <Ionicons name="send" size={24} color={selectedPhotos.length > 0 ? '#007aff' : '#ccc'} />
               </TouchableOpacity>
             </View>
@@ -429,6 +546,7 @@ const ChatRoom = () => {
         )}
       </KeyboardAvoidingView>
 
+      {/* MODALS */}
       {isUploading && (
         <View style={styles.uploadingOverlay}>
           <ActivityIndicator size="large" color="#007aff" />
@@ -485,10 +603,8 @@ const ChatRoom = () => {
 };
 
 const styles = StyleSheet.create({
-  // STYLES MỚI CHO THANH THỜI GIAN
   timeDividerContainer: { alignItems: 'center', marginVertical: 15 },
   timeDividerText: { fontSize: 12, color: '#888', fontWeight: '500' },
-
   systemMessageContainer: { alignSelf: 'center', marginVertical: 10, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10, backgroundColor: '#e4e6eb' },
   systemMessageText: { fontSize: 12, color: '#65676b', fontWeight: '500', textAlign: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingBottom: 12, borderBottomWidth: 1, borderColor: '#eee', backgroundColor: '#fff', zIndex: 10 },
@@ -498,7 +614,6 @@ const styles = StyleSheet.create({
   headerTextContainer: { flexDirection: 'column', justifyContent: 'center' },
   headerName: { fontSize: 16, fontWeight: 'bold' },
   statusText: { fontSize: 12, color: 'gray', marginTop: 2 }, 
-
   pinnedBannerWrapper: { backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#eee', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, elevation: 2, zIndex: 5 },
   pinnedBannerContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
   pinnedIconBg: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
@@ -510,18 +625,76 @@ const styles = StyleSheet.create({
   collapseBtn: { padding: 5 },
   expandedPinnedItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#eee' },
   expandedPinnedContent: { flex: 1, fontSize: 14, color: '#333' },
-
   pinnedBubbleIndicator: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
   pinnedBubbleText: { fontSize: 11, color: '#888', fontWeight: '500' },
-
-  // STYLE BO GÓC BUBBLE ĐÃ CẬP NHẬT ĐỂ ĐỘNG THEO GROUP
   bubbleWrapper: { marginBottom: 8 },
   bubbleContainer: { position: 'relative', flexDirection: 'row', alignItems: 'center' },
   bubble: { padding: 12, borderRadius: 18, maxWidth: '75%', zIndex: 1 },
   myBubble: { backgroundColor: '#007aff' }, 
-  theirBubble: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#eee' },
+  theirBubble: { backgroundColor: '#f0f0f0', borderWidth: 0 },
   deletedBubble: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#ccc', elevation: 0, shadowOpacity: 0 }, 
   
+  // ==========================================
+  // 👇 CSS CHUẨN CHO THẺ BÀI VIẾT (THREADS) 👇
+  // ==========================================
+  sharedPostPreviewCard: {
+    backgroundColor: '#fff', // Màu trắng cho sạch
+    borderRadius: 16,
+    padding: 14,
+    width: 280,
+    borderWidth: 1,
+    borderColor: '#eee', // Viền xám rất nhạt
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    elevation: 2,
+  },
+  sharedPostHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  sharedPostAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 8
+  },
+  sharedPostUsername: {
+    fontWeight: 'bold',
+    fontSize: 14,
+    color: '#000'
+  },
+  sharedPostTime: {
+    fontSize: 12,
+    color: 'gray',
+    marginLeft: 6
+  },
+  sharedPostContent: {
+    fontSize: 14,
+    color: '#000',
+    marginBottom: 12,
+    lineHeight: 20
+  },
+  sharedPostStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(0,0,0,0.1)'
+  },
+  sharedStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4
+  },
+  sharedStatText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'gray'
+  },
+
   miniReactIcon: { position: 'absolute', bottom: 5, padding: 5 },
   replyBoxInside: { borderRadius: 8, padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#007aff' },
   replyTextInside: { fontSize: 13 },
@@ -530,27 +703,22 @@ const styles = StyleSheet.create({
   messageStatusText: { fontSize: 11, color: 'gray', alignSelf: 'flex-end', paddingRight: 4, marginTop: 2 },
   typingIndicatorContainer: { padding: 10, alignItems: 'flex-start' },
   typingText: { fontSize: 12, color: 'gray', fontStyle: 'italic' },
-  
   inputContainer: { flexDirection: 'row', padding: 10, paddingBottom: Platform.OS === 'ios' ? 20 : 10, backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#eee', alignItems: 'center' },
   attachBtn: { marginRight: 10, padding: 4 }, 
   input: { flex: 1, backgroundColor: '#f0f0f0', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, marginRight: 10, fontSize: 15, maxHeight: 100 },
   sendBtn: { backgroundColor: '#007aff', width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
-
   galleryContainer: { height: 350, backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#eee' },
   galleryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 10, borderBottomWidth: 1, borderColor: '#eee' },
   galleryCameraBtn: { width: '33.3%', height: 125, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f6f8', borderWidth: 1, borderColor: '#fff' },
   galleryThumbnailContainer: { width: '33.3%', height: 125, borderWidth: 1, borderColor: '#fff' },
   galleryThumbnail: { width: '100%', height: '100%' },
-  
   unselectedBadge: { position: 'absolute', top: 5, right: 5, width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: '#fff', backgroundColor: 'rgba(0,0,0,0.2)' },
   selectedBadge: { position: 'absolute', top: 5, right: 5, width: 22, height: 22, borderRadius: 11, backgroundColor: '#007aff', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: '#fff' },
   selectedBadgeText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
-  
   uploadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.8)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
   imageViewerContainer: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
   imageViewerCloseBtn: { position: 'absolute', top: 50, right: 20, zIndex: 10 },
   imageViewerImage: { width: '100%', height: '80%' },
-
   modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', paddingHorizontal: 20 },
   actionMenuWrapper: { width: '100%' },
   emojiBar: { flexDirection: 'row', backgroundColor: '#fff', padding: 10, borderRadius: 30, alignItems: 'center', gap: 10, elevation: 5 },

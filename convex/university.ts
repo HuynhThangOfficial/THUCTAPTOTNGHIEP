@@ -52,11 +52,62 @@ export const getChannels = query({
   },
 });
 
-// =====================================================
-// seedAndMigrate (GIỮ NGUYÊN TOÀN BỘ LOGIC CŨ)
-// =====================================================
 export const seedAndMigrate = mutation({
   handler: async (ctx) => {
+    
+    // --- HÀM HỖ TRỢ TẠO DANH MỤC VÀ KÊNH (Đã nâng cấp để hỗ trợ isAnonymous) ---
+    const ensureCategoryWithChannels = async (
+      workspaceId: Id<'universities'>,
+      catName: string,
+      catOrder: number,
+      subChannels: { name: string; isAnonymous?: boolean }[]
+    ) => {
+      let category = await ctx.db
+        .query('channels')
+        .withIndex('by_university', (q) => q.eq('universityId', workspaceId))
+        .filter((q) => q.eq(q.field('name'), catName))
+        .filter((q) => q.eq(q.field('type'), 'category'))
+        .first();
+
+      let catId: Id<'channels'>;
+
+      if (!category) {
+        catId = await ctx.db.insert('channels', {
+          name: catName,
+          type: 'category',
+          universityId: workspaceId,
+          sortOrder: catOrder,
+        });
+      } else {
+        catId = category._id;
+      }
+
+      for (let i = 0; i < subChannels.length; i++) {
+        const subData = subChannels[i];
+
+        const existing = await ctx.db
+          .query('channels')
+          .withIndex('by_university', (q) => q.eq('universityId', workspaceId))
+          .filter((q) => q.eq(q.field('name'), subData.name))
+          .filter((q) => q.eq(q.field('parentId'), catId))
+          .first();
+
+        if (!existing) {
+          await ctx.db.insert('channels', {
+            name: subData.name,
+            type: 'channel',
+            universityId: workspaceId,
+            parentId: catId,
+            sortOrder: i,
+            isAnonymous: subData.isAnonymous || false, // Gắn cờ ẩn danh nếu có
+          });
+        }
+      }
+    };
+
+    // =========================================================
+    // 1. MÁY CHỦ: HỌC VIỆN HÀNG KHÔNG (VAA)
+    // =========================================================
     let vaa = await ctx.db
       .query('universities')
       .filter((q) => q.eq(q.field('slug'), 'vaa'))
@@ -74,92 +125,107 @@ export const seedAndMigrate = mutation({
 
     const uniId = vaa!._id;
 
-    const ensureCategoryWithChannels = async (
-      catName: string,
-      catOrder: number,
-      subChannels: string[]
-    ) => {
-      let category = await ctx.db
-        .query('channels')
-        .withIndex('by_university', (q) =>
-          q.eq('universityId', uniId)
-        )
-        .filter((q) => q.eq(q.field('name'), catName))
-        .filter((q) => q.eq(q.field('type'), 'category'))
-        .first();
-
-      let catId: Id<'channels'>;
-
-      if (!category) {
-        catId = await ctx.db.insert('channels', {
-          name: catName,
-          type: 'category',
-          universityId: uniId,
-          sortOrder: catOrder,
-        });
-      } else {
-        catId = category._id;
-      }
-
-      for (let i = 0; i < subChannels.length; i++) {
-        const subName = subChannels[i];
-
-        const existing = await ctx.db
-          .query('channels')
-          .withIndex('by_university', (q) =>
-            q.eq('universityId', uniId)
-          )
-          .filter((q) => q.eq(q.field('name'), subName))
-          .filter((q) => q.eq(q.field('parentId'), catId))
-          .first();
-
-        if (!existing) {
-          await ctx.db.insert('channels', {
-            name: subName,
-            type: 'channel',
-            universityId: uniId,
-            parentId: catId,
-            sortOrder: i,
-          });
-        }
-      }
-    };
-
-    let generalChannel = await ctx.db
+    let generalChannelVAA = await ctx.db
       .query('channels')
-      .withIndex('by_university', (q) =>
-        q.eq('universityId', uniId)
-      )
+      .withIndex('by_university', (q) => q.eq('universityId', uniId))
       .filter((q) => q.eq(q.field('name'), 'đại-sảnh'))
       .first();
 
-    if (!generalChannel) {
-      const generalId = await ctx.db.insert('channels', {
-        name: 'đại-sảnh',
-        type: 'channel',
-        universityId: uniId,
-        sortOrder: 0,
-      });
-      generalChannel = await ctx.db.get(generalId);
+    if (!generalChannelVAA) {
+      await ctx.db.insert('channels', { name: 'đại-sảnh', type: 'channel', universityId: uniId, sortOrder: 0 });
     }
 
-    await ensureCategoryWithChannels('CỘNG ĐỒNG', 1, [
+    await ensureCategoryWithChannels(uniId, 'CỘNG ĐỒNG', 1, [
       'làm-quen-kết-nối', 'phòng-trọ', 'chia-sẻ-tài-liệu', 'mua-bán', 'đồ-thất-lạc', 'kí-túc-xá', 'tổng-hợp-sự-kiện', 'đăng-ký-học-phần', 'review-giảng-viên', 'việc-làm', 'quân-sự',
-    ]);
-    await ensureCategoryWithChannels('KHOÁ', 2, ['k17', 'k18', 'k19', 'k20']);
-    await ensureCategoryWithChannels('KHOA', 3, [
+    ].map(name => ({ name })));
+    await ensureCategoryWithChannels(uniId, 'KHOÁ', 2, ['k17', 'k18', 'k19', 'k20'].map(name => ({ name })));
+    await ensureCategoryWithChannels(uniId, 'KHOA', 3, [
       'khoa-công-nghệ-thông-tin', 'khoa-kinh-tế-hàng-không', 'khoa-cơ-bản', 'khoa-quản-trị-kinh-doanh', 'khoa-xây-dựng', 'khoa-khai-khác-hàng-không', 'khoa-kỹ-thuật-hàng-không', 'khoa-điện-điện-tử', 'khoa-du-lịch-và-dịch-vụ-hàng-không', 'khoa-ngoại-ngữ',
-    ]);
-    await ensureCategoryWithChannels('CLB', 4, ['clb-bóng-chuyền', 'clb-tổ-chức-sự-kiện', 'clb-khoa-học-trẻ']);
-    await ensureCategoryWithChannels('CƠ SỞ', 5, ['cơ-sở-1', 'cơ-sở-2']);
+    ].map(name => ({ name })));
+    await ensureCategoryWithChannels(uniId, 'CLB', 4, ['clb-bóng-chuyền', 'clb-tổ-chức-sự-kiện', 'clb-khoa-học-trẻ'].map(name => ({ name })));
+    await ensureCategoryWithChannels(uniId, 'CƠ SỞ', 5, ['cơ-sở-1', 'cơ-sở-2'].map(name => ({ name })));
 
+
+    // =========================================================
+    // 2. MÁY CHỦ: CỘNG ĐỒNG (MỚI THÊM)
+    // =========================================================
+let congdong = await ctx.db
+      .query('universities')
+      .filter((q) => q.eq(q.field('slug'), 'cong-dong'))
+      .first();
+
+    if (!congdong) {
+      const cdId = await ctx.db.insert('universities', {
+        name: 'Cộng Đồng',
+        slug: 'cong-dong',
+        icon: 'icon.png', 
+        sortOrder: 2,
+      });
+      congdong = await ctx.db.get(cdId);
+    }
+
+    const cdId = congdong!._id;
+
+    let generalChannelCD = await ctx.db
+      .query('channels')
+      .withIndex('by_university', (q) => q.eq('universityId', cdId))
+      .filter((q) => q.eq(q.field('name'), 'đại-sảnh'))
+      .first();
+
+    if (!generalChannelCD) {
+      await ctx.db.insert('channels', { name: 'đại-sảnh', type: 'channel', universityId: cdId, sortOrder: 0 });
+    }
+
+    // TẦNG 1: THẢO LUẬN CHUNG
+    await ensureCategoryWithChannels(cdId, 'THẢO LUẬN CHUNG', 1, [
+      { name: 'tin-tức' },
+      { name: 'confession', isAnonymous: true },
+      { name: 'tình-yêu' },
+      { name: 'trò-chuyện' },
+    ]);
+
+    // TẦNG 2: GIẢI TRÍ & SỞ THÍCH
+    await ensureCategoryWithChannels(cdId, 'GIẢI TRÍ & SỞ THÍCH', 2, [
+      { name: 'phim-ảnh' },
+      { name: 'âm-nhạc' },
+      { name: 'trò-chơi' },
+      { name: 'thể-thao' },
+      { name: 'thú-cưng' },
+      { name: 'nghệ-thuật' },
+    ]);
+
+    // TẦNG 3: ĐỜI SỐNG
+    await ensureCategoryWithChannels(cdId, 'ĐỜI SỐNG', 3, [
+      { name: 'ẩm-thực' },
+      { name: 'du-lịch' },
+      { name: 'thời-trang' },
+      { name: 'sức-khỏe' },
+    ]);
+
+    // TẦNG 4: KIẾN THỨC & SỰ NGHIỆP
+    await ensureCategoryWithChannels(cdId, 'KIẾN THỨC & SỰ NGHIỆP', 4, [
+      { name: 'công-nghệ' },
+      { name: 'tài-chính' },
+      { name: 'ngoại-ngữ' },
+      { name: 'việc-làm' },
+      { name: 'sách' },
+    ]);
+
+    // TẦNG 5: TIỆN ÍCH
+    await ensureCategoryWithChannels(cdId, 'TIỆN ÍCH', 5, [
+      { name: 'mua-bán' },
+      { name: 'hỏi-đáp' },
+    ]);
+
+    // Dọn dẹp tin nhắn mồ côi (không thuộc kênh nào) đưa về đại sảnh của VAA
     const allMessages = await ctx.db.query('messages').collect();
     for (const msg of allMessages) {
-      if (!msg.channelId) {
-        await ctx.db.patch(msg._id, { channelId: generalChannel!._id });
+      if (!msg.channelId && generalChannelVAA) {
+        await ctx.db.patch(msg._id, { channelId: generalChannelVAA._id });
       }
     }
-    return 'Hoàn tất';
+
+    return 'Đã khởi tạo thành công máy chủ Hàng Không và Cộng Đồng!';
   },
 });
 
@@ -297,8 +363,8 @@ export const createServer = mutation({
 
     const allServers = await ctx.db.query('servers').collect();
     const myMembershipCount = allServers.filter(s => s.memberIds.includes(user._id)).length;
-    if (myMembershipCount >= 100) {
-      return { success: false, message: "Bạn đã đạt giới hạn tối đa 100 server." };
+    if (myMembershipCount >= 50) {
+      return { success: false, message: "Bạn đã đạt giới hạn tối đa 50 server." };
     }
 
     let finalIcon = `https://ui-avatars.com/api/?name=${args.name.charAt(0)}&background=random&color=fff`;
@@ -394,14 +460,14 @@ export const addFriendToServer = mutation({
     const server = await ctx.db.get(args.serverId);
     if (!server) throw new Error('Lỗi máy chủ');
 
-    // 1. Kiểm tra giới hạn 100 server (Kiểm tra bằng bảng server_members mới)
+    // 1. Kiểm tra giới hạn 50 server (Kiểm tra bằng bảng server_members mới)
     const memberships = await ctx.db
       .query("server_members")
       .withIndex("by_user", (q) => q.eq("userId", args.friendId))
       .collect();
 
-    if (memberships.length >= 100) {
-      throw new Error("Người dùng này đã tham gia tối đa 100 server.");
+    if (memberships.length >= 50) {
+      throw new Error("Người dùng này đã tham gia tối đa 50 server.");
     }
 
     // 2. Kiểm tra xem người này đã có trong server_members chưa
@@ -484,7 +550,8 @@ export const createChannel = mutation({
     serverId: v.id('servers'),
     name: v.string(),
     type: v.string(),
-    parentId: v.optional(v.id('channels'))
+    parentId: v.optional(v.id('channels')),
+    isAnonymous: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -519,7 +586,8 @@ export const createChannel = mutation({
       type: args.type,
       serverId: args.serverId,
       parentId: args.parentId,
-      sortOrder: newOrder
+      sortOrder: newOrder,
+      isAnonymous: args.isAnonymous || false
     });
 
     return newChannelId;
@@ -715,13 +783,13 @@ export const joinServer = mutation({
     const server = await ctx.db.get(args.serverId);
     if (!server) throw new Error("Máy chủ không tồn tại");
 
-    // 1. Kiểm tra giới hạn 100 server
+    // 1. Kiểm tra giới hạn 50 server
     const memberships = await ctx.db.query("server_members")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
 
-    if (memberships.length >= 100) {
-      throw new Error("Bạn đã tham gia tối đa 100 server.");
+    if (memberships.length >= 50) {
+      throw new Error("Bạn đã tham gia tối đa 50 server.");
     }
 
     // 2. Kiểm tra xem đã tham gia chưa

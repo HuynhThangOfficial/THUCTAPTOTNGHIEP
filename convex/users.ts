@@ -322,7 +322,18 @@ export const getPostCount = query({
   handler: async (ctx, args) => {
     const posts = await ctx.db
       .query("messages")
-      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .filter((q) => 
+        q.and(
+          // 1. Không đếm bình luận
+          q.eq(q.field("threadId"), undefined), 
+          // 2. CHẶN ĐỨNG BÀI ẨN DANH: Chỉ đếm bài có isAnonymous = false hoặc không có trường này
+          q.or(
+             q.eq(q.field("isAnonymous"), false),
+             q.eq(q.field("isAnonymous"), undefined)
+          )
+        )
+      )
       .collect();
 
     return posts.length;

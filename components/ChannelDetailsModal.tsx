@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   channelName: { fontSize: 28, fontWeight: 'bold', marginBottom: 4 },
   uniName: { fontSize: 16, color: 'gray', fontWeight: '600', marginBottom: 12 },
   description: { fontSize: 15, lineHeight: 22, color: '#333' },
-  toggleText: { color: Colors.primary || '#007aff', marginTop: 5, fontSize: 13, fontWeight: '600' },
+ toggleText: { color: '#007aff', marginTop: 5, fontSize: 13, fontWeight: '600' },
 
   tabContainer: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#eee', marginBottom: 10 },
   tabButton: { flex: 1, paddingVertical: 14, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },

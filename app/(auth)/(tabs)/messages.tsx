@@ -158,7 +158,7 @@ const MessagesScreen = () => {
       <View style={styles.headerWrapper}>
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color="#8e8e93" />
-          <TextInput style={styles.searchInput} placeholder="Tìm kiếm hoặc hỏi Meta AI" placeholderTextColor="#8e8e93" />
+          <TextInput style={styles.searchInput} placeholder="Tìm kiếm" placeholderTextColor="#8e8e93" />
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.notesContainer}>
