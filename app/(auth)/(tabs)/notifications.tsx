@@ -9,11 +9,19 @@ export default function NotificationsScreen() {
   const router = useRouter();
 
   const handlePress = (item: any) => {
-     markRead({ notificationId: item._id });
-     if (item.type === 'post') router.push(`/(auth)/(tabs)/feed/${item.messageId}`);
-     if (item.type === 'message') router.push(`/(auth)/(tabs)/messages`);
-     if (item.type === 'follow') router.push(`/(public)/profile/${item.senderId}`);
-  };
+       markRead({ notificationId: item._id });
+
+       if (item.type === 'post') {
+         // 👇 TRUYỀN THÊM source: 'notifications' ĐỂ BÁO CHO TRANG CHI TIẾT BIẾT 👇
+         router.push({
+           pathname: `/(auth)/(tabs)/feed/${item.messageId}` as any,
+           params: { source: 'notifications' }
+         });
+       }
+
+       if (item.type === 'message') router.push(`/(auth)/(tabs)/messages`);
+       if (item.type === 'follow') router.push(`/(public)/profile/${item.senderId}` as any);
+    };
 
   if (notifications === undefined) return <ActivityIndicator style={{marginTop: 20}} />;
 
@@ -26,7 +34,15 @@ export default function NotificationsScreen() {
          keyExtractor={item => item._id}
          renderItem={({ item }) => {
             let actionText = '';
-            if (item.type === 'post') actionText = `đã đăng bài mới trong #${item.channel?.name || 'kênh'}`;
+
+            // 👇 LOGIC HIỂN THỊ KÊNH VÀ SERVER Ở ĐÂY 👇
+            if (item.type === 'post') {
+              if (item.channelName && item.workspaceName) {
+                actionText = `đã đăng bài trong #${item.channelName} • ${item.workspaceName}`;
+              } else {
+                actionText = `đã đăng một bài viết mới`;
+              }
+            }
             if (item.type === 'message') actionText = 'đã gửi tin nhắn cho bạn';
             if (item.type === 'follow') actionText = 'đã bắt đầu theo dõi bạn';
 
@@ -55,7 +71,7 @@ const styles = StyleSheet.create({
   unread: { backgroundColor: '#eef2ff' }, // Nền xanh nhạt cho thông báo chưa đọc
   avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15 },
   content: { flex: 1 },
-  text: { fontSize: 15, color: '#050505', lineHeight: 22 },
-  bold: { fontWeight: 'bold' },
-  unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#0866ff', marginLeft: 10 }
+  text: { fontSize: 15, color: '#333', lineHeight: 22 },
+  bold: { fontWeight: 'bold', color: '#000' },
+  unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#5865F2', marginLeft: 10 } // Chấm xanh bên phải
 });

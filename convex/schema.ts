@@ -76,9 +76,8 @@ messages: defineTable({
     universityId: v.optional(v.id("universities")),
     userId: v.id("users"),
     websiteUrl: v.optional(v.string()),
-    
-    // 👇 BẮT BUỘC PHẢI CÓ DÒNG NÀY ĐỂ DATABASE CHẤP NHẬN BÀI ẨN DANH 👇
-    isAnonymous: v.optional(v.boolean()), 
+    isAnonymous: v.optional(v.boolean()),
+    allowComments: v.optional(v.boolean()),
   })
   .index("by_university", ["universityId"])
   .index("by_server", ["serverId"])

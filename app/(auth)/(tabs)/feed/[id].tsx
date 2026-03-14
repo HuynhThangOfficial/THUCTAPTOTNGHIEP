@@ -6,7 +6,7 @@ import {
   Image,
   View,
   Text,
-  BackHandler, // 👇 ĐÃ THÊM: Xử lý nút Back cứng của Android
+  BackHandler,
 } from 'react-native';
 import React, { useRef, useEffect } from 'react';
 import { Link, useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -21,10 +21,7 @@ import { Colors } from '@/constants/Colors';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 
 const Page = () => {
-  // Lấy dữ liệu từ màn hình trước truyền qua
   const { id, highlightCommentId, source } = useLocalSearchParams();
-  
-  // Đảm bảo source luôn là chuỗi (tránh lỗi mảng của Expo Router)
   const sourceStr = Array.isArray(source) ? source[0] : source;
 
   const thread = useQuery(api.messages.getThreadById, { messageId: id as Id<'messages'> });
@@ -33,7 +30,6 @@ const Page = () => {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // 1. TỰ ĐỘNG CUỘN XUỐNG BÌNH LUẬN
   useEffect(() => {
     if (highlightCommentId) {
       setTimeout(() => {
@@ -42,24 +38,28 @@ const Page = () => {
     }
   }, [highlightCommentId]);
 
-  // 👇 2. HÀM QUAY LẠI THÔNG MINH (Giữ nguyên State) 👇
+  // 👇 XỬ LÝ NÚT BACK TRÊN HEADER 👇
   const handleSmartBack = () => {
     if (sourceStr === 'profile') {
-      // Dùng NAVIGATE để quay về Tab Profile đang chạy ngầm, KHÔNG dùng PUSH
       router.navigate('/(auth)/(tabs)/profile');
+    } else if (sourceStr === 'notifications') {
+      router.navigate('/(auth)/(tabs)/notifications');
     } else {
       router.back();
     }
   };
 
-  // 👇 3. XỬ LÝ NÚT BACK VẬT LÝ TRÊN ANDROID 👇
+  // 👇 XỬ LÝ NÚT BACK VẬT LÝ TRÊN ANDROID 👇
   useEffect(() => {
     const onBackPress = () => {
       if (sourceStr === 'profile') {
         router.navigate('/(auth)/(tabs)/profile');
-        return true; // Báo cho Android biết mình đã tự xử lý back
+        return true;
+      } else if (sourceStr === 'notifications') {
+        router.navigate('/(auth)/(tabs)/notifications');
+        return true;
       }
-      return false; // Trả lại quyền back mặc định
+      return false;
     };
 
     BackHandler.addEventListener('hardwareBackPress', onBackPress);
@@ -67,13 +67,12 @@ const Page = () => {
   }, [sourceStr]);
 
   return (
-    // 👇 SỬA LỖI 1: Đổi flexGrow: 1 thành flex: 1 để giới hạn chiều cao bằng đúng màn hình
-    <View style={{ flex: 1, backgroundColor: 'white' }}> 
+    <View style={{ flex: 1, backgroundColor: 'white' }}>
 
       <Stack.Screen
         options={{
           headerTitle: 'Bài viết',
-          headerShown: true, 
+          headerShown: true,
           headerShadowVisible: false,
           headerBackTitleVisible: false,
           headerTitleAlign: 'center',
@@ -86,36 +85,47 @@ const Page = () => {
         }}
       />
 
-      {/* 👇 SỬA LỖI 2: Thêm style={{ flex: 1 }} vào ScrollView để nó tự động co lại, chừa chỗ cho thanh Bình luận ở dưới 👇 */}
       <ScrollView ref={scrollViewRef} style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
         {thread ? (
-          <Thread thread={thread as Doc<'messages'> & { creator: Doc<'users'> }} />
+          <Thread thread={thread as Doc<'messages'> & { creator: Doc<'users'> }} viewContext="feed" />
         ) : (
           <ActivityIndicator style={{ marginTop: 20 }} />
         )}
-        
-        <Comments 
-          threadId={id as Id<'messages'>} 
-          // @ts-ignore
-          highlightCommentId={highlightCommentId as string} 
-        />
+
+        {/* NẾU CHO PHÉP BÌNH LUẬN THÌ HIỆN DANH SÁCH BÌNH LUẬN, NGƯỢC LẠI HIỆN ICON KHÓA */}
+        {thread?.allowComments !== false ? (
+          <Comments
+            threadId={id as Id<'messages'>}
+            // @ts-ignore
+            highlightCommentId={highlightCommentId as string}
+          />
+        ) : (
+          <View style={{ padding: 40, alignItems: 'center', marginTop: 20 }}>
+             <Ionicons name="lock-closed" size={48} color="#e0e0e0" style={{ marginBottom: 12 }} />
+             <Text style={{ color: 'gray', fontSize: 15, fontWeight: '500', textAlign: 'center' }}>
+               Người đăng đã tắt tính năng bình luận cho bài viết này.
+             </Text>
+          </View>
+        )}
       </ScrollView>
 
-      {/* KHUNG BÌNH LUẬN (Bây giờ sẽ luôn bị ghim chặt ở dưới cùng) */}
-      <View style={styles.border} />
-
-      <Link href={`/(modal)/reply/${id}` as any} asChild>
-        <TouchableOpacity style={styles.replyButton}>
-          <Image
-            source={{ uri: userProfile?.imageUrl as string }}
-            style={styles.replyButtonImage}
-          />
-          <Text style={{ color: 'gray' }}>
-             {/* Text ẩn danh thông minh */}
-             Thêm câu trả lời đến {thread?.isAnonymous ? 'Thành viên ẩn danh' : thread?.creator?.first_name}...
-          </Text>
-        </TouchableOpacity>
-      </Link>
+      {/* CHỈ HIỆN THANH NHẬP BÌNH LUẬN Ở ĐÁY MÀN HÌNH NẾU ĐƯỢC CHO PHÉP */}
+      {thread?.allowComments !== false && (
+        <>
+          <View style={styles.border} />
+          <Link href={`/(modal)/reply/${id}` as any} asChild>
+            <TouchableOpacity style={styles.replyButton}>
+              <Image
+                source={{ uri: userProfile?.imageUrl as string }}
+                style={styles.replyButtonImage}
+              />
+              <Text style={{ color: 'gray' }}>
+                 Thêm câu trả lời đến {thread?.isAnonymous ? 'Thành viên ẩn danh' : thread?.creator?.first_name}...
+              </Text>
+            </TouchableOpacity>
+          </Link>
+        </>
+      )}
     </View>
   );
 };

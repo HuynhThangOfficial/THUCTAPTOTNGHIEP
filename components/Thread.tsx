@@ -11,7 +11,6 @@ import { useActionSheet } from '@expo/react-native-action-sheet';
 import ImageView from "react-native-image-viewing";
 import { isHttpUrl } from '@/convex/utils';
 
-// Đã fix lỗi an toàn cho hàm kiểm tra URL
 const getValidAvatar = (url?: string | null): string => {
   if (url && isHttpUrl(url)) return url;
   return 'https://www.gravatar.com/avatar/?d=mp';
@@ -26,8 +25,9 @@ type ThreadProps = {
     isReposted?: boolean;
     isServerAdmin?: boolean;
     amIAdmin?: boolean;
+    allowComments?: boolean; // Thêm type an toàn
   };
-  viewContext?: 'feed' | 'profileReplies' | 'profileReposts' | 'profile'; 
+  viewContext?: 'feed' | 'profileReplies' | 'profileReposts' | 'profile';
 };
 
 const formatTimeAgo = (timestamp: number) => {
@@ -52,7 +52,8 @@ const formatTimeAgo = (timestamp: number) => {
 };
 
 const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
-  const { content, mediaFiles, likeCount, commentCount, retweetCount, shareCount, creator, isLiked, isServerAdmin, amIAdmin, isReposted } = thread;
+  // 👇 NHẬN BIẾN allowComments TỪ THREAD 👇
+  const { content, mediaFiles, likeCount, commentCount, retweetCount, shareCount, creator, isLiked, isServerAdmin, amIAdmin, isReposted, allowComments } = thread;
 
   const { userProfile } = useUserProfile();
   const { showActionSheetWithOptions } = useActionSheet();
@@ -74,7 +75,7 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
   const deleteThread = useMutation(api.messages.deleteThread);
   const addReply = useMutation(api.messages.addThread);
   const startChat = useMutation(api.chat.getOrCreateConversation);
-  
+
   const sendShareMessage = useMutation(api.messages.sendShareMessage);
   const shareSuggestions = useQuery(api.messages.getShareSuggestions, { searchQuery: shareSearchQuery });
   const incrementShare = useMutation(api.messages.incrementShareCount);
@@ -87,15 +88,13 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
 
   const parentThread = useQuery(api.messages.getThreadById, isComment && thread.threadId ? { messageId: thread.threadId as Id<'messages'> } : "skip");
 
-  // 👇 ĐÃ FIX LỖI TYPE SCRIPT BẰNG CÁCH THÊM @ts-ignore
   // @ts-ignore
   const isAnon = thread.isAnonymous === true;
   const displayAvatar = isAnon ? DEFAULT_ANON_AVATAR : getValidAvatar(creator?.imageUrl);
   const displayName = isAnon ? "Thành viên ẩn danh" : `${creator?.first_name || 'Người dùng'} ${creator?.last_name || ''}`.trim();
-  
+
   // @ts-ignore
   const isParentAnon = parentThread?.isAnonymous === true;
-  // 👇 ĐÃ FIX LỖI CHUỖI DỮ LIỆU CỦA TÊN NGƯỜI ĐĂNG GỐC 👇
   const parentDisplayName = isParentAnon ? "Thành viên ẩn danh" : (parentThread?.creator?.first_name || "Người dùng");
   const parentDisplayAvatar = isParentAnon ? DEFAULT_ANON_AVATAR : getValidAvatar(parentThread?.creator?.imageUrl);
 
@@ -129,8 +128,8 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
   };
 
   const onActionPress = () => {
-    let options = isOwner ? ['Chỉnh sửa', 'Xem lịch sử chỉnh sửa', 'Xóa', 'Hủy'] : 
-                  amIAdmin ? ['Báo cáo', 'Xem lịch sử chỉnh sửa', 'Xóa (Quyền Admin)', 'Hủy'] : 
+    let options = isOwner ? ['Chỉnh sửa', 'Xem lịch sử chỉnh sửa', 'Xóa', 'Hủy'] :
+                  amIAdmin ? ['Báo cáo', 'Xem lịch sử chỉnh sửa', 'Xóa (Quyền Admin)', 'Hủy'] :
                   ['Báo cáo', 'Xem lịch sử chỉnh sửa', 'Hủy'];
     let icons = isOwner ? [
         <Ionicons name="pencil-outline" size={24} color="black" />, <Ionicons name="time-outline" size={24} color="black" />, <Ionicons name="trash-outline" size={24} color="red" />, <Ionicons name="close-outline" size={24} color="black" />,
@@ -168,7 +167,7 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
 
   const handleNativeShare = async () => {
     try {
-      const postUrl = `https://konket.app/feed/${thread._id}`; 
+      const postUrl = `https://konket.app/feed/${thread._id}`;
       await Share.share({ message: `Xem bài viết trên KonKet: ${postUrl}`, url: postUrl });
       setIsShareMenuVisible(false);
       await incrementShare({ messageId: thread._id });
@@ -204,7 +203,6 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
     </SafeAreaView>
   );
 
-  // Wrapper Render Header Ngăn Chặn Bấm Khi Ẩn Danh
   const renderHeaderRow = (name: string, isAnonFlag: boolean, isMainAdmin: boolean = false) => {
     const textNode = (
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -214,7 +212,7 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
     );
 
     if (isAnonFlag) return textNode;
-    
+
     return (
       <Link href={`/feed/profile/${creator?._id}` as any} asChild>
         <TouchableOpacity>{textNode}</TouchableOpacity>
@@ -255,7 +253,14 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
             <Text style={styles.content}>{content}</Text>
             <View style={styles.actions}>
               <View style={styles.actionButton}><Ionicons name={isLiked ? "heart" : "heart-outline"} size={18} color={isLiked ? "red" : "gray"} /><Text style={[styles.actionText, {fontSize: 12}]}>{likeCount}</Text></View>
-              <View style={styles.actionButton}><Ionicons name="chatbubble-outline" size={18} color="gray" /><Text style={[styles.actionText, {fontSize: 12}]}>{commentCount}</Text></View>
+
+              {/* 👇 ẨN HIỆN NÚT BÌNH LUẬN TRONG PROFILE REPLIES 👇 */}
+              {allowComments === false ? (
+                 <View style={styles.actionButton}><Ionicons name="lock-closed-outline" size={18} color="gray" /><Text style={[styles.actionText, {fontSize: 12}]}>Khóa</Text></View>
+              ) : (
+                 <View style={styles.actionButton}><Ionicons name="chatbubble-outline" size={18} color="gray" /><Text style={[styles.actionText, {fontSize: 12}]}>{commentCount}</Text></View>
+              )}
+
               <View style={styles.actionButton}><Ionicons name="repeat-outline" size={18} color="gray" /><Text style={[styles.actionText, {fontSize: 12}]}>{retweetCount}</Text></View>
             </View>
           </View>
@@ -269,9 +274,8 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
   // =======================================================
   return (
     <View style={viewContext !== 'feed' ? [styles.mainWrapper, { padding: 15 }] : styles.container}>
-      
+
       <View style={{ flexDirection: 'row', flex: 1 }}>
-        {/* AVATAR */}
         {isAnon ? (
            <Image source={{ uri: displayAvatar }} style={styles.avatar} />
         ) : (
@@ -288,20 +292,18 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
               <View style={styles.postHeaderRow}>
                 {renderHeaderRow(displayName, isAnon, isServerAdmin)}
                 <Text style={styles.inlineTimestamp}>• {formatTimeAgo(thread._creationTime)}</Text>
-                
+
                 {editHistory && editHistory.length > 0 && (
                   <Text style={{ fontSize: 11, color: '#65676b', marginLeft: 4 }}> (Đã sửa)</Text>
                 )}
               </View>
 
-              {/* REPLYING TO... */}
               {isComment && parentThread && (
                  <Text style={styles.replyingToText}>
                    Đang trả lời <Text style={{color: '#007aff'}}>{isParentAnon ? '@Thành viên ẩn danh' : `@${parentThread.creator?.username || parentThread.creator?.first_name}`}</Text>
                  </Text>
               )}
 
-              {/* #KÊNH VÀ TÊN MÁY CHỦ */}
               {!isComment && channelInfo && channelInfo.name !== 'đại-sảnh' && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
                    <Text style={{ fontSize: 12, color: isAnon ? '#FF5252' : '#5865F2', fontWeight: 'bold' }}>
@@ -339,10 +341,20 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
               <TouchableOpacity onPress={() => likeThread({ messageId: thread._id })}><Ionicons name={isLiked ? "heart" : "heart-outline"} size={20} color={isLiked ? "red" : "black"} /></TouchableOpacity>
               <Text style={[styles.actionText, { color: isLiked ? "red" : "black" }]}>{likeCount}</Text>
             </View>
-            <TouchableOpacity style={styles.actionButton} onPress={isComment ? () => setIsReplyingInline(!isReplyingInline) : handleNavigateToDetail}>
-              <Ionicons name="chatbubble-outline" size={20} color="black" />
-              <Text style={styles.actionText}>{commentCount}</Text>
-            </TouchableOpacity>
+
+            {/* 👇 ẨN HIỆN NÚT BÌNH LUẬN TRONG GIAO DIỆN CHÍNH 👇 */}
+            {allowComments === false ? (
+              <View style={[styles.actionButton, { opacity: 0.5 }]}>
+                <Ionicons name="lock-closed-outline" size={20} color="gray" />
+                <Text style={styles.actionText}>Đã khóa</Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.actionButton} onPress={isComment ? () => setIsReplyingInline(!isReplyingInline) : handleNavigateToDetail}>
+                <Ionicons name="chatbubble-outline" size={20} color="black" />
+                <Text style={styles.actionText}>{commentCount}</Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity style={styles.actionButton} onPress={handleRepost}>
               <Ionicons name={isReposted ? "repeat" : "repeat-outline"} size={20} color={isReposted ? "#00BA7C" : "black"} />
               <Text style={[styles.actionText, isReposted && { color: "#00BA7C", fontWeight: 'bold' }]}>{retweetCount}</Text>
@@ -354,7 +366,7 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
             </TouchableOpacity>
           </View>
 
-          {isReplyingInline && (
+          {isReplyingInline && allowComments !== false && (
             <View style={styles.inlineReplyContainer}>
               <TextInput style={styles.inlineInput} placeholder="Phản hồi..." value={replyText} onChangeText={setReplyText} autoFocus multiline />
               <TouchableOpacity onPress={submitInlineReply} disabled={isSendingReply || !replyText.trim()}>
@@ -374,7 +386,7 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
               <TextInput placeholder="Tìm kiếm bạn bè..." style={styles.searchInput} value={shareSearchQuery} onChangeText={setShareSearchQuery} autoCapitalize="none" />
               {shareSearchQuery.length > 0 && (<TouchableOpacity onPress={() => setShareSearchQuery('')}><Ionicons name="close-circle" size={20} color="gray" /></TouchableOpacity>)}
             </View>
-            
+
             {!shareSearchQuery && (
               <View style={styles.shareToolsRow}>
                  <TouchableOpacity style={styles.shareToolBtn} onPress={handleNativeShare}><View style={styles.shareToolIcon}><Ionicons name="copy-outline" size={24} color="black" /></View><Text style={styles.shareToolText}>Sao chép link</Text></TouchableOpacity>
@@ -417,7 +429,6 @@ const styles = StyleSheet.create({
   verticalLine: { width: 2, height: 20, backgroundColor: '#e0e0e0', marginLeft: 19, marginVertical: 2 },
   avatarSmall: { width: 30, height: 30, borderRadius: 15, marginRight: 15 },
   contentSmall: { fontSize: 14, color: '#333', marginBottom: 4 },
-  // Giữ lại repostHeader, repostHeaderText trong styles phòng khi cần, nhưng đã gỡ khỏi render
   repostHeader: { flexDirection: 'row', alignItems: 'center', marginLeft: 50, marginBottom: 6 },
   repostHeaderText: { fontSize: 13, color: 'gray', fontWeight: '500' },
   replyingToText: { fontSize: 13, color: 'gray', marginTop: 2, marginBottom: 6 },

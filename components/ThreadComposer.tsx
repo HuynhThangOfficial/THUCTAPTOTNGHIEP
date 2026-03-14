@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { StyleSheet, Text, View, Image, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Modal, FlatList } from 'react-native';
+import { StyleSheet, Text, View, Image, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Modal, FlatList, Switch } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
@@ -34,6 +34,9 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
   const [existingMediaIds, setExistingMediaIds] = useState<string[]>([]);
   const [newMediaUris, setNewMediaUris] = useState<string[]>([]);
 
+  // 👇 THÊM STATE QUẢN LÝ BÌNH LUẬN 👇
+  const [allowComments, setAllowComments] = useState(true);
+
   const [selectedUniId, setSelectedUniId] = useState<Id<'universities'> | null>(activeUniversityId);
   const [selectedServerId, setSelectedServerId] = useState<Id<'servers'> | null>(activeServerId);
   const [selectedWorkspaceName, setSelectedWorkspaceName] = useState<string>('');
@@ -43,7 +46,6 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
 
   const [isPickerVisible, setPickerVisible] = useState(false);
 
-  // 👇 MERGED: Logic chặn đại sảnh làm mặc định + Sync Context
   useEffect(() => {
     if (!editId) {
         setSelectedUniId(activeUniversityId);
@@ -133,18 +135,10 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
     setSelectedChannelName("Chọn kênh...");
   };
 
-  const handleSelectUniversity = (uniId: Id<'universities'>) => {
-    setSelectedUniId(uniId);
-    setSelectedServerId(null);
-    setSelectedChannelId(null);
-    setSelectedChannelName("Chọn kênh...");
-  };
-
   const handleSubmit = async () => {
       if (threadContent.trim() === '' && mediaPreviewList.length === 0) return;
       if (editId && !threadToEdit) return;
 
-      // 👇 MERGED: Chặn đại sảnh và yêu cầu chọn kênh
       if (!isReply && (!selectedChannelId || selectedChannelName === 'đại-sảnh' || selectedChannelName === 'Chọn kênh...')) {
            Alert.alert("Lỗi", "Vui lòng chọn một kênh cụ thể để đăng bài (Không thể đăng trực tiếp vào đại sảnh).");
            return;
@@ -174,6 +168,8 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
             serverId: isReply ? undefined : (selectedServerId || undefined),
             content: threadContent,
             mediaFiles: newUploadedIds,
+            // 👇 THUYỀN BIẾN ALLOW COMMENTS XUỐNG API (CHỈ DÀNH CHO BÀI GỐC) 👇
+            allowComments: isReply ? undefined : allowComments,
           });
         }
         router.dismiss();
@@ -271,6 +267,24 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
               <TouchableOpacity onPress={handleHashtag}><FontAwesome name="hashtag" size={20} color={Colors.border} /></TouchableOpacity>
               <TouchableOpacity onPress={handlePoll}><MaterialCommunityIcons name="chart-bar" size={24} color={Colors.border} /></TouchableOpacity>
             </View>
+
+            {/* 👇 CÔNG TẮC BẬT TẮT BÌNH LUẬN (Chỉ hiện khi tạo bài gốc) 👇 */}
+            {!isReply && !editId && (
+              <View style={styles.toggleCommentContainer}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name={allowComments ? "chatbubble-ellipses-outline" : "lock-closed-outline"} size={22} color="gray" />
+                  <Text style={styles.toggleCommentText}>
+                    {allowComments ? "Cho phép bình luận" : "Đã tắt bình luận"}
+                  </Text>
+                </View>
+                <Switch
+                  value={allowComments}
+                  onValueChange={setAllowComments}
+                  trackColor={{ false: '#767577', true: '#5865F2' }}
+                />
+              </View>
+            )}
+
           </View>
         </View>
       </ScrollView>
@@ -354,4 +368,7 @@ const styles = StyleSheet.create({
   groupTitle: { fontSize: 12, fontWeight: 'bold', color: 'gray', marginBottom: 8, textTransform: 'uppercase' },
   channelItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f0f0f0' },
   channelNameText: { fontSize: 16 },
+  // 👇 STYLE MỚI CHO CÔNG TẮC BÌNH LUẬN 👇
+  toggleCommentContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, paddingTop: 15, borderTopWidth: 1, borderTopColor: '#f0f0f0' },
+  toggleCommentText: { marginLeft: 8, fontSize: 15, fontWeight: '500', color: '#333' }
 });

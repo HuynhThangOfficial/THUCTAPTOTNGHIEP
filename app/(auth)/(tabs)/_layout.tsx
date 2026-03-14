@@ -11,6 +11,10 @@ import SideMenu from '@/components/SideMenu';
 import { MenuProvider, useMenu } from '@/context/MenuContext';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
+// 👇 THÊM 2 IMPORT CỦA CONVEX 👇
+import { useQuery } from 'convex/react';
+import { api } from '@/convex/_generated/api';
+
 const CreateTabIcon = ({ color, size }: { color: string; size: number }) => (
   <View style={styles.createIconContainer}>
     <Ionicons name="add" size={size} color={color} />
@@ -27,6 +31,9 @@ const TabsWithSwipe = () => {
 
   const { translateX, closeMenu } = useMenu();
   const MENU_WIDTH = 300;
+
+  // 👇 GỌI API ĐẾM SỐ THÔNG BÁO CHƯA ĐỌC 👇
+  const unreadCount = useQuery(api.messages.getUnreadNotificationsCount) || 0;
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
@@ -90,7 +97,9 @@ const TabsWithSwipe = () => {
             name="notifications"
             options={{
               title: 'Thông báo',
-              // Sử dụng icon Bell cho tab Thông báo như thiết kế của bạn
+              // 👇 HIỂN THỊ CHẤM ĐỎ TRÊN TAB BAR 👇
+              tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+              tabBarBadgeStyle: { backgroundColor: '#F23F42', fontSize: 10 }, // Đỏ chuẩn Discord
               tabBarIcon: ({ color, size, focused }) => (
                 <Ionicons name={focused ? 'notifications' : 'notifications-outline'} size={size} color={color} />
               ),

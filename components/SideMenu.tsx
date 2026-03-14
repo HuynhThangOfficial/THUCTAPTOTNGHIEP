@@ -118,7 +118,7 @@ export default function SideMenu() {
 
   // Giả lập lấy số lần nâng cấp (Nitro) của máy chủ hiện tại
   // @ts-ignore
-  const serverBoostCount = currentWorkspace?.boostCount || 0; 
+  const serverBoostCount = currentWorkspace?.boostCount || 0;
   const MAX_CHANNELS_BASE = 30;
   const currentChannelLimit = MAX_CHANNELS_BASE + (serverBoostCount * 5);
 
@@ -164,9 +164,9 @@ export default function SideMenu() {
   // 👇 HÀM TƯƠNG TÁC LONG PRESS ĐỂ GHIM HOẶC XÓA 👇
   const handleChannelLongPress = (target: any, isCategory: boolean) => {
     if (target.name === 'đại-sảnh') { Alert.alert("Không hợp lệ", "Không thể thao tác kênh mặc định!"); return; }
-    
+
     const isPinned = pinnedChannels.includes(target._id);
-    
+
     Alert.alert(`Tùy chọn ${isCategory ? 'Danh mục' : 'Kênh'}`, `Bạn muốn làm gì với "${target.name}"?`, [
       { text: "Hủy", style: "cancel" },
       { text: isPinned ? "Bỏ ghim" : "Ghim lên đầu", onPress: () => {
@@ -262,10 +262,10 @@ export default function SideMenu() {
 
   const handleCreateChannelSubmit = async () => {
     if (newChannelName.trim() === '' || !activeServerId) return;
-    await createChannel({ 
-      serverId: activeServerId, 
-      name: newChannelName.trim(), 
-      type: newChannelType, 
+    await createChannel({
+      serverId: activeServerId,
+      name: newChannelName.trim(),
+      type: newChannelType,
       parentId: selectedCategoryId,
       // @ts-ignore
       isAnonymous: isAnonymousChannel
@@ -345,7 +345,7 @@ export default function SideMenu() {
               </TouchableOpacity>
             ))}
             <View style={styles.railSeparator} />
-            
+
             {/* LẤY DANH SÁCH SERVER ĐÃ ĐƯỢC SẮP XẾP (CÓ GHIM) */}
             {sortedServers.map((server) => (
               <TouchableOpacity key={server._id} style={styles.serverItem} onPress={() => switchToServer(server._id)}>
@@ -381,13 +381,13 @@ export default function SideMenu() {
           )}
         </View>
 <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-            
+
             {/* 👇 ĐÃ SỬA: Bọc hàm getSortedChannels vào đây 👇 */}
             {getSortedChannels(channels.filter(c => !c.parentId)).map((channel) => (
                 <TouchableOpacity key={channel._id} style={[styles.channelItem, activeChannelId === channel._id && styles.activeChannel]} onPress={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} onLongPress={() => handleChannelLongPress(channel, false)}>
                     <MaterialCommunityIcons name="pound" size={20} color={activeChannelId === channel._id ? "black" : "gray"} />
                     <Text style={[styles.channelText, activeChannelId === channel._id && {color: 'black', fontWeight: 'bold'}]}>
-                      {channel.name} 
+                      {channel.name}
                       {/* @ts-ignore */}
                       {channel.isAnonymous && " 🎭"}
                     </Text>
@@ -417,7 +417,7 @@ export default function SideMenu() {
                     <TouchableOpacity key={channel._id} style={[styles.channelItem, activeChannelId === channel._id && styles.activeChannel]} onPress={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} onLongPress={() => handleChannelLongPress(channel, false)}>
                         <MaterialCommunityIcons name="pound" size={20} color={activeChannelId === channel._id ? "black" : "gray"} />
                         <Text style={[styles.channelText, activeChannelId === channel._id && {color: 'black', fontWeight: 'bold'}]}>
-                          {channel.name} 
+                          {channel.name}
                           {/* @ts-ignore */}
                           {channel.isAnonymous && " 🎭"}
                         </Text>
@@ -485,16 +485,16 @@ export default function SideMenu() {
            <View style={styles.smallModalContainer}>
              <Text style={styles.smallModalTitle}>Tạo {newChannelType === 'category' ? 'Danh Mục' : 'Kênh'}</Text>
              <TextInput style={styles.textInput} placeholder={newChannelType === 'category' ? "Tên danh mục mới" : "tên-kênh-mới"} value={newChannelName} onChangeText={setNewChannelName} autoFocus />
-             
+
              {newChannelType === 'channel' && (
                <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                  <View style={{flex: 1, paddingRight: 10}}>
                    <Text style={{ fontWeight: 'bold', fontSize: 15, color: '#333' }}>Kênh ẩn danh (Confession)</Text>
                    <Text style={{ fontSize: 12, color: 'gray', marginTop: 4 }}>Thành viên đăng bài trong kênh này sẽ bị ẩn danh tính hoàn toàn.</Text>
                  </View>
-                 <Switch 
-                   value={isAnonymousChannel} 
-                   onValueChange={setIsAnonymousChannel} 
+                 <Switch
+                   value={isAnonymousChannel}
+                   onValueChange={setIsAnonymousChannel}
                    trackColor={{ false: "#767577", true: "#5865F2" }}
                    thumbColor={isAnonymousChannel ? "#fff" : "#f4f3f4"}
                  />
@@ -522,13 +522,13 @@ export default function SideMenu() {
                  )}
               </View>
             </View>
-            
+
             {/* 👇 NÚT NÂNG CẤP MÁY CHỦ 👇 */}
             <TouchableOpacity style={styles.bottomSheetItem} onPress={() => { setServerMenuVisible(false); setUpgradeModalVisible(true); }}>
               <FontAwesome5 name="gem" size={20} color="#ff73fa" />
               <Text style={[styles.bottomSheetItemText, {color: '#ff73fa'}]}>Nâng Cấp Máy Chủ</Text>
             </TouchableOpacity>
-            
+
             {/* 👇 NÚT GHIM MÁY CHỦ 👇 */}
             <TouchableOpacity style={styles.bottomSheetItem} onPress={() => { setServerMenuVisible(false); togglePinServer(activeServerId!); }}>
               <Ionicons name="pin" size={24} color="black" />
@@ -538,11 +538,11 @@ export default function SideMenu() {
             <TouchableOpacity style={styles.bottomSheetItem} onPress={() => { setServerMenuVisible(false); setMemberListModalVisible(true); }}>
               <Ionicons name="people" size={24} color="black" /><Text style={styles.bottomSheetItemText}>Xem thành viên</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={styles.bottomSheetItem} onPress={() => { setServerMenuVisible(false); Alert.alert("Báo cáo", "Cảm ơn bạn. Quản trị viên sẽ xem xét máy chủ này."); }}>
               <Ionicons name="flag" size={24} color="black" /><Text style={styles.bottomSheetItemText}>Báo cáo máy chủ</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={styles.bottomSheetItem} onPress={() => {
               setServerMenuVisible(false);
               if (isOwner) { Alert.alert("Thông báo", "Bạn là chủ máy chủ, hãy dùng Cài đặt (Icon bánh răng) để Xóa máy chủ thay vì Thoát."); return; }
@@ -623,7 +623,7 @@ export default function SideMenu() {
 
              <View style={{padding: 20}}>
                 <Text style={styles.upgradeLevelsTitle}>CÁC ĐẶC QUYỀN BỔ SUNG</Text>
-                
+
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 15, paddingVertical: 10}}>
                   {/* Cấp 1 */}
                   <View style={styles.levelCard}>

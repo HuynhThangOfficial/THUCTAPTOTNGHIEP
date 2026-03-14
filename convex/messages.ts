@@ -21,6 +21,7 @@ export const addThread = mutation({
     universityId: v.optional(v.id('universities')),
     serverId: v.optional(v.id('servers')),
     parentId: v.optional(v.id('messages')),
+    allowComments: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const userId = await getCurrentUserId(ctx);
@@ -62,6 +63,7 @@ let isAnon = false;
       likeCount: 0,
       commentCount: 0,
       retweetCount: 0,
+      allowComments: args.allowComments ?? true,
       // @ts-ignore
       isAnonymous: isAnon, // Chỉ bài gốc mới được true, bình luận luôn false
     });
@@ -114,7 +116,6 @@ let isAnon = false;
         }
       }
     }
-
     return messageId;
   },
 });
@@ -661,24 +662,65 @@ export const getServerChannelsWithSubStatus = query({
 
 export const getNotifications = query({
   handler: async (ctx) => {
-    const userId = await getCurrentUserId(ctx);
-    if (!userId) return [];
-    const notifs = await ctx.db.query('notifications')
-      .withIndex('by_user', q => q.eq('userId', userId))
-      .order('desc')
-      .take(50);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
 
-    return await Promise.all(notifs.map(async (n) => {
-      const sender = n.senderId ? await ctx.db.get(n.senderId) : null;
-      let imageUrl = sender?.imageUrl;
+    const user = await ctx.db.query("users")
+      .withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) return [];
 
-      if (imageUrl && !isHttpUrl(imageUrl)) {
-        imageUrl = await ctx.storage.getUrl(imageUrl as Id<'_storage'>) || imageUrl;
-      }
-      const channel = n.channelId ? await ctx.db.get(n.channelId) : null;
-      return { ...n, sender: { ...sender, imageUrl }, channel };
-    }));
-  }
+    const notifs = await ctx.db.query("notifications")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .order("desc")
+      .take(50); // Chỉ lấy 50 thông báo gần nhất cho nhẹ
+
+    return Promise.all(
+      notifs.map(async (n) => {
+        const sender = n.senderId ? await ctx.db.get(n.senderId) : null;
+
+        let channelName = "";
+        let workspaceName = "";
+
+        // Tự động tìm tên Kênh và Tên Máy chủ / Đại học
+        if (n.channelId) {
+          const channel = await ctx.db.get(n.channelId);
+          if (channel) {
+            channelName = channel.name;
+            if (channel.serverId) {
+              const server = await ctx.db.get(channel.serverId);
+              if (server) workspaceName = server.name;
+            } else if (channel.universityId) {
+              const uni = await ctx.db.get(channel.universityId);
+              // @ts-ignore
+              if (uni) workspaceName = uni.name || uni.slug.toUpperCase();
+            }
+          }
+        }
+
+        return { ...n, sender, channelName, workspaceName };
+      })
+    );
+  },
+});
+
+export const getUnreadNotificationsCount = query({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return 0;
+
+    const user = await ctx.db.query("users")
+      .withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) return 0;
+
+    const unread = await ctx.db.query("notifications")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("isRead"), false))
+      .collect();
+
+    return unread.length;
+  },
 });
 
 export const markNotificationRead = mutation({
