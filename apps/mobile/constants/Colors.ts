@@ -1,0 +1,1 @@
+export * from '../../../packages/shared/constants/Colors'; // Hoặc đường dẫn tương ứng
