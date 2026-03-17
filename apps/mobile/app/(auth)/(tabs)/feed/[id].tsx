@@ -19,12 +19,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { Colors } from '@/constants/Colors';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
-import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
+import { useTranslation } from 'react-i18next';
 
 const Page = () => {
   const { id, highlightCommentId, source } = useLocalSearchParams();
   const sourceStr = Array.isArray(source) ? source[0] : source;
-  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
+  const { t } = useTranslation();
 
   const thread = useQuery(api.messages.getThreadById, { messageId: id as Id<'messages'> });
   const { userProfile } = useUserProfile();
@@ -40,28 +40,30 @@ const Page = () => {
     }
   }, [highlightCommentId]);
 
-  // 👇 XỬ LÝ NÚT BACK TRÊN HEADER 👇
+  // 👇 LOGIC BACK THÔNG MINH ĐÃ FIX VÒNG LẶP 👇
   const handleSmartBack = () => {
-    if (sourceStr === 'profile') {
-      router.navigate('/(auth)/(tabs)/profile');
-    } else if (sourceStr === 'notifications') {
-      router.navigate('/(auth)/(tabs)/notifications');
+    if (sourceStr === 'profile' || sourceStr === 'notifications') {
+      // 1. Nếu có thể back (nghĩa là màn hình này nằm trên stack cũ) thì back bình thường
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        // 2. Nếu bị kẹt stack (vòng lặp), dùng replace để ghi đè màn hình hiện tại
+        // bằng màn hình đích, giúp giải phóng bộ nhớ stack của Feed
+        const targetRoute = sourceStr === 'profile'
+          ? '/(auth)/(tabs)/profile'
+          : '/(auth)/(tabs)/notifications';
+        router.replace(targetRoute as any);
+      }
     } else {
       router.back();
     }
   };
 
-  // 👇 XỬ LÝ NÚT BACK VẬT LÝ TRÊN ANDROID 👇
+  // 👇 ĐỒNG BỘ NÚT BACK VẬT LÝ ANDROID 👇
   useEffect(() => {
     const onBackPress = () => {
-      if (sourceStr === 'profile') {
-        router.navigate('/(auth)/(tabs)/profile');
-        return true;
-      } else if (sourceStr === 'notifications') {
-        router.navigate('/(auth)/(tabs)/notifications');
-        return true;
-      }
-      return false;
+      handleSmartBack();
+      return true; // Chặn hành vi back mặc định của hệ thống
     };
 
     BackHandler.addEventListener('hardwareBackPress', onBackPress);
@@ -70,10 +72,9 @@ const Page = () => {
 
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>
-
       <Stack.Screen
         options={{
-          headerTitle: t('post_detail.title'), // 👈 DÙNG t()
+          headerTitle: t('post_detail.title'),
           headerShown: true,
           headerShadowVisible: false,
           headerBackTitleVisible: false,
@@ -94,7 +95,6 @@ const Page = () => {
           <ActivityIndicator style={{ marginTop: 20 }} />
         )}
 
-        {/* NẾU CHO PHÉP BÌNH LUẬN THÌ HIỆN DANH SÁCH BÌNH LUẬN, NGƯỢC LẠI HIỆN ICON KHÓA */}
         {thread?.allowComments !== false ? (
           <Comments
             threadId={id as Id<'messages'>}
@@ -111,9 +111,8 @@ const Page = () => {
         )}
       </ScrollView>
 
-      {/* CHỈ HIỆN THANH NHẬP BÌNH LUẬN Ở ĐÁY MÀN HÌNH NẾU ĐƯỢC CHO PHÉP */}
       {thread?.allowComments !== false && (
-        <>
+        <View style={{ paddingBottom: 10 }}>
           <View style={styles.border} />
           <Link href={`/(modal)/reply/${id}` as any} asChild>
             <TouchableOpacity style={styles.replyButton}>
@@ -122,13 +121,13 @@ const Page = () => {
                 style={styles.replyButtonImage}
               />
               <Text style={{ color: 'gray' }}>
-                 {t('post_detail.add_reply_to', { 
-                   name: thread?.isAnonymous ? t('post_detail.anonymous_member') : thread?.creator?.first_name 
+                 {t('post_detail.add_reply_to', {
+                   name: thread?.isAnonymous ? t('post_detail.anonymous_member') : thread?.creator?.first_name
                  })}
               </Text>
             </TouchableOpacity>
           </Link>
-        </>
+        </View>
       )}
     </View>
   );

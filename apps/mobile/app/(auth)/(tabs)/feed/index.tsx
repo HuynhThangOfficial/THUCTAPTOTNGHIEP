@@ -90,9 +90,10 @@ const Page = () => {
             {activeChannelId && (
               <TouchableOpacity onPress={() => setBellModalVisible(true)} style={styles.iconButton}>
                 <Ionicons
-                  name={(subStatus?.channelSubbed || subStatus?.serverSubbed) ? "notifications" : "notifications-outline"}
+                  // Bỏ serverSubbed đi, chỉ tin tưởng tuyệt đối vào channelSubbed
+                  name={subStatus?.channelSubbed ? "notifications" : "notifications-outline"}
                   size={26}
-                  color={(subStatus?.channelSubbed || subStatus?.serverSubbed) ? "#007aff" : "gray"}
+                  color={subStatus?.channelSubbed ? "#007aff" : "gray"}
                 />
               </TouchableOpacity>
             )}
@@ -139,20 +140,27 @@ const Page = () => {
               <View style={styles.bellMenu}>
                 <Text style={styles.modalTitle}>{t('feed.notification_settings')}</Text>
 
-                {activeChannelName !== 'đại-sảnh' && (
-                  <TouchableOpacity
-                    style={[styles.dropdownItem, subStatus?.channelSubbed && styles.dropdownItemActive]}
-                    onPress={async () => {
-                      if (activeChannelId) {
-                        try {
-                          await toggleChannel({ channelId: activeChannelId });
-                        } catch (e) {}
-                      }
-                    }}
-                  >
-                    <Text style={[styles.dropdownItemText, subStatus?.channelSubbed && styles.dropdownItemTextActive]}>{t('feed.notify_this_channel')}</Text>
-                    {subStatus?.channelSubbed && <Ionicons name="checkmark" size={18} color="#007aff" />}
-                  </TouchableOpacity>
+                {/* Nút bật/tắt thông báo cho riêng kênh hiện tại (Dùng Switch) */}
+                {activeChannelId && activeChannelName !== 'đại-sảnh' && (
+                  <View style={styles.dropdownItem}>
+                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                        <Text style={styles.dropdownItemText}>
+                          {t('feed.notify_this_channel')}
+                        </Text>
+                     </View>
+                     <Switch
+                        style={{ marginRight: -15 }}
+                        value={subStatus?.channelSubbed ?? false}
+                        onValueChange={async () => {
+                           try {
+                             await toggleChannel({ channelId: activeChannelId });
+                           } catch (error) {
+                             console.log(error);
+                           }
+                        }}
+                        trackColor={{ false: "#d3d3d3", true: "#007aff" }}
+                     />
+                  </View>
                 )}
 
                 <TouchableOpacity

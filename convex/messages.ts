@@ -945,3 +945,31 @@ export const incrementShareCount = mutation({
     });
   },
 });
+
+export const deleteNotification = mutation({
+  args: { notificationId: v.id('notifications') },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.notificationId);
+  }
+});
+
+export const deleteAllNotifications = mutation({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return;
+
+    const user = await ctx.db.query("users")
+      .withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) return;
+
+    // Tìm tất cả thông báo của user này và xóa sạch
+    const notifs = await ctx.db.query("notifications")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    for (const n of notifs) {
+      await ctx.db.delete(n._id);
+    }
+  }
+});

@@ -809,3 +809,49 @@ export const joinServer = mutation({
     return { success: true };
   }
 });
+
+// Lấy danh sách ID các kênh đang bị ẩn của user trong 1 server
+export const getHiddenChannelIds = query({
+  args: { serverId: v.optional(v.id("servers")) },
+  handler: async (ctx, args) => {
+    if (!args.serverId) return [];
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const user = await ctx.db.query("users").withIndex("byClerkId", q => q.eq("clerkId", identity.subject)).unique();
+    if (!user) return [];
+
+    const subs = await ctx.db.query("channel_subscriptions")
+      .withIndex("by_user_server", q => q.eq("userId", user._id).eq("serverId", args.serverId))
+      .collect();
+
+    // Chỉ lấy ra ID của các kênh có isHidden = true
+    return subs.filter(s => s.isHidden && s.channelId).map(s => s.channelId);
+  }
+});
+
+// Gạt công tắc (Toggle) trạng thái ẩn/hiện
+export const toggleChannelVisibility = mutation({
+  args: { channelId: v.id("channels"), serverId: v.id("servers") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("UNAUTHORIZED");
+    const user = await ctx.db.query("users").withIndex("byClerkId", q => q.eq("clerkId", identity.subject)).unique();
+    if (!user) return;
+
+    const existing = await ctx.db.query("channel_subscriptions")
+      .withIndex("by_user_channel", q => q.eq("userId", user._id).eq("channelId", args.channelId))
+      .unique();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { isHidden: !existing.isHidden });
+    } else {
+      await ctx.db.insert("channel_subscriptions", {
+        userId: user._id,
+        channelId: args.channelId,
+        serverId: args.serverId,
+        isSubscribed: true,
+        isHidden: true // Mới tạo thì cho ẩn luôn vì user vừa gạt tắt
+      });
+    }
+  }
+});

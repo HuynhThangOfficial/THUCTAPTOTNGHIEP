@@ -164,6 +164,7 @@ messages: defineTable({
     channelId: v.optional(v.id("channels")),
     serverId: v.optional(v.union(v.id('servers'), v.id('universities'))),
     isSubscribed: v.boolean(),
+    isHidden: v.optional(v.boolean()),
   })
     .index("by_user_channel", ["userId", "channelId"])
     .index("by_user_server", ["userId", "serverId"])
