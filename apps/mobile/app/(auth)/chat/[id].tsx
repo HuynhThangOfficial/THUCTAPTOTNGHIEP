@@ -11,6 +11,7 @@ import * as Clipboard from 'expo-clipboard';
 import Toast from 'react-native-root-toast';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
+import { useTranslation } from 'react-i18next';
 
 // --- CÁC HÀM TIỆN ÍCH ---
 const isHttpUrl = (url?: string | null): boolean => {
@@ -23,10 +24,9 @@ const getValidAvatar = (url?: string | null): string => {
   return 'https://www.gravatar.com/avatar/?d=mp';
 };
 
-// 👇 AVATAR MẶC ĐỊNH CHO ẨN DANH 👇
 const DEFAULT_ANON_AVATAR = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
 
-const formatLastSeen = (timestamp?: number) => {
+const formatLastSeen = (timestamp: number | undefined, t: any) => {
   if (!timestamp) return ''; 
   const now = new Date();
   const date = new Date(timestamp);
@@ -34,23 +34,23 @@ const formatLastSeen = (timestamp?: number) => {
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMins / 60);
 
-  if (diffMins <= 2) return 'Đang hoạt động';
-  if (diffMins < 60) return `Hoạt động ${diffMins} phút trước`;
+  if (diffMins <= 2) return t('chat.active_now');
+  if (diffMins < 60) return t('chat.active_mins_ago', { count: diffMins });
   
   if (diffHours < 24) {
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
-    if (date.getDate() === yesterday.getDate()) return 'Hoạt động hôm qua';
-    return `Hoạt động ${diffHours} giờ trước`;
+    if (date.getDate() === yesterday.getDate()) return t('chat.active_yesterday');
+    return t('chat.active_hours_ago', { count: diffHours });
   }
 
   const day = date.getDate().toString().padStart(2, '0');
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const year = date.getFullYear();
-  return `Hoạt động vào ${day}/${month}/${year}`;
+  return t('chat.active_date', { date: `${day}/${month}/${year}` });
 };
 
-const formatTimeDivider = (timestamp: number) => {
+const formatTimeDivider = (timestamp: number, t: any) => {
   const date = new Date(timestamp);
   const now = new Date();
   const hours = date.getHours().toString().padStart(2, '0');
@@ -61,7 +61,7 @@ const formatTimeDivider = (timestamp: number) => {
   
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  if (date.toDateString() === yesterday.toDateString()) return `Hôm qua, ${timeStr}`;
+  if (date.toDateString() === yesterday.toDateString()) return t('chat.yesterday_time', { time: timeStr });
 
   const day = date.getDate().toString().padStart(2, '0');
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -69,7 +69,7 @@ const formatTimeDivider = (timestamp: number) => {
   return `${day}/${month}/${year} ${timeStr}`;
 };
 
-const formatTimeAgo = (timestamp: number) => {
+const formatTimeAgo = (timestamp: number, t: any) => {
   const now = new Date();
   const postDate = new Date(timestamp);
   const diffMs = now.getTime() - postDate.getTime();
@@ -77,24 +77,22 @@ const formatTimeAgo = (timestamp: number) => {
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffMins < 1) return 'Vừa xong';
-  if (diffMins < 60) return `${diffMins} phút`;
-  if (diffHours < 24) return `${diffHours} giờ`;
-  if (diffDays < 7) return `${diffDays} ngày`;
+  if (diffMins < 1) return t('chat.just_now');
+  if (diffMins < 60) return t('chat.mins_short', { count: diffMins });
+  if (diffHours < 24) return t('chat.hours_short', { count: diffHours });
+  if (diffDays < 7) return t('chat.days_short', { count: diffDays });
 
   const day = postDate.getDate();
   const month = postDate.getMonth() + 1;
-  return `${day} thg ${month}`;
+  return `${day} ${t('chat.month_short')} ${month}`;
 };
 
 const EMOJIS = ['❤️', '😂', '😮', '😢', '😡', '👍'];
 
-// =================================================================
-// 🟢 COMPONENT THẺ BÀI VIẾT ĐÃ FIX LỖI LỘ TÊN ẨN DANH
-// =================================================================
 const SharedPostPreview = ({ postId }: { postId: string }) => {
   const thread = useQuery(api.messages.getThreadById, { messageId: postId as Id<'messages'> });
   const router = useRouter();
+  const { t } = useTranslation();
 
   if (thread === undefined) {
     return (
@@ -107,16 +105,15 @@ const SharedPostPreview = ({ postId }: { postId: string }) => {
   if (thread === null) {
     return (
       <View style={[styles.sharedPostPreviewCard, { paddingVertical: 20 }]}>
-        <Text style={{ fontStyle: 'italic', color: 'gray', textAlign: 'center' }}>Bài viết không còn tồn tại</Text>
+        <Text style={{ fontStyle: 'italic', color: 'gray', textAlign: 'center' }}>{t('chat.post_not_exist')}</Text>
       </View>
     );
   }
 
-  // 👇 LẤY MẶT NẠ NẾU BÀI VIẾT LÀ ẨN DANH 👇
   // @ts-ignore
   const isAnon = thread.isAnonymous === true;
   const displayAvatar = isAnon ? DEFAULT_ANON_AVATAR : getValidAvatar(thread.creator?.imageUrl);
-  const displayName = isAnon ? "Thành viên ẩn danh" : `${thread.creator?.first_name || 'Người dùng'}`;
+  const displayName = isAnon ? t('chat.anonymous_member') : `${thread.creator?.first_name || t('chat.default_user')}`;
 
   return (
     <TouchableOpacity
@@ -124,29 +121,20 @@ const SharedPostPreview = ({ postId }: { postId: string }) => {
       style={styles.sharedPostPreviewCard}
       onPress={() => router.push(`/(auth)/(tabs)/feed/${postId}` as any)}
     >
-      {/* 1. HEADER */}
       <View style={styles.sharedPostHeader}>
         <Image source={{ uri: displayAvatar }} style={styles.sharedPostAvatar} />
         <Text style={styles.sharedPostUsername}>{displayName}</Text>
-        <Text style={styles.sharedPostTime}>• {formatTimeAgo(thread._creationTime)}</Text>
+        <Text style={styles.sharedPostTime}>• {formatTimeAgo(thread._creationTime, t)}</Text>
       </View>
       
-      {/* 2. NỘI DUNG */}
       <Text style={styles.sharedPostContent} numberOfLines={3}>
         {thread.content}
       </Text>
       
-      {/* 3. DÀN 4 NÚT TƯƠNG TÁC CHUẨN THREADS */}
       <View style={styles.sharedPostStats}>
         <View style={styles.sharedStatItem}>
-          <Ionicons 
-            name={thread.isLiked ? "heart" : "heart-outline"} 
-            size={15} 
-            color={thread.isLiked ? "red" : "gray"} 
-          />
-          <Text style={[styles.sharedStatText, thread.isLiked && { color: "red" }]}>
-            {thread.likeCount || 0}
-          </Text>
+          <Ionicons name={thread.isLiked ? "heart" : "heart-outline"} size={15} color={thread.isLiked ? "red" : "gray"} />
+          <Text style={[styles.sharedStatText, thread.isLiked && { color: "red" }]}>{thread.likeCount || 0}</Text>
         </View>
         
         <View style={styles.sharedStatItem}>
@@ -155,19 +143,12 @@ const SharedPostPreview = ({ postId }: { postId: string }) => {
         </View>
         
         <View style={styles.sharedStatItem}>
-          <Ionicons 
-            name={thread.isReposted ? "repeat" : "repeat-outline"} 
-            size={17} 
-            color={thread.isReposted ? "#00BA7C" : "gray"} 
-          />
-          <Text style={[styles.sharedStatText, thread.isReposted && { color: "#00BA7C" }]}>
-            {thread.retweetCount || 0}
-          </Text>
+          <Ionicons name={thread.isReposted ? "repeat" : "repeat-outline"} size={17} color={thread.isReposted ? "#00BA7C" : "gray"} />
+          <Text style={[styles.sharedStatText, thread.isReposted && { color: "#00BA7C" }]}>{thread.retweetCount || 0}</Text>
         </View>
         
         <View style={styles.sharedStatItem}>
           <Feather name="send" size={14} color="gray" />
-          {/* @ts-ignore */}
           <Text style={styles.sharedStatText}>{thread.shareCount || 0}</Text>
         </View>
       </View>
@@ -175,15 +156,12 @@ const SharedPostPreview = ({ postId }: { postId: string }) => {
   );
 };
 
-
-// =================================================================
-// 🟢 MÀN HÌNH CHÍNH (CHAT ROOM)
-// =================================================================
 const ChatRoom = () => {
   const { id } = useLocalSearchParams(); 
   const { userProfile } = useUserProfile();
   const router = useRouter();
   const { top, bottom } = useSafeAreaInsets();
+  const { t } = useTranslation();
   
   const [text, setText] = useState('');
   const [replyingTo, setReplyingTo] = useState<any>(null);
@@ -261,7 +239,7 @@ const ChatRoom = () => {
       setIsGalleryVisible(false); setIsUploading(true);
       try {
         const storageId = await uploadSingleImage(result.assets[0].uri);
-        await send({ conversationId: id as Id<'conversations'>, content: 'Hình ảnh', imageId: storageId, replyToMessageId: replyingTo?._id });
+        await send({ conversationId: id as Id<'conversations'>, content: t('chat.image_label'), imageId: storageId, replyToMessageId: replyingTo?._id });
         setReplyingTo(null);
       } catch (error) {} finally { setIsUploading(false); }
     }
@@ -274,7 +252,7 @@ const ChatRoom = () => {
     try {
       for (const uri of photosToSend) {
         const storageId = await uploadSingleImage(uri);
-        await send({ conversationId: id as Id<'conversations'>, content: 'Hình ảnh', imageId: storageId, replyToMessageId: replyingTo?._id });
+        await send({ conversationId: id as Id<'conversations'>, content: t('chat.image_label'), imageId: storageId, replyToMessageId: replyingTo?._id });
       }
       setReplyingTo(null);
     } catch (error) {} finally { setIsUploading(false); }
@@ -304,9 +282,9 @@ const ChatRoom = () => {
     if (!activeMessage) return;
     switch (action) {
       case 'reply': setReplyingTo(activeMessage); closeActionMenu(); break;
-      case 'copy': await Clipboard.setStringAsync(activeMessage.content); Toast.show('Đã sao chép'); closeActionMenu(); break;
+      case 'copy': await Clipboard.setStringAsync(activeMessage.content); Toast.show(t('chat.copied')); closeActionMenu(); break;
       case 'pin': await togglePin({ messageId: activeMessage._id, conversationId: id as Id<'conversations'> }); closeActionMenu(); break;
-      case 'report': Alert.alert('Báo cáo', 'Đã gửi báo cáo.'); closeActionMenu(); break;
+      case 'report': Alert.alert(t('chat.report_title'), t('chat.report_sent')); closeActionMenu(); break;
       case 'delete': if (isMeActive) setMenuStep('delete'); break;
     }
   };
@@ -336,10 +314,10 @@ const ChatRoom = () => {
             <Image source={{ uri: getValidAvatar(otherUser.imageUrl) }} style={styles.headerAvatar} />
             <View style={styles.headerTextContainer}>
               <Text style={styles.headerName}>{otherUser.first_name} {otherUser.last_name}</Text>
-              <Text style={styles.statusText}>{formatLastSeen(otherUser.lastSeen)}</Text>
+              <Text style={styles.statusText}>{formatLastSeen(otherUser.lastSeen, t)}</Text>
             </View>
           </View>
-        ) : <Text style={styles.headerName}>Đang tải...</Text>}
+        ) : <Text style={styles.headerName}>{t('chat.loading')}</Text>}
       </View>
 
       {pinnedMessages.length > 0 && (
@@ -347,7 +325,7 @@ const ChatRoom = () => {
           {isPinnedExpanded ? (
             <View style={styles.expandedPinnedList}>
               <View style={styles.expandedHeader}>
-                <Text style={styles.expandedTitle}>Đã ghim ({pinnedMessages.length})</Text>
+                <Text style={styles.expandedTitle}>{t('chat.pinned_count', { count: pinnedMessages.length })}</Text>
                 <TouchableOpacity onPress={() => setIsPinnedExpanded(false)} style={styles.collapseBtn}>
                   <Ionicons name="chevron-up" size={20} color="#555" />
                 </TouchableOpacity>
@@ -355,7 +333,7 @@ const ChatRoom = () => {
               {pinnedMessages.slice().reverse().map(pm => (
                 <TouchableOpacity key={pm._id} onPress={() => scrollToMessage(pm._id)} style={styles.expandedPinnedItem}>
                   <Ionicons name="pin" size={16} color="#888" style={{ marginRight: 10 }} />
-                  <Text numberOfLines={1} style={styles.expandedPinnedContent}>{pm.imageUrl ? '[Hình ảnh]' : pm.content}</Text>
+                  <Text numberOfLines={1} style={styles.expandedPinnedContent}>{pm.imageUrl ? t('chat.image_bracket') : pm.content}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -363,7 +341,7 @@ const ChatRoom = () => {
             <TouchableOpacity style={styles.pinnedBannerContainer} activeOpacity={0.8} onPress={() => pinnedMessages.length > 1 ? setIsPinnedExpanded(true) : scrollToMessage(pinnedMessages[0]._id)}>
               <View style={styles.pinnedIconBg}><Ionicons name="pin" size={14} color="#000" /></View>
               <View style={styles.pinnedTextContainer}>
-                <Text style={styles.pinnedContentSimple} numberOfLines={1}>{pinnedMessages[pinnedMessages.length - 1].imageUrl ? '[Hình ảnh]' : pinnedMessages[pinnedMessages.length - 1].content}</Text>
+                <Text style={styles.pinnedContentSimple} numberOfLines={1}>{pinnedMessages[pinnedMessages.length - 1].imageUrl ? t('chat.image_bracket') : pinnedMessages[pinnedMessages.length - 1].content}</Text>
               </View>
               {pinnedMessages.length > 1 && <Ionicons name="chevron-down" size={20} color="#888" />}
             </TouchableOpacity>
@@ -390,20 +368,27 @@ const ChatRoom = () => {
             const isFirstInGroup = !olderItem || olderItem.senderId !== item.senderId || (item._creationTime - olderItem._creationTime > 120000) || showTimeDivider;
             const isLastInGroup = !newerItem || newerItem.senderId !== item.senderId || (newerItem._creationTime - item._creationTime > 120000);
 
-            // KIỂM TRA LINK CHIA SẺ
             const isSharedPost = item.content && item.content.trim().startsWith('https://konket.app/feed/');
             const postId = isSharedPost ? item.content.trim().split('/').pop() : null;
 
+            // 👇 LOGIC DỊCH TIN NHẮN HỆ THỐNG TỪ BACKEND
             if (item.isSystem) {
+              let sysText = item.content;
+              if (item.content.startsWith('SYS_PINNED|')) {
+                sysText = t('chat.sys_pinned', { name: item.content.split('|')[1] });
+              } else if (item.content.startsWith('SYS_UNPINNED|')) {
+                sysText = t('chat.sys_unpinned', { name: item.content.split('|')[1] });
+              }
+
               return (
                   <>
                     {showTimeDivider && (
                       <View style={styles.timeDividerContainer}>
-                        <Text style={styles.timeDividerText}>{formatTimeDivider(item._creationTime)}</Text>
+                        <Text style={styles.timeDividerText}>{formatTimeDivider(item._creationTime, t)}</Text>
                       </View>
                     )}
                     <View style={styles.systemMessageContainer}>
-                        <Text style={styles.systemMessageText}>{item.content}</Text>
+                        <Text style={styles.systemMessageText}>{sysText}</Text>
                     </View>
                   </>
               );
@@ -419,7 +404,7 @@ const ChatRoom = () => {
               <>
                 {showTimeDivider && (
                   <View style={styles.timeDividerContainer}>
-                    <Text style={styles.timeDividerText}>{formatTimeDivider(item._creationTime)}</Text>
+                    <Text style={styles.timeDividerText}>{formatTimeDivider(item._creationTime, t)}</Text>
                   </View>
                 )}
 
@@ -432,7 +417,7 @@ const ChatRoom = () => {
                   
                   {item.isPinned && !item.isDeleted && (
                     <View style={[styles.pinnedBubbleIndicator, isMe ? { marginRight: 5 } : { marginLeft: 5 }]}>
-                      <Text style={styles.pinnedBubbleText}>Đã ghim</Text>
+                      <Text style={styles.pinnedBubbleText}>{t('chat.pinned_badge')}</Text>
                       <Ionicons name="pin" size={12} color="#888" style={{marginLeft: 2, transform: [{rotate: '45deg'}]}} />
                     </View>
                   )}
@@ -454,12 +439,11 @@ const ChatRoom = () => {
                       {repliedMsg && !item.isDeleted && (
                         <View style={[styles.replyBoxInside, isMe ? { backgroundColor: 'rgba(255,255,255,0.2)' } : { backgroundColor: 'rgba(0,0,0,0.05)' }]}>
                           <Text style={[styles.replyTextInside, isMe ? { color: '#eee' } : { color: '#555' }]} numberOfLines={2}>
-                            {repliedMsg.isDeleted ? "Tin nhắn đã bị thu hồi" : (repliedMsg.imageUrl ? "[Hình ảnh]" : repliedMsg.content)}
+                            {repliedMsg.isDeleted ? t('chat.msg_recalled') : (repliedMsg.imageUrl ? t('chat.image_bracket') : repliedMsg.content)}
                           </Text>
                         </View>
                       )}
 
-                      {/* 👇 RENDER THẺ BÀI VIẾT NẾU CÓ LINK 👇 */}
                       {isSharedPost && !item.isDeleted && postId ? (
                         <SharedPostPreview postId={postId} />
                       ) : item.imageUrl && !item.isDeleted ? (
@@ -488,21 +472,21 @@ const ChatRoom = () => {
 
                   {isMe && isLastOverallMessage && (
                     <Text style={[styles.messageStatusText, hasReactions && { marginTop: 12 }]}>
-                      {item.status === 'read' ? 'Đã xem' : item.status === 'delivered' ? 'Đã nhận' : 'Đã gửi'}
+                      {item.status === 'read' ? t('chat.status_read') : item.status === 'delivered' ? t('chat.status_delivered') : t('chat.status_sent')}
                     </Text>
                   )}
                 </View>
               </>
             );
           }}
-          ListHeaderComponent={() => isOtherPersonTyping ? <View style={styles.typingIndicatorContainer}><Text style={styles.typingText}>Đang nhập...</Text></View> : null}
+          ListHeaderComponent={() => isOtherPersonTyping ? <View style={styles.typingIndicatorContainer}><Text style={styles.typingText}>{t('chat.typing')}</Text></View> : null}
         />
 
         {replyingTo && (
           <View style={styles.replyBanner}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, color: '#007aff', fontWeight: 'bold' }}>Đang trả lời</Text>
-              <Text style={{ fontSize: 14, color: '#555' }} numberOfLines={1}>{replyingTo.isDeleted ? "Tin nhắn đã bị thu hồi" : (replyingTo.imageUrl ? "[Hình ảnh]" : replyingTo.content)}</Text>
+              <Text style={{ fontSize: 12, color: '#007aff', fontWeight: 'bold' }}>{t('chat.replying_to')}</Text>
+              <Text style={{ fontSize: 14, color: '#555' }} numberOfLines={1}>{replyingTo.isDeleted ? t('chat.msg_recalled') : (replyingTo.imageUrl ? t('chat.image_bracket') : replyingTo.content)}</Text>
             </View>
             <TouchableOpacity onPress={() => setReplyingTo(null)} style={{ padding: 5 }}><Ionicons name="close-circle" size={24} color="#888" /></TouchableOpacity>
           </View>
@@ -511,7 +495,7 @@ const ChatRoom = () => {
         {!isGalleryVisible && (
           <View style={styles.inputContainer}>
             <TouchableOpacity style={styles.attachBtn} onPress={toggleGallery}><Ionicons name="image-outline" size={28} color="#007aff" /></TouchableOpacity>
-            <TextInput style={styles.input} placeholder="Nhập tin nhắn..." value={text} onChangeText={handleTextChange} onFocus={() => setIsGalleryVisible(false)} multiline />
+            <TextInput style={styles.input} placeholder={t('chat.input_placeholder')} value={text} onChangeText={handleTextChange} onFocus={() => setIsGalleryVisible(false)} multiline />
             <TouchableOpacity style={styles.sendBtn} onPress={handleSend}><Ionicons name="send" size={18} color="#fff" style={{ marginLeft: 2 }} /></TouchableOpacity>
           </View>
         )}
@@ -520,7 +504,7 @@ const ChatRoom = () => {
           <View style={styles.galleryContainer}>
             <View style={styles.galleryHeader}>
               <TouchableOpacity onPress={() => setIsGalleryVisible(false)} style={{ padding: 5 }}><Ionicons name="close" size={24} color="#555" /></TouchableOpacity>
-              <Text style={{ fontWeight: 'bold', fontSize: 16 }}>Chọn ảnh ({selectedPhotos.length})</Text>
+              <Text style={{ fontWeight: 'bold', fontSize: 16 }}>{t('chat.select_photo_count', { count: selectedPhotos.length })}</Text>
               <TouchableOpacity onPress={handleSendSelectedImages} disabled={selectedPhotos.length === 0} style={{ padding: 5 }}>
                 <Ionicons name="send" size={24} color={selectedPhotos.length > 0 ? '#007aff' : '#ccc'} />
               </TouchableOpacity>
@@ -531,7 +515,7 @@ const ChatRoom = () => {
               keyExtractor={(item) => item.id}
               showsVerticalScrollIndicator={false}
               renderItem={({ item }) => {
-                if (item.id === 'camera') return <TouchableOpacity style={styles.galleryCameraBtn} onPress={handleTakeAndSendPhoto}><Ionicons name="camera" size={32} color="#555" /><Text style={{ color: '#555', marginTop: 5, fontSize: 12 }}>Chụp ảnh</Text></TouchableOpacity>;
+                if (item.id === 'camera') return <TouchableOpacity style={styles.galleryCameraBtn} onPress={handleTakeAndSendPhoto}><Ionicons name="camera" size={32} color="#555" /><Text style={{ color: '#555', marginTop: 5, fontSize: 12 }}>{t('chat.take_photo')}</Text></TouchableOpacity>;
                 const asset = item as MediaLibrary.Asset;
                 const isSelected = selectedPhotos.indexOf(asset.uri);
                 return (
@@ -550,7 +534,7 @@ const ChatRoom = () => {
       {isUploading && (
         <View style={styles.uploadingOverlay}>
           <ActivityIndicator size="large" color="#007aff" />
-          <Text style={{ color: '#007aff', marginTop: 10, fontWeight: 'bold' }}>Đang gửi ảnh...</Text>
+          <Text style={{ color: '#007aff', marginTop: 10, fontWeight: 'bold' }}>{t('chat.sending_image')}</Text>
         </View>
       )}
 
@@ -575,11 +559,11 @@ const ChatRoom = () => {
                 {activeMessage.imageUrl ? <Image source={{ uri: activeMessage.imageUrl }} style={{ width: 150, height: 200, borderRadius: 14 }} resizeMode="cover" /> : <Text style={{ color: isMeActive ? '#fff' : '#000', fontSize: 15 }}>{activeMessage.content}</Text>}
               </View>
               <View style={styles.actionList}>
-                <TouchableOpacity style={styles.actionItem} onPress={() => handleAction('reply')}><Text style={styles.actionText}>Trả lời</Text><Ionicons name="arrow-undo" size={20} color="#000" /></TouchableOpacity>
+                <TouchableOpacity style={styles.actionItem} onPress={() => handleAction('reply')}><Text style={styles.actionText}>{t('chat.action_reply')}</Text><Ionicons name="arrow-undo" size={20} color="#000" /></TouchableOpacity>
                 <View style={styles.dividerHorizontal} />
-                {!activeMessage.imageUrl && <><TouchableOpacity style={styles.actionItem} onPress={() => handleAction('copy')}><Text style={styles.actionText}>Sao chép</Text><Ionicons name="copy" size={20} color="#000" /></TouchableOpacity><View style={styles.dividerHorizontal} /></>}
-                <TouchableOpacity style={styles.actionItem} onPress={() => handleAction('pin')}><Text style={styles.actionText}>{activeMessage.isPinned ? 'Bỏ ghim' : 'Ghim'}</Text><Ionicons name={activeMessage.isPinned ? "bookmark" : "bookmark-outline"} size={20} color="#000" /></TouchableOpacity>
-                {isMeActive ? <><View style={styles.dividerHorizontal} /><TouchableOpacity style={styles.actionItem} onPress={() => handleAction('delete')}><Text style={[styles.actionText, { color: 'red' }]}>Xóa</Text><Ionicons name="trash-outline" size={20} color="red" /></TouchableOpacity></> : <><View style={styles.dividerHorizontal} /><TouchableOpacity style={styles.actionItem} onPress={() => handleAction('report')}><Text style={[styles.actionText, { color: 'red' }]}>Báo cáo</Text><Ionicons name="warning-outline" size={20} color="red" /></TouchableOpacity></>}
+                {!activeMessage.imageUrl && <><TouchableOpacity style={styles.actionItem} onPress={() => handleAction('copy')}><Text style={styles.actionText}>{t('chat.action_copy')}</Text><Ionicons name="copy" size={20} color="#000" /></TouchableOpacity><View style={styles.dividerHorizontal} /></>}
+                <TouchableOpacity style={styles.actionItem} onPress={() => handleAction('pin')}><Text style={styles.actionText}>{activeMessage.isPinned ? t('chat.action_unpin') : t('chat.action_pin')}</Text><Ionicons name={activeMessage.isPinned ? "bookmark" : "bookmark-outline"} size={20} color="#000" /></TouchableOpacity>
+                {isMeActive ? <><View style={styles.dividerHorizontal} /><TouchableOpacity style={styles.actionItem} onPress={() => handleAction('delete')}><Text style={[styles.actionText, { color: 'red' }]}>{t('chat.action_delete')}</Text><Ionicons name="trash-outline" size={20} color="red" /></TouchableOpacity></> : <><View style={styles.dividerHorizontal} /><TouchableOpacity style={styles.actionItem} onPress={() => handleAction('report')}><Text style={[styles.actionText, { color: 'red' }]}>{t('chat.action_report')}</Text><Ionicons name="warning-outline" size={20} color="red" /></TouchableOpacity></>}
               </View>
             </View>
           </TouchableOpacity>
@@ -590,11 +574,11 @@ const ChatRoom = () => {
         <Modal transparent animationType="slide" visible={true} onRequestClose={() => setMenuStep('main')}>
           <TouchableOpacity style={[styles.modalOverlay, { justifyContent: 'flex-end', paddingBottom: bottom + 20 }]} activeOpacity={1} onPress={() => setMenuStep('main')}>
             <View style={styles.deleteMenuContainer}>
-              <TouchableOpacity style={styles.deleteMenuItem} onPress={handleDeleteForAll}><Text style={[styles.deleteText, { color: 'red' }]}>Xóa đối với mọi người</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.deleteMenuItem} onPress={handleDeleteForAll}><Text style={[styles.deleteText, { color: 'red' }]}>{t('chat.delete_for_all')}</Text></TouchableOpacity>
               <View style={styles.dividerHorizontalFull} />
-              <TouchableOpacity style={styles.deleteMenuItem} onPress={handleDeleteForSelf}><Text style={[styles.deleteText, { color: 'red' }]}>Xóa ở phía bạn</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.deleteMenuItem} onPress={handleDeleteForSelf}><Text style={[styles.deleteText, { color: 'red' }]}>{t('chat.delete_for_self')}</Text></TouchableOpacity>
             </View>
-            <TouchableOpacity style={[styles.deleteMenuContainer, { marginTop: 10 }]} onPress={closeActionMenu}><View style={styles.deleteMenuItem}><Text style={styles.deleteTextBold}>Hủy</Text></View></TouchableOpacity>
+            <TouchableOpacity style={[styles.deleteMenuContainer, { marginTop: 10 }]} onPress={closeActionMenu}><View style={styles.deleteMenuItem}><Text style={styles.deleteTextBold}>{t('chat.cancel')}</Text></View></TouchableOpacity>
           </TouchableOpacity>
         </Modal>
       )}
@@ -602,6 +586,7 @@ const ChatRoom = () => {
   );
 };
 
+// ... Các style phía dưới giữ nguyên không đổi ...
 const styles = StyleSheet.create({
   timeDividerContainer: { alignItems: 'center', marginVertical: 15 },
   timeDividerText: { fontSize: 12, color: '#888', fontWeight: '500' },
@@ -633,17 +618,13 @@ const styles = StyleSheet.create({
   myBubble: { backgroundColor: '#007aff' }, 
   theirBubble: { backgroundColor: '#f0f0f0', borderWidth: 0 },
   deletedBubble: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#ccc', elevation: 0, shadowOpacity: 0 }, 
-  
-  // ==========================================
-  // 👇 CSS CHUẨN CHO THẺ BÀI VIẾT (THREADS) 👇
-  // ==========================================
   sharedPostPreviewCard: {
-    backgroundColor: '#fff', // Màu trắng cho sạch
+    backgroundColor: '#fff', 
     borderRadius: 16,
     padding: 14,
     width: 280,
     borderWidth: 1,
-    borderColor: '#eee', // Viền xám rất nhạt
+    borderColor: '#eee', 
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -694,7 +675,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: 'gray'
   },
-
   miniReactIcon: { position: 'absolute', bottom: 5, padding: 5 },
   replyBoxInside: { borderRadius: 8, padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#007aff' },
   replyTextInside: { fontSize: 13 },

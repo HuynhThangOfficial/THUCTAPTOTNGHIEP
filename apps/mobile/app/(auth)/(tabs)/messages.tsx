@@ -9,41 +9,11 @@ import { Ionicons, Feather, FontAwesome6 } from '@expo/vector-icons';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import * as ImagePicker from 'expo-image-picker';
 import { isHttpUrl } from '@/convex/utils';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT
 
 const getValidAvatar = (url?: string | null): string => {
   if (isHttpUrl(url)) return url as string;
   return 'https://www.gravatar.com/avatar/?d=mp'; 
-};
-
-const formatTimeShort = (timestamp?: number) => {
-  if (!timestamp) return '';
-  const diffMs = Date.now() - timestamp;
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return 'Vừa xong';
-  if (diffMins < 60) return `${diffMins} phút`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours} giờ`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays} ngày`;
-};
-
-const formatTimeAgo = (timestamp?: number) => {
-  if (!timestamp) return '';
-  const diffMs = Date.now() - timestamp;
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return 'Vừa xong';
-  if (diffMins < 60) return `${diffMins} phút`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours} giờ`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays} ngày`;
-};
-
-const getRemainingHours = (expiresAt?: number) => {
-    if (!expiresAt) return 0;
-    const diffMs = expiresAt - Date.now();
-    const diffHours = Math.ceil(diffMs / 3600000);
-    return diffHours > 0 ? diffHours : 0;
 };
 
 interface NoteItem { _id: Id<"notes">; _creationTime: number; userId: Id<"users">; content: string; expiresAt: number; privacy?: string; user: any; }
@@ -52,7 +22,28 @@ interface StoryItem { _id: Id<"stories">; _creationTime: number; userId: Id<"use
 const MessagesScreen = () => {
   const router = useRouter();
   const { userProfile } = useUserProfile();
+  const { t } = useTranslation(); // 👈 HOOK
   
+  // Helpers format thời gian dùng i18n
+  const formatTimeShort = (timestamp?: number) => {
+    if (!timestamp) return '';
+    const diffMs = Date.now() - timestamp;
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return t('messages.time.just_now');
+    if (diffMins < 60) return t('messages.time.mins', { count: diffMins });
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return t('messages.time.hours', { count: diffHours });
+    const diffDays = Math.floor(diffHours / 24);
+    return t('messages.time.days', { count: diffDays });
+  };
+
+  const getRemainingHours = (expiresAt?: number) => {
+      if (!expiresAt) return 0;
+      const diffMs = expiresAt - Date.now();
+      const diffHours = Math.ceil(diffMs / 3600000);
+      return diffHours > 0 ? diffHours : 0;
+  };
+
   const inbox = useQuery(api.chat.getInbox);
   
   // @ts-ignore
@@ -73,20 +64,17 @@ const MessagesScreen = () => {
   const hasStory = myDbStories.length > 0;
   const friendsNotes = allNotes.filter((n: NoteItem) => n.userId !== userProfile?._id);
 
-  // --- STATES ---
   const [inputText, setInputText] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  
   const [isNoteModalVisible, setIsNoteModalVisible] = useState(false); 
   const [isSettingsVisible, setIsSettingsVisible] = useState(false); 
   const [viewingNote, setViewingNote] = useState<NoteItem | null>(null);
 
-  const [tempPrivacy, setTempPrivacy] = useState('Công khai');
+  const [tempPrivacy, setTempPrivacy] = useState(t('messages.privacy_public'));
   const [tempDuration, setTempDuration] = useState(24);
-  const [selectedPrivacy, setSelectedPrivacy] = useState('Công khai');
+  const [selectedPrivacy, setSelectedPrivacy] = useState(t('messages.privacy_public'));
   const [selectedDuration, setSelectedDuration] = useState(24);
 
-  // --- LOGIC GHI CHÚ ---
   const handleOpenNoteModal = () => {
     setInputText(myDbNote?.content || '');
     if (myDbNote?.privacy) setSelectedPrivacy(myDbNote.privacy);
@@ -118,21 +106,14 @@ const MessagesScreen = () => {
     setIsSettingsVisible(false);
   };
 
-  // --- LOGIC STORY ---
-  const handleViewMyStory = () => {
-    Alert.alert("Story của bạn", "Tính năng xem Story chi tiết sẽ được phát triển ở phần sau!");
-  };
-
   const handlePostStory = async () => {
     if (!userProfile) return;
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permissionResult.granted === false) {
-      Alert.alert("Lỗi", "Bạn cần cấp quyền truy cập Thư viện ảnh để đăng Story.");
+      Alert.alert("Error", "Library access required.");
       return;
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.All, quality: 0.7 });
-
     if (!result.canceled) {
       setIsUploading(true);
       try {
@@ -143,10 +124,9 @@ const MessagesScreen = () => {
         const blob = await response.blob();
         const uploadResult = await fetch(postUrl, { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob });
         const { storageId } = await uploadResult.json();
-
         await createStory({ userId: userProfile._id as Id<"users">, mediaUrl: storageId, mediaType: type });
       } catch (error) {
-        Alert.alert("Lỗi", "Đăng Story thất bại.");
+        Alert.alert("Error", "Failed to post story.");
       } finally {
         setIsUploading(false);
       }
@@ -158,43 +138,35 @@ const MessagesScreen = () => {
       <View style={styles.headerWrapper}>
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color="#8e8e93" />
-          <TextInput style={styles.searchInput} placeholder="Tìm kiếm" placeholderTextColor="#8e8e93" />
+          <TextInput style={styles.searchInput} placeholder={t('messages.search_placeholder')} placeholderTextColor="#8e8e93" />
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.notesContainer}>
-          
           <View style={styles.noteItem}>
             <View style={styles.avatarContainer}>
-              {/* AVATAR: CÓ STORY -> XEM, CHƯA CÓ -> TẠO MỚI */}
-              <TouchableOpacity onPress={hasStory ? handleViewMyStory : handlePostStory} activeOpacity={0.8} style={[styles.storyRing, hasStory && styles.storyRingActive]}>
+              <TouchableOpacity onPress={hasStory ? () => {} : handlePostStory} activeOpacity={0.8} style={[styles.storyRing, hasStory && styles.storyRingActive]}>
                 <Image source={{ uri: getValidAvatar(userProfile?.imageUrl) }} style={styles.noteAvatar} />
               </TouchableOpacity>
-
-              {/* DẤU CỘNG (+): LUÔN LÀ TẠO STORY MỚI BẤT KỂ ĐÃ CÓ HAY CHƯA */}
               <TouchableOpacity style={styles.addNoteBadge} onPress={handlePostStory} activeOpacity={0.8}>
                 <Ionicons name="add" size={14} color="#fff" />
               </TouchableOpacity>
-
-              {/* BONG BÓNG GHI CHÚ: CÓ GHI CHÚ -> XEM CHI TIẾT. CHƯA CÓ -> MỞ MODAL NHẬP */}
               <TouchableOpacity style={styles.noteBubbleWrapper} onPress={() => {
                   if (myDbNote) setViewingNote(myDbNote);
                   else handleOpenNoteModal();
               }} activeOpacity={0.8}>
                 <View style={styles.noteBubble}>
                   <Text style={[styles.noteBubbleText, !myDbNote && { color: '#8e8e93' }]} numberOfLines={2}>
-                    {myDbNote ? myDbNote.content : "Ghi chú..."}
+                    {myDbNote ? myDbNote.content : t('messages.note_placeholder')}
                   </Text>
                 </View>
               </TouchableOpacity>
             </View>
-            <Text style={styles.noteName} numberOfLines={1}>Tin của bạn</Text>
-            
+            <Text style={styles.noteName} numberOfLines={1}>{t('messages.your_story')}</Text>
             {(myDbNote || hasStory) && (
-               <Text style={styles.elapsedTimeText}>{formatTimeAgo(myDbNote?._creationTime || myDbStories[0]?._creationTime)}</Text>
+               <Text style={styles.elapsedTimeText}>{formatTimeShort(myDbNote?._creationTime || myDbStories[0]?._creationTime)}</Text>
             )}
           </View>
 
-          {/* GHI CHÚ BẠN BÈ */}
           {friendsNotes.map((note: NoteItem) => (
             <View key={note._id} style={styles.noteItem}>
               <View style={styles.avatarContainer}>
@@ -210,13 +182,13 @@ const MessagesScreen = () => {
                 )}
               </View>
               <Text style={styles.noteName} numberOfLines={1}>{note.user?.first_name || 'User'}</Text>
-              <Text style={styles.elapsedTimeText}>{formatTimeAgo(note._creationTime)}</Text>
+              <Text style={styles.elapsedTimeText}>{formatTimeShort(note._creationTime)}</Text>
             </View>
           ))}
         </ScrollView>
         <View style={styles.tabsContainer}>
-          <Text style={styles.tabActive}>Tin nhắn</Text>
-          <Text style={styles.tabInactive}>Tin nhắn đang chờ</Text>
+          <Text style={styles.tabActive}>{t('messages.tab_messages')}</Text>
+          <Text style={styles.tabInactive}>{t('messages.tab_requests')}</Text>
         </View>
       </View>
     );
@@ -224,11 +196,10 @@ const MessagesScreen = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* HEADER CHÍNH */}
       <View style={styles.header}>
         <View style={styles.spacer} /> 
         <TouchableOpacity style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>{userProfile?.username || 'Đang tải...'}</Text>
+          <Text style={styles.headerTitle}>{userProfile?.username || t('messages.loading')}</Text>
           <Ionicons name="chevron-down" size={18} color="#000" style={styles.chevronIcon} />
         </TouchableOpacity>
         <TouchableOpacity><FontAwesome6 name="pen-to-square" size={24} color="#000" /></TouchableOpacity>
@@ -240,16 +211,16 @@ const MessagesScreen = () => {
         ListHeaderComponent={ListHeader}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>Chưa có tin nhắn nào.</Text></View>}
+        ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>{t('messages.empty_messages')}</Text></View>}
         renderItem={({ item }) => {
           const otherUser = item.otherUser;
           return (
             <TouchableOpacity style={styles.chatRow} onPress={() => router.push(`/(auth)/chat/${item._id}` as any)}>
               <Image source={{ uri: getValidAvatar(otherUser?.imageUrl) }} style={styles.chatAvatar} />
               <View style={styles.chatInfo}>
-                <Text style={styles.chatName}>{otherUser ? `${otherUser.first_name} ${otherUser.last_name}` : 'Người dùng'}</Text>
+                <Text style={styles.chatName}>{otherUser ? `${otherUser.first_name} ${otherUser.last_name}` : 'User'}</Text>
                 <View style={styles.messageRow}>
-                  <Text style={styles.lastMessage} numberOfLines={1}>{item.lastMessageText || 'Đã gửi một tin nhắn'}</Text>
+                  <Text style={styles.lastMessage} numberOfLines={1}>{item.lastMessageText || t('messages.sent_a_message')}</Text>
                   <Text style={styles.dot}> · </Text>
                   <Text style={styles.timeText}>{formatTimeShort(item.updatedAt)}</Text>
                 </View>
@@ -263,78 +234,61 @@ const MessagesScreen = () => {
       {isUploading && (
         <View style={styles.uploadingOverlay}>
           <ActivityIndicator size="large" color="#007aff" />
-          <Text style={{ color: '#007aff', marginTop: 10, fontWeight: 'bold' }}>Đang tải Story lên...</Text>
+          <Text style={{ color: '#007aff', marginTop: 10, fontWeight: 'bold' }}>{t('messages.uploading_story')}</Text>
         </View>
       )}
 
-      {/* =========================================
-          MODAL 1: TẠO GHI CHÚ MỚI
-      ========================================== */}
-      <Modal visible={isNoteModalVisible} transparent animationType="fade" onRequestClose={() => setIsNoteModalVisible(false)}>
+      {/* MODAL 1: NEW NOTE */}
+      <Modal visible={isNoteModalVisible} transparent animationType="fade">
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalContent}>
-              
               <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={() => setIsNoteModalVisible(false)}><Text style={styles.modalCancelText}>Hủy</Text></TouchableOpacity>
-                <Text style={styles.modalTitle}>Ghi chú mới</Text>
-                <TouchableOpacity onPress={handleShareNote}><Text style={[styles.modalShareText, inputText.trim() === '' && { color: '#A0C4FF' }]}>Chia sẻ</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setIsNoteModalVisible(false)}><Text style={styles.modalCancelText}>{t('messages.cancel')}</Text></TouchableOpacity>
+                <Text style={styles.modalTitle}>{t('messages.new_note_title')}</Text>
+                <TouchableOpacity onPress={handleShareNote}><Text style={[styles.modalShareText, inputText.trim() === '' && { color: '#A0C4FF' }]}>{t('messages.share')}</Text></TouchableOpacity>
               </View>
-
               <View style={styles.modalBody}>
                 <View style={styles.modalAvatarContainer}>
                   <Image source={{ uri: getValidAvatar(userProfile?.imageUrl) }} style={styles.modalAvatar} />
                   <View style={styles.modalInputBubble}>
-                    <TextInput style={styles.modalInput} placeholder="Chia sẻ suy nghĩ..." placeholderTextColor="#8e8e93" value={inputText} onChangeText={setInputText} maxLength={60} autoFocus multiline />
+                    <TextInput style={styles.modalInput} placeholder={t('messages.share_thoughts')} placeholderTextColor="#8e8e93" value={inputText} onChangeText={setInputText} maxLength={60} autoFocus multiline />
                   </View>
                 </View>
-
-                {/* NÚT MỞ CÀI ĐẶT GHI CHÚ */}
-                <TouchableOpacity style={styles.settingsTriggerBtn} onPress={() => {
-                  setTempPrivacy(selectedPrivacy);
-                  setTempDuration(selectedDuration);
-                  setIsSettingsVisible(true);
-                }}>
+                <TouchableOpacity style={styles.settingsTriggerBtn} onPress={() => setIsSettingsVisible(true)}>
                     <Ionicons name="settings-outline" size={16} color="#555" />
-                    <Text style={styles.settingsTriggerText}>Cài đặt ghi chú</Text>
+                    <Text style={styles.settingsTriggerText}>{t('messages.note_settings')}</Text>
                 </TouchableOpacity>
               </View>
-
             </KeyboardAvoidingView>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* =========================================
-          MODAL 2: CÀI ĐẶT GHI CHÚ (LÀM SẠCH UI)
-      ========================================== */}
-      <Modal visible={isSettingsVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setIsSettingsVisible(false)}>
+      {/* MODAL 2: SETTINGS */}
+      <Modal visible={isSettingsVisible} animationType="slide" presentationStyle="pageSheet">
           <View style={styles.settingsContainer}>
               <View style={styles.settingsHeader}>
-                  <TouchableOpacity onPress={() => setIsSettingsVisible(false)}><Text style={styles.settingsCancelText}>Hủy</Text></TouchableOpacity>
-                  <Text style={styles.settingsTitle}>Cài đặt ghi chú</Text>
-                  <TouchableOpacity onPress={handleSaveSettings}><Text style={styles.settingsSaveText}>Lưu</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => setIsSettingsVisible(false)}><Text style={styles.settingsCancelText}>{t('messages.cancel')}</Text></TouchableOpacity>
+                  <Text style={styles.settingsTitle}>{t('messages.note_settings')}</Text>
+                  <TouchableOpacity onPress={handleSaveSettings}><Text style={styles.settingsSaveText}>{t('messages.save')}</Text></TouchableOpacity>
               </View>
-
               <ScrollView style={styles.settingsScroll}>
-                  {/* Quyền riêng tư */}
-                  <Text style={styles.sectionTitle}>Ai có thể xem ghi chú của bạn?</Text>
+                  <Text style={styles.sectionTitle}>{t('messages.who_can_see')}</Text>
                   <View style={styles.sectionBlock}>
-                      {['Công khai', 'Bạn bè'].map((item, index) => (
+                      {[t('messages.privacy_public'), t('messages.privacy_friends')].map((item, index) => (
                           <TouchableOpacity key={index} style={styles.settingItem} onPress={() => setTempPrivacy(item)}>
                               <Text style={styles.settingItemTitle}>{item}</Text>
                               {tempPrivacy === item && <Ionicons name="checkmark" size={24} color="#007aff" />}
                           </TouchableOpacity>
                       ))}
                   </View>
-
-                  {/* Thời gian hiển thị */}
-                  <Text style={styles.sectionTitle}>Hiển thị ghi chú trong</Text>
+                  <Text style={styles.sectionTitle}>{t('messages.display_duration')}</Text>
                   <View style={styles.sectionBlock}>
-                      {[24, 12, 6, 3].map((hours, index) => (
-                          <TouchableOpacity key={index} style={styles.settingItem} onPress={() => setTempDuration(hours)}>
-                              <Text style={styles.settingItemTitle}>{hours} giờ</Text>
-                              {tempDuration === hours && <Ionicons name="checkmark" size={24} color="#007aff" />}
+                      {[24, 12, 6, 3].map((hrs, index) => (
+                          <TouchableOpacity key={index} style={styles.settingItem} onPress={() => setTempDuration(hrs)}>
+                              <Text style={styles.settingItemTitle}>{t('messages.hours', { count: hrs })}</Text>
+                              {tempDuration === hrs && <Ionicons name="checkmark" size={24} color="#007aff" />}
                           </TouchableOpacity>
                       ))}
                   </View>
@@ -342,66 +296,48 @@ const MessagesScreen = () => {
           </View>
       </Modal>
 
-      {/* =========================================
-          MODAL 3: XEM GHI CHÚ DẠNG POPUP Ở GIỮA MÀN HÌNH
-      ========================================== */}
-      <Modal visible={!!viewingNote} transparent animationType="fade" onRequestClose={() => setViewingNote(null)}>
+      {/* MODAL 3: VIEW NOTE */}
+      <Modal visible={!!viewingNote} transparent animationType="fade">
         <TouchableOpacity style={styles.viewNoteOverlay} activeOpacity={1} onPress={() => setViewingNote(null)}>
           <TouchableWithoutFeedback>
             <View style={styles.viewNotePopup}>
-              
-              {/* Nút Tắt */}
               <TouchableOpacity style={styles.viewNoteCloseBtn} onPress={() => setViewingNote(null)}>
                 <Ionicons name="close" size={24} color="#8e8e93" />
               </TouchableOpacity>
-
-              {/* Avatar & Tên & Thời gian đăng */}
               <View style={styles.viewNoteProfileRow}>
                 <Image source={{ uri: getValidAvatar(viewingNote?.user?.imageUrl || userProfile?.imageUrl) }} style={styles.viewNotePopupAvatar} />
                 <View>
                   <Text style={styles.viewNotePopupName}>{viewingNote?.user?.first_name || userProfile?.username}</Text>
-                  <Text style={styles.viewNotePopupTimeAgo}>Đã đăng: {formatTimeAgo(viewingNote?._creationTime)}</Text>
+                  <Text style={styles.viewNotePopupTimeAgo}>{t('messages.posted_at', { time: formatTimeShort(viewingNote?._creationTime) })}</Text>
                 </View>
               </View>
-
-              {/* Bong bóng nội dung */}
               <View style={styles.viewNoteContentBubble}>
                  <Text style={styles.viewNoteContentText}>{viewingNote?.content}</Text>
               </View>
-
-              {/* Thông tin Chi tiết: Quyền riêng tư & Thời gian hết hạn */}
               <View style={styles.viewNoteInfoBox}>
                 <Text style={styles.viewNoteInfoText}>
-                  <Ionicons name={viewingNote?.privacy === 'Bạn bè' ? 'people' : 'globe'} size={14} /> Chia sẻ với: {viewingNote?.privacy || 'Công khai'}
+                  <Ionicons name={viewingNote?.privacy === t('messages.privacy_friends') ? 'people' : 'globe'} size={14} /> {t('messages.shared_with', { privacy: viewingNote?.privacy || t('messages.privacy_public') })}
                 </Text>
                 <Text style={styles.viewNoteInfoText}>
-                  <Ionicons name="time" size={14} /> Hết hạn sau: {getRemainingHours(viewingNote?.expiresAt)} giờ
+                  <Ionicons name="time" size={14} /> {t('messages.expires_in', { count: getRemainingHours(viewingNote?.expiresAt) })}
                 </Text>
               </View>
-
-              {/* Các nút hành động (Chỉ hiện nút nếu là ghi chú của chính mình) */}
               {viewingNote?.userId === userProfile?._id && (
                 <View style={styles.viewNoteActions}>
-                  <TouchableOpacity style={styles.actionBtnEdit} onPress={() => {
-                    setViewingNote(null);
-                    handleOpenNoteModal(); // Mở lại modal viết ghi chú
-                  }}>
+                  <TouchableOpacity style={styles.actionBtnEdit} onPress={() => { setViewingNote(null); handleOpenNoteModal(); }}>
                     <Ionicons name="create-outline" size={18} color="#fff" />
-                    <Text style={styles.actionBtnTextEdit}>Thay ghi chú</Text>
+                    <Text style={styles.actionBtnTextEdit}>{t('messages.replace_note')}</Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity style={styles.actionBtnDelete} onPress={handleDeleteNoteFromView}>
                     <Ionicons name="trash-outline" size={18} color="red" />
-                    <Text style={styles.actionBtnTextDelete}>Xóa</Text>
+                    <Text style={styles.actionBtnTextDelete}>{t('messages.delete')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
-
             </View>
           </TouchableWithoutFeedback>
         </TouchableOpacity>
       </Modal>
-
     </SafeAreaView>
   );
 };

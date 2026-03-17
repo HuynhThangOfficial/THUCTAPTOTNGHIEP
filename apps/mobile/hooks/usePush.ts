@@ -8,6 +8,7 @@ import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { Id } from '@/convex/_generated/dataModel';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -23,6 +24,7 @@ export const usePush = () => {
   const router = useRouter();
   const updateUser = useMutation(api.users.updateUser);
   const { userProfile } = useUserProfile();
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
 
   useEffect(() => {
     if (!Device.isDevice) return;
@@ -80,13 +82,15 @@ export const usePush = () => {
         finalStatus = status;
       }
       if (finalStatus !== 'granted') {
-        handleRegistrationError('Permission not granted to get push token for push notification!');
+        // 👇 DÙNG T() CHO THÔNG BÁO LỖI
+        handleRegistrationError(t('push.permission_denied'));
         return;
       }
       const projectId =
         Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
       if (!projectId) {
-        handleRegistrationError('Project ID not found');
+        // 👇 DÙNG T() CHO THÔNG BÁO LỖI
+        handleRegistrationError(t('push.project_id_not_found'));
       }
       try {
         const pushTokenString = (
@@ -100,7 +104,8 @@ export const usePush = () => {
         handleRegistrationError(`${e}`);
       }
     } else {
-      handleRegistrationError('Must use physical device for push notifications');
+      // 👇 DÙNG T() CHO THÔNG BÁO LỖI
+      handleRegistrationError(t('push.must_use_physical_device'));
     }
   }
 };

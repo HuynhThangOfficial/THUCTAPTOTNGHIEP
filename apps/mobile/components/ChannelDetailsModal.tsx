@@ -10,6 +10,7 @@ import { Id } from '@/convex/_generated/dataModel';
 import { Colors } from '@/constants/Colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ImageView from "react-native-image-viewing";
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
 
 type ChannelDetailsModalProps = {
   visible: boolean;
@@ -18,6 +19,7 @@ type ChannelDetailsModalProps = {
 };
 
 export default function ChannelDetailsModal({ visible, onClose, channelId }: ChannelDetailsModalProps) {
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
   const channelInfo = useQuery(api.university.getChannelDetails, { channelId });
   const attachments = useQuery(api.messages.getChannelAttachments, { channelId });
 
@@ -94,12 +96,12 @@ export default function ChannelDetailsModal({ visible, onClose, channelId }: Cha
                           numberOfLines={isDescExpanded ? undefined : 2}
                           onTextLayout={onTextLayout}
                       >
-                          {channelInfo.description || "Chào mừng bạn đến với kênh thảo luận này!"}
+                          {channelInfo.description || t('channel_details.default_desc')}
                       </Text>
 
                       {isTruncated && (
                         <Text style={styles.toggleText}>
-                            {isDescExpanded ? "Thu gọn" : "Xem thêm"}
+                            {isDescExpanded ? t('channel_details.show_less') : t('channel_details.see_more')}
                         </Text>
                       )}
                   </TouchableOpacity>
@@ -110,23 +112,25 @@ export default function ChannelDetailsModal({ visible, onClose, channelId }: Cha
                       style={[styles.tabButton, activeTab === 'media' && styles.activeTab]}
                       onPress={() => setActiveTab('media')}
                   >
-                      <Text style={[styles.tabText, activeTab === 'media' && styles.activeTabText]}>Đa phương tiện</Text>
+                      <Text style={[styles.tabText, activeTab === 'media' && styles.activeTabText]}>
+                        {t('channel_details.tab_media')}
+                      </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                       style={[styles.tabButton, activeTab === 'links' && styles.activeTab]}
                       onPress={() => setActiveTab('links')}
                   >
-                      <Text style={[styles.tabText, activeTab === 'links' && styles.activeTabText]}>Liên kết</Text>
+                      <Text style={[styles.tabText, activeTab === 'links' && styles.activeTabText]}>
+                        {t('channel_details.tab_links')}
+                      </Text>
                   </TouchableOpacity>
               </View>
 
               {activeTab === 'media' ? (
                   <FlatList
                       key="media-grid"
-                      // --- SỬA: Dùng danh sách đã lọc trùng ---
                       data={uniqueMediaList}
-                      // ----------------------------------------
-                      keyExtractor={(item, index) => index.toString()} // Index giờ đã an toàn vì list không trùng
+                      keyExtractor={(item, index) => index.toString()}
                       numColumns={3}
                       contentContainerStyle={{ paddingBottom: 20 }}
                       renderItem={({ item, index }) => (
@@ -137,7 +141,7 @@ export default function ChannelDetailsModal({ visible, onClose, channelId }: Cha
                               <Image source={{ uri: item }} style={styles.gridImage} />
                           </TouchableOpacity>
                       )}
-                      ListEmptyComponent={<Text style={styles.emptyText}>Chưa có ảnh nào.</Text>}
+                      ListEmptyComponent={<Text style={styles.emptyText}>{t('channel_details.no_media')}</Text>}
                   />
               ) : (
                   <FlatList
@@ -155,11 +159,13 @@ export default function ChannelDetailsModal({ visible, onClose, channelId }: Cha
                               </View>
                               <View style={{flex: 1}}>
                                   <Text style={styles.linkUrl} numberOfLines={1}>{item.url}</Text>
-                                  <Text style={styles.linkTitle} numberOfLines={1}>{item.title || "Liên kết"}</Text>
+                                  <Text style={styles.linkTitle} numberOfLines={1}>
+                                    {item.title || t('channel_details.link_fallback')}
+                                  </Text>
                               </View>
                           </TouchableOpacity>
                       )}
-                      ListEmptyComponent={<Text style={styles.emptyText}>Chưa có liên kết nào.</Text>}
+                      ListEmptyComponent={<Text style={styles.emptyText}>{t('channel_details.no_links')}</Text>}
                   />
               )}
           </View>

@@ -14,7 +14,6 @@ export const getUserByClerkId = query({
       .filter((q) => q.eq(q.field('clerkId'), args.clerkId))
       .unique();
 
-    // Dùng hàm isHttpUrl: Code đọc hiểu ngay lập tức như tiếng Anh
     if (!user?.imageUrl || isHttpUrl(user.imageUrl)) {
       return user;
     }
@@ -62,10 +61,12 @@ export const createUser = internalMutation({
 export const updateUser = mutation({
   args: {
     _id: v.id('users'),
+    first_name: v.optional(v.string()),
+    username: v.optional(v.string()),
     bio: v.optional(v.string()),
     websiteUrl: v.optional(v.string()),
     linkTitle: v.optional(v.string()),
-    profilePicture: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
     pushToken: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -95,14 +96,14 @@ export const updateActiveStatus = mutation({
   args: { isEnabled: v.boolean() },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Chưa đăng nhập");
+    if (!identity) throw new Error("UNAUTHORIZED");
 
     const user = await ctx.db
       .query("users")
       .withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
 
-    if (!user) throw new Error("Không tìm thấy người dùng");
+    if (!user) throw new Error("USER_NOT_FOUND");
 
     await ctx.db.patch(user._id, { 
       showActiveStatus: args.isEnabled 
@@ -119,7 +120,7 @@ export const updateImage = mutation({
   args: { storageId: v.id('_storage'), _id: v.id('users') },
   handler: async (ctx, args) => {
     const imageUrl = await ctx.storage.getUrl(args.storageId);
-    if (!imageUrl) throw new Error("Không thể lấy đường dẫn ảnh từ server.");
+    if (!imageUrl) throw new Error("STORAGE_ERROR");
     await ctx.db.patch(args._id, { imageUrl: imageUrl });
   },
 });
@@ -171,7 +172,7 @@ export const deleteFromClerk = internalMutation({
 
 export async function getCurrentUserOrThrow(ctx: QueryCtx) {
   const userRecord = await getCurrentUser(ctx);
-  if (!userRecord) throw new Error("Can't get current user");
+  if (!userRecord) throw new Error("USER_NOT_FOUND");
   return userRecord;
 }
 
@@ -198,7 +199,7 @@ export const followUser = mutation({
     const currentUser = await getCurrentUserOrThrow(ctx);
 
     if (currentUser._id === args.targetUserId) {
-      throw new Error("Bạn không thể tự theo dõi chính mình!");
+      throw new Error("CANNOT_FOLLOW_SELF");
     }
 
     const existingFollow = await ctx.db
@@ -283,7 +284,6 @@ export const getFollowers = query({
         const user = await ctx.db.get(f.followerId);
         if (!user) return null;
         
-        // Code sạch hơn rất nhiều
         if (user.imageUrl && !isHttpUrl(user.imageUrl)) {
             user.imageUrl = await ctx.storage.getUrl(user.imageUrl as Id<"_storage">) ?? user.imageUrl;
         }
@@ -415,5 +415,71 @@ export const getUsers = query({
       .query("users")
       .order("desc")
       .take(10);
+  },
+});
+
+// --- 6. HÀM DỌN DẸP TOÀN BỘ DỮ LIỆU KHI XÓA TÀI KHOẢN ---
+export const deleteUserDataFull = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUserOrThrow(ctx);
+
+    // 1. Dọn dẹp Bài viết & Bình luận (Tận dụng index by_user)
+    const messages = await ctx.db
+      .query("messages")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+    for (const msg of messages) {
+      await ctx.db.delete(msg._id);
+    }
+
+    // 2. Dọn dẹp danh sách Đang theo dõi
+    const following = await ctx.db
+      .query("follows")
+      .withIndex("by_follower", (q) => q.eq("followerId", user._id))
+      .collect();
+    for (const f of following) {
+      await ctx.db.delete(f._id);
+    }
+
+    // 3. Dọn dẹp danh sách Người theo dõi
+    const followers = await ctx.db
+      .query("follows")
+      .withIndex("by_following", (q) => q.eq("followingId", user._id))
+      .collect();
+    for (const f of followers) {
+      await ctx.db.delete(f._id);
+    }
+
+    // 4. Dọn dẹp Lượt thích (Likes)
+    try {
+      const likes = await ctx.db
+        .query("likes" as any) 
+        .filter((q: any) => q.eq(q.field("userId"), user._id))
+        .collect();
+      for (const like of likes) {
+        await ctx.db.delete(like._id);
+      }
+    } catch (error) {
+      console.log("Skip deleting likes due to schema configuration.");
+    }
+
+    // 5. Cuối cùng: Xóa sạch thông tin của chính user này
+    await ctx.db.delete(user._id);
+
+    return { success: true };
+  },
+});
+
+export const updateLanguage = mutation({
+  args: { 
+    userId: v.id("users"), 
+    language: v.string() // 'vi', 'en', hoặc 'zh'
+  },
+  handler: async (ctx, args) => {
+    // Lưu thẳng vào bảng users
+    await ctx.db.patch(args.userId, { 
+      language: args.language 
+    });
   },
 });

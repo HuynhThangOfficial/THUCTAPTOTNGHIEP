@@ -149,7 +149,7 @@ export const seedAndMigrate = mutation({
     // =========================================================
     // 2. MÁY CHỦ: CỘNG ĐỒNG (MỚI THÊM)
     // =========================================================
-let congdong = await ctx.db
+    let congdong = await ctx.db
       .query('universities')
       .filter((q) => q.eq(q.field('slug'), 'cong-dong'))
       .first();
@@ -225,7 +225,7 @@ let congdong = await ctx.db
       }
     }
 
-    return 'Đã khởi tạo thành công máy chủ Hàng Không và Cộng Đồng!';
+    return 'SYS_MIGRATION_SUCCESS';
   },
 });
 
@@ -338,7 +338,7 @@ export const createServer = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error('Chưa đăng nhập');
+    if (!identity) throw new Error('UNAUTHORIZED');
 
     const user = await ctx.db
       .query('users')
@@ -347,24 +347,15 @@ export const createServer = mutation({
       )
       .unique();
 
-    if (!user) throw new Error('Không tìm thấy user');
+    if (!user) throw new Error('USER_NOT_FOUND');
 
-    const existing = await ctx.db
-      .query('servers')
-      .filter((q) => q.eq(q.field('creatorId'), user._id))
-      .first();
+  const memberships = await ctx.db
+      .query("server_members")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
 
-    if (existing) {
-      return {
-        success: false,
-        message: "Bạn đã tạo một máy chủ rồi! Mỗi người dùng chỉ được tạo tối đa 1 máy chủ."
-      };
-    }
-
-    const allServers = await ctx.db.query('servers').collect();
-    const myMembershipCount = allServers.filter(s => s.memberIds.includes(user._id)).length;
-    if (myMembershipCount >= 50) {
-      return { success: false, message: "Bạn đã đạt giới hạn tối đa 50 server." };
+    if (memberships.length >= 50) {
+      return { success: false, message: "SERVER_LIMIT_REACHED" };
     }
 
     let finalIcon = `https://ui-avatars.com/api/?name=${args.name.charAt(0)}&background=random&color=fff`;
@@ -432,7 +423,7 @@ export const updateServer = mutation({
   },
   handler: async (ctx, args) => {
     const server = await ctx.db.get(args.serverId);
-    if (!server) throw new Error('Không tìm thấy máy chủ');
+    if (!server) throw new Error('SERVER_NOT_FOUND');
 
     const updates: any = {};
 
@@ -458,7 +449,7 @@ export const addFriendToServer = mutation({
   },
   handler: async (ctx, args) => {
     const server = await ctx.db.get(args.serverId);
-    if (!server) throw new Error('Lỗi máy chủ');
+    if (!server) throw new Error('SERVER_ERROR');
 
     // 1. Kiểm tra giới hạn 50 server (Kiểm tra bằng bảng server_members mới)
     const memberships = await ctx.db
@@ -467,7 +458,7 @@ export const addFriendToServer = mutation({
       .collect();
 
     if (memberships.length >= 50) {
-      throw new Error("Người dùng này đã tham gia tối đa 50 server.");
+      throw new Error("SERVER_LIMIT_REACHED");
     }
 
     // 2. Kiểm tra xem người này đã có trong server_members chưa
@@ -501,7 +492,7 @@ export const addFriendToServer = mutation({
 export const deleteServer = mutation({
   args: { serverId: v.id('servers') },
   handler: async (ctx, args) => {
-    // 1. Xóa tất cả các kênh và tin nhắn (giữ nguyên code cũ của bạn)
+    // 1. Xóa tất cả các kênh và tin nhắn
     const channels = await ctx.db
       .query('channels')
       .withIndex('by_server', (q) => q.eq('serverId', args.serverId))
@@ -555,13 +546,13 @@ export const createChannel = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Chưa đăng nhập");
+    if (!identity) throw new Error("UNAUTHORIZED");
     const user = await ctx.db.query("users").withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject)).unique();
-    if (!user) throw new Error("Không tìm thấy user");
+    if (!user) throw new Error("USER_NOT_FOUND");
 
     const server = await ctx.db.get(args.serverId);
     if (!server || server.creatorId !== user._id) {
-      throw new Error("Chỉ chủ máy chủ mới được quyền tạo kênh!");
+      throw new Error("ONLY_OWNER_CAN_CREATE_CHANNEL");
     }
 
     const existing = await ctx.db.query('channels')
@@ -598,25 +589,25 @@ export const deleteChannel = mutation({
   args: { channelId: v.id('channels') },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Chưa đăng nhập");
+    if (!identity) throw new Error("UNAUTHORIZED");
 
     const user = await ctx.db.query("users").withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject)).unique();
-    if (!user) throw new Error("Không tìm thấy user");
+    if (!user) throw new Error("USER_NOT_FOUND");
 
     const channel = await ctx.db.get(args.channelId);
-    if (!channel) throw new Error("Không tìm thấy kênh");
+    if (!channel) throw new Error("CHANNEL_NOT_FOUND");
 
     if (!channel.serverId) {
-      throw new Error("Không thể xóa kênh của trường hệ thống!");
+      throw new Error("CANNOT_DELETE_SYSTEM_CHANNEL");
     }
 
     if (channel.name === 'đại-sảnh') {
-      throw new Error("Không thể xóa kênh đại sảnh mặc định!");
+      throw new Error("CANNOT_DELETE_GENERAL_CHANNEL");
     }
 
     const server = await ctx.db.get(channel.serverId);
     if (!server || server.creatorId !== user._id) {
-      throw new Error("Chỉ chủ máy chủ mới được quyền xóa kênh!");
+      throw new Error("ONLY_OWNER_CAN_DELETE_CHANNEL");
     }
 
     if (channel.type === 'category') {
@@ -671,30 +662,38 @@ export const removeMember = mutation({
   args: { serverId: v.id("servers"), targetUserId: v.id("users") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Chưa đăng nhập");
+    if (!identity) throw new Error("UNAUTHORIZED");
 
     const user = await ctx.db.query("users").withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject)).unique();
     const server = await ctx.db.get(args.serverId);
 
-    if (!server || !user) throw new Error("Dữ liệu không hợp lệ");
-    if (!server.adminIds || !server.adminIds.includes(user._id)) throw new Error("Chỉ quản trị viên mới có quyền này");
-    if (args.targetUserId === server.creatorId) throw new Error("Không thể xóa chủ server");
+    if (!server || !user) throw new Error("INVALID_DATA");
+    if (!server.adminIds || !server.adminIds.includes(user._id)) throw new Error("ONLY_ADMIN_ALLOWED");
+    if (args.targetUserId === server.creatorId) throw new Error("CANNOT_REMOVE_OWNER");
 
+    // 1. Xóa khỏi mảng memberIds và adminIds
     const newMembers = server.memberIds.filter(id => id !== args.targetUserId);
     const newAdmins = (server.adminIds || []).filter(id => id !== args.targetUserId);
-
     await ctx.db.patch(args.serverId, { memberIds: newMembers, adminIds: newAdmins });
 
-    // Xóa subscription của user bị đuổi
+    // 2. Xóa khỏi bảng server_members
+    const memberRecord = await ctx.db.query("server_members")
+      .withIndex("by_server_user", q => q.eq("serverId", args.serverId).eq("userId", args.targetUserId))
+      .unique();
+    if (memberRecord) await ctx.db.delete(memberRecord._id);
+
+    // 3. Xóa subscription (chuông thông báo) của user bị đuổi
     const userSubs = await ctx.db.query('channel_subscriptions')
-          .filter(q =>
-            q.and(
-              q.eq(q.field('userId'), args.targetUserId),
-              q.eq(q.field('serverId'), args.serverId)
-            )
-          )
-          .collect();
-        for (const sub of userSubs) await ctx.db.delete(sub._id);
+      .filter(q =>
+        q.and(
+          q.eq(q.field('userId'), args.targetUserId),
+          q.eq(q.field('serverId'), args.serverId)
+        )
+      )
+      .collect();
+    for (const sub of userSubs) await ctx.db.delete(sub._id);
+    
+    return { success: true };
   }
 });
 
@@ -702,16 +701,16 @@ export const leaveServer = mutation({
   args: { serverId: v.id('servers') },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Chưa đăng nhập");
+    if (!identity) throw new Error("UNAUTHORIZED");
 
     const user = await ctx.db.query("users").withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject)).unique();
     const server = await ctx.db.get(args.serverId);
 
-    if (!server || !user) throw new Error("Dữ liệu không hợp lệ");
+    if (!server || !user) throw new Error("INVALID_DATA");
 
-    // Chủ server không được tự thoát, chỉ được xóa server
+    // Chủ server không được tự thoát
     if (server.creatorId === user._id) {
-      throw new Error("Bạn là chủ máy chủ nên không thể tự thoát. Hãy dùng chức năng Xóa máy chủ.");
+      throw new Error("OWNER_CANNOT_LEAVE");
     }
 
     // 1. Xóa khỏi mảng memberIds (và adminIds nếu có)
@@ -719,7 +718,7 @@ export const leaveServer = mutation({
     const newAdmins = (server.adminIds || []).filter(id => id !== user._id);
     await ctx.db.patch(args.serverId, { memberIds: newMembers, adminIds: newAdmins });
 
-    // 2. Xóa khỏi bảng server_members (Nếu bạn đang dùng bảng này)
+    // 2. Xóa khỏi bảng server_members
     const memberRecord = await ctx.db.query("server_members")
       .withIndex("by_server_user", q => q.eq("serverId", args.serverId).eq("userId", user._id))
       .unique();
@@ -743,29 +742,22 @@ export const leaveServer = mutation({
 export const searchServers = query({
   args: { search: v.string() },
   handler: async (ctx, args) => {
-    // 👇 Lấy thông tin user hiện tại để check xem họ đã tham gia server chưa
     const identity = await ctx.auth.getUserIdentity();
     const user = identity ? await ctx.db.query("users").withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject)).unique() : null;
 
-    // Lấy toàn bộ máy chủ
     const allServers = await ctx.db.query("servers").collect();
 
-    // Lọc theo tên máy chủ không phân biệt hoa thường
     const matchedServers = allServers.filter(server =>
       server.name.toLowerCase().includes(args.search.toLowerCase())
     );
 
-    // Dịch ảnh StorageId ra URL thực tế
     return Promise.all(matchedServers.map(async (server) => {
-        // ÉP KIỂU BẰNG (server as any) ĐỂ TYPESCRIPT BỎ QUA LỖI
         let iconUrl = (server as any).iconStorageId
             ? await ctx.storage.getUrl((server as any).iconStorageId as Id<"_storage">)
             : null;
 
-        // 👇 THÊM DÒNG NÀY: Kiểm tra xem user có nằm trong danh sách thành viên không
         const isJoined = user ? server.memberIds?.includes(user._id) : false;
 
-        // 👇 Trả về thêm biến isJoined cho Frontend
         return { ...server, icon: iconUrl || server.icon, isJoined };
     }));
   }
@@ -775,13 +767,13 @@ export const joinServer = mutation({
   args: { serverId: v.id("servers") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Chưa đăng nhập");
+    if (!identity) throw new Error("UNAUTHORIZED");
 
     const user = await ctx.db.query("users").withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject)).unique();
-    if (!user) throw new Error("Không tìm thấy user");
+    if (!user) throw new Error("USER_NOT_FOUND");
 
     const server = await ctx.db.get(args.serverId);
-    if (!server) throw new Error("Máy chủ không tồn tại");
+    if (!server) throw new Error("SERVER_NOT_FOUND");
 
     // 1. Kiểm tra giới hạn 50 server
     const memberships = await ctx.db.query("server_members")
@@ -789,7 +781,7 @@ export const joinServer = mutation({
       .collect();
 
     if (memberships.length >= 50) {
-      throw new Error("Bạn đã tham gia tối đa 50 server.");
+      throw new Error("SERVER_LIMIT_REACHED");
     }
 
     // 2. Kiểm tra xem đã tham gia chưa

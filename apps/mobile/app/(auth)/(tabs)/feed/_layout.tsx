@@ -1,6 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
+
 const Layout = () => {
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
+
   return (
     <Stack
       screenOptions={{
@@ -13,11 +17,11 @@ const Layout = () => {
       <Stack.Screen
         name="[id]"
         options={{
-          title: 'Thread',
+          title: t('feed_layout.title'), // 👈 ĐÃ DỊCH TIÊU ĐỀ
           headerShadowVisible: false,
           headerRight: () => <Ionicons name="notifications-outline" size={24} color="black" />,
           headerTintColor: 'black',
-          headerBackTitle: 'Back',
+          headerBackTitle: t('feed_layout.back'), // 👈 ĐÃ DỊCH NÚT BACK
         }}
       />
     </Stack>

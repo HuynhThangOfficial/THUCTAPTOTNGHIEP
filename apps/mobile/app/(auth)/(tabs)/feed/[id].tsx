@@ -19,10 +19,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { Colors } from '@/constants/Colors';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
 
 const Page = () => {
   const { id, highlightCommentId, source } = useLocalSearchParams();
   const sourceStr = Array.isArray(source) ? source[0] : source;
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
 
   const thread = useQuery(api.messages.getThreadById, { messageId: id as Id<'messages'> });
   const { userProfile } = useUserProfile();
@@ -71,7 +73,7 @@ const Page = () => {
 
       <Stack.Screen
         options={{
-          headerTitle: 'Bài viết',
+          headerTitle: t('post_detail.title'), // 👈 DÙNG t()
           headerShown: true,
           headerShadowVisible: false,
           headerBackTitleVisible: false,
@@ -103,7 +105,7 @@ const Page = () => {
           <View style={{ padding: 40, alignItems: 'center', marginTop: 20 }}>
              <Ionicons name="lock-closed" size={48} color="#e0e0e0" style={{ marginBottom: 12 }} />
              <Text style={{ color: 'gray', fontSize: 15, fontWeight: '500', textAlign: 'center' }}>
-               Người đăng đã tắt tính năng bình luận cho bài viết này.
+               {t('post_detail.comments_disabled_msg')}
              </Text>
           </View>
         )}
@@ -120,7 +122,9 @@ const Page = () => {
                 style={styles.replyButtonImage}
               />
               <Text style={{ color: 'gray' }}>
-                 Thêm câu trả lời đến {thread?.isAnonymous ? 'Thành viên ẩn danh' : thread?.creator?.first_name}...
+                 {t('post_detail.add_reply_to', { 
+                   name: thread?.isAnonymous ? t('post_detail.anonymous_member') : thread?.creator?.first_name 
+                 })}
               </Text>
             </TouchableOpacity>
           </Link>

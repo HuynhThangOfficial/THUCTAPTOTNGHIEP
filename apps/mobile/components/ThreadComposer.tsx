@@ -9,6 +9,7 @@ import { Ionicons, MaterialIcons, MaterialCommunityIcons, FontAwesome } from '@e
 import * as ImagePicker from 'expo-image-picker';
 import { Id } from '@/convex/_generated/dataModel';
 import { useChannel } from '@/context/ChannelContext';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT I18N
 
 type ThreadComposerProps = {
   isPreview?: boolean;
@@ -23,6 +24,7 @@ type MediaPreviewItem = {
 };
 
 const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) => {
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK DỊCH
   const router = useRouter();
   const { editId } = useLocalSearchParams();
   const { userProfile } = useUserProfile();
@@ -34,7 +36,7 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
   const [existingMediaIds, setExistingMediaIds] = useState<string[]>([]);
   const [newMediaUris, setNewMediaUris] = useState<string[]>([]);
 
-  // 👇 THÊM STATE QUẢN LÝ BÌNH LUẬN 👇
+  // State quản lý bình luận
   const [allowComments, setAllowComments] = useState(true);
 
   const [selectedUniId, setSelectedUniId] = useState<Id<'universities'> | null>(activeUniversityId);
@@ -42,7 +44,7 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
   const [selectedWorkspaceName, setSelectedWorkspaceName] = useState<string>('');
 
   const [selectedChannelId, setSelectedChannelId] = useState<Id<'channels'> | null>(activeChannelId);
-  const [selectedChannelName, setSelectedChannelName] = useState<string>(activeChannelName || 'Chọn kênh...');
+  const [selectedChannelName, setSelectedChannelName] = useState<string>(activeChannelName || t('composer.select_channel'));
 
   const [isPickerVisible, setPickerVisible] = useState(false);
 
@@ -53,13 +55,13 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
 
         if (activeChannelName === 'đại-sảnh') {
             setSelectedChannelId(null);
-            setSelectedChannelName('Chọn kênh...');
+            setSelectedChannelName(t('composer.select_channel'));
         } else {
             setSelectedChannelId(activeChannelId);
-            setSelectedChannelName(activeChannelName || 'Chọn kênh...');
+            setSelectedChannelName(activeChannelName || t('composer.select_channel'));
         }
     }
-  }, [activeChannelId, activeChannelName, activeUniversityId, activeServerId, editId]);
+  }, [activeChannelId, activeChannelName, activeUniversityId, activeServerId, editId, t]);
 
   const workspaces = useQuery(api.university.getAllPostableWorkspaces);
   const channelsData = useQuery(api.university.getChannels, {
@@ -110,7 +112,7 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
   };
   const handleCamera = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (permission.status !== 'granted') return Alert.alert('Cấp quyền', 'Cần quyền camera.');
+    if (permission.status !== 'granted') return Alert.alert(t('composer.permission'), t('composer.camera_permission_required'));
     const result = await ImagePicker.launchCameraAsync({ quality: 0.5 });
     if (!result.canceled) setNewMediaUris([...newMediaUris, result.assets[0].uri]);
   };
@@ -118,8 +120,8 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
     if (item.type === 'new') setNewMediaUris(newMediaUris.filter(uri => uri !== item.originalIdOrUri));
     else setExistingMediaIds(existingMediaIds.filter(id => id !== item.originalIdOrUri));
   };
-  const handleGif = () => Alert.alert('GIF', 'Tính năng đang phát triển');
-  const handleMic = () => Alert.alert('Mic', 'Tính năng đang phát triển');
+  const handleGif = () => Alert.alert('GIF', t('composer.feature_in_development'));
+  const handleMic = () => Alert.alert('Mic', t('composer.feature_in_development'));
   const handleHashtag = () => setThreadContent(prev => prev + " #");
   const handlePoll = () => setThreadContent(prev => prev + "\n📊 Poll:\n1. \n2. ");
 
@@ -132,15 +134,15 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
       setSelectedUniId(null);
     }
     setSelectedChannelId(null);
-    setSelectedChannelName("Chọn kênh...");
+    setSelectedChannelName(t('composer.select_channel'));
   };
 
   const handleSubmit = async () => {
       if (threadContent.trim() === '' && mediaPreviewList.length === 0) return;
       if (editId && !threadToEdit) return;
 
-      if (!isReply && (!selectedChannelId || selectedChannelName === 'đại-sảnh' || selectedChannelName === 'Chọn kênh...')) {
-           Alert.alert("Lỗi", "Vui lòng chọn một kênh cụ thể để đăng bài (Không thể đăng trực tiếp vào đại sảnh).");
+      if (!isReply && (!selectedChannelId || selectedChannelName === 'đại-sảnh' || selectedChannelName === t('composer.select_channel'))) {
+           Alert.alert(t('composer.error'), t('composer.cannot_post_in_lobby'));
            return;
       }
 
@@ -168,13 +170,12 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
             serverId: isReply ? undefined : (selectedServerId || undefined),
             content: threadContent,
             mediaFiles: newUploadedIds,
-            // 👇 THUYỀN BIẾN ALLOW COMMENTS XUỐNG API (CHỈ DÀNH CHO BÀI GỐC) 👇
             allowComments: isReply ? undefined : allowComments,
           });
         }
         router.dismiss();
       } catch (error: any) {
-        Alert.alert('Không thể lưu', error.message);
+        Alert.alert(t('composer.cannot_save'), error.message);
       } finally {
         setIsUploading(false);
       }
@@ -203,7 +204,7 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <Image source={{ uri: userProfile?.imageUrl || defaultAvatar }} style={styles.avatar} />
           <View style={{ flex: 1, justifyContent: 'center' }}>
-            <Text style={styles.placeholderText}>Đăng tại: #{selectedChannelName} • {selectedWorkspaceName}</Text>
+            <Text style={styles.placeholderText}>{t('composer.posting_in')} #{selectedChannelName} • {selectedWorkspaceName}</Text>
             <View style={[styles.mediaIcons, { marginTop: 8 }]}>
                <Ionicons name="images-outline" size={20} color={Colors.border} /><Ionicons name="camera-outline" size={20} color={Colors.border} />
                <MaterialIcons name="gif" size={24} color={Colors.border} /><Ionicons name="mic-outline" size={20} color={Colors.border} />
@@ -217,12 +218,12 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
       <Stack.Screen options={{
-          headerTitle: editId ? 'Chỉnh Sửa' : (isReply ? 'Phản hồi' : 'Đăng Bài Mới'),
+          headerTitle: editId ? t('composer.edit_title') : (isReply ? t('composer.reply_title') : t('composer.new_post_title')),
           headerTitleAlign: 'center',
-          headerLeft: () => (<TouchableOpacity onPress={() => router.dismiss()}><Text style={{ fontSize: 16 }}>Hủy</Text></TouchableOpacity>),
+          headerLeft: () => (<TouchableOpacity onPress={() => router.dismiss()}><Text style={{ fontSize: 16 }}>{t('composer.cancel')}</Text></TouchableOpacity>),
           headerRight: () => (
             <TouchableOpacity onPress={handleSubmit} disabled={isUploading || (threadContent.trim().length === 0 && mediaPreviewList.length === 0)} style={{ opacity: isUploading ? 0.5 : 1 }}>
-              <Text style={styles.postButtonText}>{isUploading ? '...' : (editId ? 'Lưu' : 'Đăng')}</Text>
+              <Text style={styles.postButtonText}>{isUploading ? '...' : (editId ? t('composer.save') : t('composer.post'))}</Text>
             </TouchableOpacity>
           ),
       }} />
@@ -236,17 +237,17 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
             </Text>
             {!isReply && !editId ? (
                 <TouchableOpacity
-                  style={[styles.channelBadge, selectedChannelName === 'Chọn kênh...' && { borderColor: 'red', backgroundColor: '#ffe6e6' }]}
+                  style={[styles.channelBadge, selectedChannelName === t('composer.select_channel') && { borderColor: 'red', backgroundColor: '#ffe6e6' }]}
                   onPress={() => setPickerVisible(true)}
                 >
-                  <Text style={[styles.channelBadgeText, selectedChannelName === 'Chọn kênh...' && { color: 'red' }]}>
-                    {selectedChannelName === 'Chọn kênh...' ? "⚠️ Bấm vào đây để chọn kênh đăng bài" : <>Đăng tại: <Text style={{fontWeight: 'bold'}}>#{selectedChannelName}</Text> • {selectedWorkspaceName}</>}
+                  <Text style={[styles.channelBadgeText, selectedChannelName === t('composer.select_channel') && { color: 'red' }]}>
+                    {selectedChannelName === t('composer.select_channel') ? t('composer.warning_select_channel') : <>{t('composer.posting_in')} <Text style={{fontWeight: 'bold'}}>#{selectedChannelName}</Text> • {selectedWorkspaceName}</>}
                   </Text>
-                  <Ionicons name="chevron-down" size={14} color={selectedChannelName === 'Chọn kênh...' ? 'red' : Colors.submit} />
+                  <Ionicons name="chevron-down" size={14} color={selectedChannelName === t('composer.select_channel') ? 'red' : Colors.submit} />
                 </TouchableOpacity>
-            ) : ( <Text style={{fontSize: 12, color: 'gray', marginBottom: 5}}>{editId ? "Đang chỉnh sửa bài viết" : "Đang trả lời bình luận"}</Text> )}
+            ) : ( <Text style={{fontSize: 12, color: 'gray', marginBottom: 5}}>{editId ? t('composer.editing_post') : t('composer.replying_comment')}</Text> )}
 
-            <TextInput style={styles.input} placeholder="Bạn đang nghĩ gì?" value={threadContent} onChangeText={setThreadContent} multiline autoFocus={!isPreview && !editId} editable={!isUploading} placeholderTextColor={Colors.border} />
+            <TextInput style={styles.input} placeholder={t('composer.whats_on_your_mind')} value={threadContent} onChangeText={setThreadContent} multiline autoFocus={!isPreview && !editId} editable={!isUploading} placeholderTextColor={Colors.border} />
 
             {mediaPreviewList.length > 0 && (
               <ScrollView horizontal style={styles.mediaScroll} showsHorizontalScrollIndicator={false}>
@@ -268,13 +269,13 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
               <TouchableOpacity onPress={handlePoll}><MaterialCommunityIcons name="chart-bar" size={24} color={Colors.border} /></TouchableOpacity>
             </View>
 
-            {/* 👇 CÔNG TẮC BẬT TẮT BÌNH LUẬN (Chỉ hiện khi tạo bài gốc) 👇 */}
+            {/* CÔNG TẮC BẬT TẮT BÌNH LUẬN */}
             {!isReply && !editId && (
               <View style={styles.toggleCommentContainer}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Ionicons name={allowComments ? "chatbubble-ellipses-outline" : "lock-closed-outline"} size={22} color="gray" />
                   <Text style={styles.toggleCommentText}>
-                    {allowComments ? "Cho phép bình luận" : "Đã tắt bình luận"}
+                    {allowComments ? t('composer.allow_comments') : t('composer.comments_disabled')}
                   </Text>
                 </View>
                 <Switch
@@ -292,12 +293,12 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
       <Modal visible={isPickerVisible} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Chọn nơi đăng</Text>
+            <Text style={styles.modalTitle}>{t('composer.choose_destination')}</Text>
             <TouchableOpacity onPress={() => setPickerVisible(false)}><Ionicons name="close-circle" size={28} color="#ccc" /></TouchableOpacity>
           </View>
           <ScrollView style={{flex: 1}}>
               <View style={styles.uniSelectorContainer}>
-                 <Text style={styles.sectionHeader}>Trường Học:</Text>
+                 <Text style={styles.sectionHeader}>{t('composer.school')}</Text>
                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 10, paddingVertical: 5}}>
                     {universities.map((uni) => (
                        <TouchableOpacity key={uni._id} style={[styles.uniPill, selectedUniId === uni._id && styles.uniPillActive]} onPress={() => selectWorkspace('uni', uni._id)}>
@@ -305,7 +306,7 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
                        </TouchableOpacity>
                     ))}
                  </ScrollView>
-                 <Text style={[styles.sectionHeader, {marginTop: 15}]}>Máy Chủ Của Bạn:</Text>
+                 <Text style={[styles.sectionHeader, {marginTop: 15}]}>{t('composer.your_servers')}</Text>
                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 10, paddingVertical: 5}}>
                     {workspaces?.servers.map((srv) => (
                        <TouchableOpacity key={srv._id} style={[styles.uniPill, selectedServerId === srv._id && styles.uniPillActive]} onPress={() => selectWorkspace('srv', srv._id)}>
@@ -327,7 +328,7 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
                   );
                 })}
                 {channels.filter(c => !c.parentId && c.type === 'channel' && c.name !== 'đại-sảnh').map(renderChannelItem)}
-                {channels.length === 0 && <Text style={{textAlign:'center', color:'gray', marginTop: 20}}>Không tìm thấy kênh nào.</Text>}
+                {channels.length === 0 && <Text style={{textAlign:'center', color:'gray', marginTop: 20}}>{t('composer.no_channels_found')}</Text>}
               </View>
           </ScrollView>
         </View>
@@ -368,7 +369,6 @@ const styles = StyleSheet.create({
   groupTitle: { fontSize: 12, fontWeight: 'bold', color: 'gray', marginBottom: 8, textTransform: 'uppercase' },
   channelItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f0f0f0' },
   channelNameText: { fontSize: 16 },
-  // 👇 STYLE MỚI CHO CÔNG TẮC BÌNH LUẬN 👇
   toggleCommentContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, paddingTop: 15, borderTopWidth: 1, borderTopColor: '#f0f0f0' },
   toggleCommentText: { marginLeft: 8, fontSize: 15, fontWeight: '500', color: '#333' }
 });

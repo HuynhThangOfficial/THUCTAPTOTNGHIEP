@@ -9,6 +9,7 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import Thread from '@/components/Thread';
 import { Doc, Id } from '@/convex/_generated/dataModel';
 import { Link, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
 
 type ProfileProps = {
   userId?: Id<'users'>;
@@ -19,6 +20,7 @@ export default function Profile({ userId, showBackButton = false }: ProfileProps
   const { top } = useSafeAreaInsets();
   const { userProfile } = useUserProfile();
   const router = useRouter();
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
 
   const targetUserId = userId || userProfile?._id;
 
@@ -71,12 +73,12 @@ export default function Profile({ userId, showBackButton = false }: ProfileProps
 
   // 5. Nội dung thông báo khi Tab trống
   const getEmptyText = () => {
-    if (activeTab === 'posts') return 'Chưa có bài đăng nào.';
-    if (activeTab === 'replies') return 'Chưa có bình luận nào.';
-    if (activeTab === 'reposts') return 'Chưa đăng lại bài nào.';
+    if (activeTab === 'posts') return t('profile_tabs.no_posts');
+    if (activeTab === 'replies') return t('profile_tabs.no_replies');
+    if (activeTab === 'reposts') return t('profile_tabs.no_reposts');
     if (activeTab === 'likes') {
       const isMyProfile = userProfile?._id === targetUserId;
-      return isMyProfile ? 'Bạn chưa yêu thích bài viết nào.' : 'Người này không công khai mục yêu thích.';
+      return isMyProfile ? t('profile_tabs.no_likes_self') : t('profile_tabs.no_likes_other');
     }
     return '';
   };
@@ -90,16 +92,16 @@ export default function Profile({ userId, showBackButton = false }: ProfileProps
         onEndReachedThreshold={0.5}
         renderItem={({ item }) => (
           <Link href={`/feed/${item._id}`} asChild>
-<TouchableOpacity>
-      <Thread 
-        thread={item as any} 
-        viewContext={
-          activeTab === 'replies' ? 'profileReplies' : 
-          activeTab === 'reposts' ? 'profileReposts' : 
-          'profile'
-        } 
-      />
-    </TouchableOpacity>
+            <TouchableOpacity>
+              <Thread 
+                thread={item as any} 
+                viewContext={
+                  activeTab === 'replies' ? 'profileReplies' : 
+                  activeTab === 'reposts' ? 'profileReposts' : 
+                  'profile'
+                } 
+              />
+            </TouchableOpacity>
           </Link>
         )}
         ListEmptyComponent={
@@ -123,7 +125,7 @@ export default function Profile({ userId, showBackButton = false }: ProfileProps
                 onPress={() => setActiveTab('posts')}
               >
                 <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>
-                  Bài đăng
+                  {t('profile_tabs.tab_posts')}
                 </Text>
               </TouchableOpacity>
 
@@ -132,7 +134,7 @@ export default function Profile({ userId, showBackButton = false }: ProfileProps
                 onPress={() => setActiveTab('replies')}
               >
                 <Text style={[styles.tabText, activeTab === 'replies' && styles.activeTabText]}>
-                  Bình luận
+                  {t('profile_tabs.tab_replies')}
                 </Text>
               </TouchableOpacity>
 
@@ -141,7 +143,7 @@ export default function Profile({ userId, showBackButton = false }: ProfileProps
                 onPress={() => setActiveTab('reposts')}
               >
                 <Text style={[styles.tabText, activeTab === 'reposts' && styles.activeTabText]}>
-                  Đăng lại
+                  {t('profile_tabs.tab_reposts')}
                 </Text>
               </TouchableOpacity>
 
@@ -150,7 +152,7 @@ export default function Profile({ userId, showBackButton = false }: ProfileProps
                 onPress={() => setActiveTab('likes')}
               >
                 <Text style={[styles.tabText, activeTab === 'likes' && styles.activeTabText]}>
-                  Yêu thích
+                  {t('profile_tabs.tab_likes')}
                 </Text>
               </TouchableOpacity>
             </View>

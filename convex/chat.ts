@@ -8,9 +8,9 @@ export const getOrCreateConversation = mutation({
   args: { otherUserId: v.id('users') },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Chưa đăng nhập");
+    if (!identity) throw new Error("UNAUTHORIZED");
     const currentUser = await ctx.db.query("users").withIndex("byClerkId", q => q.eq("clerkId", identity.subject)).unique();
-    if (!currentUser) throw new Error("Lỗi user");
+    if (!currentUser) throw new Error("USER_NOT_FOUND");
 
     const allConversations = await ctx.db.query('conversations').collect();
     const existing = allConversations.find(c =>
@@ -38,7 +38,7 @@ export const sendMessage = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Chưa đăng nhập");
+    if (!identity) throw new Error("UNAUTHORIZED");
     const currentUser = await ctx.db.query("users").withIndex("byClerkId", q => q.eq("clerkId", identity.subject)).unique();
 
     const messageId = await ctx.db.insert('direct_messages', {
@@ -76,7 +76,7 @@ export const toggleReaction = mutation({
   args: { messageId: v.id('direct_messages'), emoji: v.string() },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Chưa đăng nhập");
+    if (!identity) throw new Error("UNAUTHORIZED");
     const currentUser = await ctx.db.query("users").withIndex("byClerkId", q => q.eq("clerkId", identity.subject)).unique();
     const msg = await ctx.db.get(args.messageId);
     if (!msg) return;
@@ -92,8 +92,9 @@ export const unsendMessage = mutation({
   args: { messageId: v.id('direct_messages') },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Chưa đăng nhập");
-    await ctx.db.patch(args.messageId, { content: "Tin nhắn đã bị thu hồi", isDeleted: true });
+    if (!identity) throw new Error("UNAUTHORIZED");
+    // Xóa trắng text thay vì gán text tiếng Việt cứng vào DB
+    await ctx.db.patch(args.messageId, { content: "", isDeleted: true });
   }
 });
 
@@ -152,7 +153,6 @@ export const getInbox = query({
       const otherUser = await ctx.db.get(otherUserId!);
       let imageUrl = otherUser?.imageUrl;
       
-      // 👇 ĐÃ CẬP NHẬT CHUẨN BEST PRACTICE TẠI ĐÂY
       if (imageUrl && !isHttpUrl(imageUrl)) imageUrl = await ctx.storage.getUrl(imageUrl as any) || imageUrl;
       
       return { ...c, otherUser: { ...otherUser, imageUrl } };
@@ -176,7 +176,6 @@ export const getConversationInfo = query({
     if (!otherUser) return null;
     let imageUrl = otherUser.imageUrl;
     
-    // 👇 ĐÃ CẬP NHẬT CHUẨN BEST PRACTICE TẠI ĐÂY
     if (imageUrl && !isHttpUrl(imageUrl)) imageUrl = await ctx.storage.getUrl(imageUrl as any) || imageUrl;
     
     return { ...otherUser, imageUrl };
@@ -193,9 +192,11 @@ export const togglePinMessage = mutation({
     if (!msg || !user) return;
     const newPinStatus = !msg.isPinned;
     await ctx.db.patch(args.messageId, { isPinned: newPinStatus });
+    
+    // 👇 LƯU MÃ HỆ THỐNG THAY VÌ TIẾNG VIỆT CỨNG
     await ctx.db.insert('direct_messages', {
       conversationId: args.conversationId, senderId: user._id, status: 'read', isSystem: true,
-      content: newPinStatus ? `${user.first_name} đã ghim một tin nhắn` : `${user.first_name} đã bỏ ghim một tin nhắn`,
+      content: newPinStatus ? `SYS_PINNED|${user.first_name}` : `SYS_UNPINNED|${user.first_name}`,
     });
   }
 });
@@ -219,7 +220,6 @@ export const deleteForSelf = mutation({
 
 export const generateUploadUrl = mutation(async (ctx) => await ctx.storage.generateUploadUrl());
 
-// 👇 HÀM MỚI ĐƯỢC THÊM VÀO ĐỂ FIX LỖI 👇
 export const getRawConversation = query({
   args: { conversationId: v.id('conversations') },
   handler: async (ctx, args) => {

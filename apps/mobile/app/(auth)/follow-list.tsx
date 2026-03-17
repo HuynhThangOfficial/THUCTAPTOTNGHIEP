@@ -6,10 +6,12 @@ import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import { Ionicons } from '@expo/vector-icons';
 import ProfileSearchResult from '@/components/ProfileSearchResult';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
 
 export default function FollowListScreen() {
   const { userId, initialTab } = useLocalSearchParams();
   const router = useRouter();
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
 
   // 1. Cập nhật State để chấp nhận 3 giá trị: followers, following, friends
   const [activeTab, setActiveTab] = useState<'followers' | 'following' | 'friends'>(
@@ -49,8 +51,8 @@ export default function FollowListScreen() {
         </TouchableOpacity>
 
         <Text style={styles.headerTitle}>
-           {activeTab === 'followers' ? 'Người theo dõi' :
-            activeTab === 'following' ? 'Đang theo dõi' : 'Bạn bè'}
+           {activeTab === 'followers' ? t('follow_list.tab_followers') :
+            activeTab === 'following' ? t('follow_list.tab_following') : t('follow_list.tab_friends')}
         </Text>
         <View style={{ width: 26 }} />
       </View>
@@ -66,7 +68,7 @@ export default function FollowListScreen() {
             {followers ? followers.length : 0}
           </Text>
           <Text style={[styles.tabLabel, activeTab === 'followers' && styles.activeTabText]}>
-            Người theo dõi
+            {t('follow_list.tab_followers')}
           </Text>
         </TouchableOpacity>
 
@@ -79,7 +81,7 @@ export default function FollowListScreen() {
             {following ? following.length : 0}
           </Text>
           <Text style={[styles.tabLabel, activeTab === 'following' && styles.activeTabText]}>
-            Đang theo dõi
+            {t('follow_list.tab_following')}
           </Text>
         </TouchableOpacity>
 
@@ -92,7 +94,7 @@ export default function FollowListScreen() {
             {friends ? friends.length : 0}
           </Text>
           <Text style={[styles.tabLabel, activeTab === 'friends' && styles.activeTabText]}>
-            Bạn bè
+            {t('follow_list.tab_friends')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -101,7 +103,7 @@ export default function FollowListScreen() {
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={20} color="gray" style={styles.searchIcon} />
         <TextInput
-          placeholder="Tìm kiếm..."
+          placeholder={t('follow_list.search_placeholder')}
           style={styles.searchInput}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -119,8 +121,8 @@ export default function FollowListScreen() {
           ListEmptyComponent={
             <Text style={styles.emptyText}>
               {activeTab === 'friends'
-                ? 'Chưa có bạn bè nào (Follow chéo).'
-                : 'Danh sách trống.'}
+                ? t('follow_list.empty_friends')
+                : t('follow_list.empty_list')}
             </Text>
           }
           contentContainerStyle={{ paddingBottom: 20 }}

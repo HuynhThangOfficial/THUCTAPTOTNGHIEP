@@ -11,6 +11,7 @@
     "convex:dev": "npx convex dev"
   },
   "dependencies": {
-    "convex": "^1.33.1"
+    "convex": "^1.33.1",
+    "expo-localization": "~15.0.3"
   }
 }

@@ -1,4 +1,5 @@
-import { Slot, useNavigationContainerRef, useSegments } from 'expo-router';
+import '../i18n'; // Luôn để i18n ở dòng đầu tiên
+import { Slot, useNavigationContainerRef, useSegments, useRouter } from 'expo-router';
 import {
   useFonts,
   DMSans_400Regular,
@@ -7,19 +8,21 @@ import {
 } from '@expo-google-fonts/dm-sans';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { ClerkProvider, ClerkLoaded, useAuth, useUser } from '@clerk/clerk-expo';
+import { ClerkProvider, ClerkLoaded, useAuth, useUser } from '@clerk/clerk-expo'; // 👈 BẮT BUỘC LÀ clerk-expo
 import { tokenCache } from '@/utils/cache';
-import { LogBox } from 'react-native';
-import { useRouter } from 'expo-router';
+import { LogBox, ActivityIndicator, View } from 'react-native';
 import { ConvexReactClient } from 'convex/react';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
 import * as Sentry from '@sentry/react-native'; 
 import { ActionSheetProvider } from '@expo/react-native-action-sheet';
 import { ChannelProvider } from '@/context/ChannelContext';
 import { MenuProvider } from '@/context/MenuContext';
-import { RootSiblingParent } from 'react-native-root-siblings'; // Giải quyết lỗi Bundling
+import { RootSiblingParent } from 'react-native-root-siblings';
 
-// Ngăn màn hình chào tự tắt cho đến khi font tải xong
+// 👇 Import thêm Hook ngôn ngữ và Profile
+import { useTranslation } from 'react-i18next';
+import { useUserProfile } from '@/hooks/useUserProfile';
+
 SplashScreen.preventAutoHideAsync();
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
@@ -28,20 +31,17 @@ if (!publishableKey) {
   throw new Error('Missing Publishable Key');
 }
 
-// Bỏ qua các log cảnh báo không cần thiết của Clerk
 LogBox.ignoreLogs(['Clerk:']);
 
 const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
   unsavedChangesWarning: false,
 });
 
-// --- CẤU HÌNH SENTRY ---
 const routingInstrumentation = new Sentry.ReactNavigationInstrumentation();
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
   attachScreenshot: true,
-  debug: false,
   tracesSampleRate: 1.0,
   integrations: [
     new Sentry.ReactNativeTracing({
@@ -51,6 +51,7 @@ Sentry.init({
   ],
 });
 
+// --- COMPONENT XỬ LÝ ĐIỀU HƯỚNG & AUTH ---
 const InitialLayout = () => {
   const [fontsLoaded] = useFonts({
     DMSans_400Regular,
@@ -62,28 +63,39 @@ const InitialLayout = () => {
   const router = useRouter();
   const { user } = useUser();
 
-  // Ẩn Splash Screen khi font đã sẵn sàng
+  // Gọi Hook ngôn ngữ
+  const { i18n } = useTranslation();
+  const { language, isLoading: isProfileLoading } = useUserProfile();
+
   useEffect(() => {
     if (fontsLoaded) {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded]);
 
-  // Logic điều hướng tự động (Auth Guard)
+  // Logic điều hướng
   useEffect(() => {
-    if (!isLoaded) return;
-    const inTabsGroup = segments[0] === '(auth)';
+    if (!isLoaded || !fontsLoaded) return; // Đợi cả Auth và Font load xong
 
-    if (isSignedIn && !inTabsGroup) {
-      // Nếu đã đăng nhập mà đang ở trang public -> Chuyển vào Feed
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (isSignedIn && !inAuthGroup) {
       router.replace('/(auth)/(tabs)/feed');
-    } else if (!isSignedIn && inTabsGroup) {
-      // Nếu chưa đăng nhập mà cố vào vùng auth -> Chuyển ra Login
+    } else if (!isSignedIn && inAuthGroup) {
       router.replace('/(public)');
     }
-  }, [isSignedIn, isLoaded, segments]);
+  }, [isSignedIn, isLoaded, segments, fontsLoaded]);
 
-  // Gửi thông tin định danh User lên Sentry để dễ debug lỗi theo người dùng
+  // Logic Đồng bộ ngôn ngữ từ Database về App
+  useEffect(() => {
+    if (!isProfileLoading && language) {
+      if (i18n.language !== language) {
+        i18n.changeLanguage(language);
+      }
+    }
+  }, [language, isProfileLoading]);
+
+  // Logic Sentry
   useEffect(() => {
     if (user) {
       Sentry.setUser({
@@ -95,13 +107,22 @@ const InitialLayout = () => {
     }
   }, [user]);
 
+  // Nếu chưa load xong thì hiện màn hình chờ trắng để tránh lỗi hook
+  if (!isLoaded || !fontsLoaded) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#5865F2" />
+      </View>
+    );
+  }
+
   return <Slot />;
 };
 
+// --- COMPONENT CHỨA CÁC PROVIDER ---
 const RootLayoutNav = () => {
   const ref = useNavigationContainerRef();
 
-  // Kết nối công cụ đo lường Sentry với Expo Router Navigation
   useEffect(() => {
     if (ref) {
       routingInstrumentation.registerNavigationContainer(ref);
@@ -109,15 +130,12 @@ const RootLayoutNav = () => {
   }, [ref]);
 
   return (
-    <ClerkProvider publishableKey={publishableKey!} tokenCache={tokenCache}>
+    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <ClerkLoaded>
         <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
           <ActionSheetProvider>
             <ChannelProvider>
               <MenuProvider>
-                {/* Bọc RootSiblingParent tại đây để các thành phần con
-                  có thể sử dụng Toast, Popover, Siblings ở lớp trên cùng
-                */}
                 <RootSiblingParent>
                   <InitialLayout />
                 </RootSiblingParent>
@@ -130,5 +148,4 @@ const RootLayoutNav = () => {
   );
 };
 
-// Bọc toàn bộ App bằng Sentry.wrap để bắt mọi lỗi crash từ gốc
-export default Sentry.wrap(RootLayoutNav);
+export default RootLayoutNav;

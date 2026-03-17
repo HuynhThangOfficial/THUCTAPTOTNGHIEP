@@ -8,15 +8,10 @@ import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useChannel } from '@/context/ChannelContext';
 import Thread from '@/components/Thread';
-
-const SEARCH_TABS = [
-  { id: 'users', label: 'Tìm người dùng' },
-  { id: 'servers', label: 'Tìm máy chủ' },
-  { id: 'channel_posts', label: 'Bài đăng trong kênh' },
-  { id: 'server_posts', label: 'Bài đăng trong máy chủ' },
-];
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
 
 export default function SearchScreen() {
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('users');
   const router = useRouter();
@@ -29,17 +24,20 @@ export default function SearchScreen() {
   const channelPostList = useQuery(api.messages.searchMessages, (search === '' || !activeChannelId) ? 'skip' : { search, channelId: activeChannelId });
   const serverPostList = useQuery(api.messages.searchMessages, (search === '' || !activeServerId) ? 'skip' : { search, serverId: activeServerId });
 
+  // Định nghĩa mảng TABS bên trong component để lấy được hàm t()
+  const SEARCH_TABS = [
+    { id: 'users', label: t('search.tab_users') },
+    { id: 'servers', label: t('search.tab_servers') },
+    { id: 'channel_posts', label: t('search.tab_channel_posts') },
+    { id: 'server_posts', label: t('search.tab_server_posts') },
+  ];
+
   // 1. Hàm Xử lý khi nhấn nút TẠO THÀNH VIÊN MỚI (THAM GIA)
   const handleJoinServer = async (server: any) => {
       try {
-        // Bước 1: Gọi API tham gia máy chủ
         await joinServerMutation({ serverId: server._id });
-
-        // Bước 2: Đóng trang tìm kiếm ngay lập tức
         router.back();
 
-        // Bước 3: Đợi 150ms để màn hình đóng hẳn và dữ liệu Backend kịp đồng bộ
-        // rồi mới kích hoạt thanh Server (đảm bảo không bị chệch nhịp)
         setTimeout(() => {
           setActiveServerId(server._id);
           setActiveUniversityId(null as any);
@@ -47,17 +45,15 @@ export default function SearchScreen() {
         }, 100);
 
       } catch (error: any) {
-        Alert.alert("Lỗi", error.message);
+        Alert.alert(t('search.error', 'Lỗi'), error.message);
       }
     };
 
   // 2. Hàm Xử lý khi nhấn vào tên Server ĐÃ THAM GIA RỒI
   const handleGoToServer = (server: any) => {
-    // 👇 THỨ TỰ QUAN TRỌNG: BẬT SERVER LÊN TRƯỚC RỒI MỚI TẮT ĐẠI HỌC
     setActiveServerId(server._id);
     setActiveUniversityId(null as any);
     setActiveChannelId(null as any);
-
     router.back();
   };
 
@@ -70,14 +66,14 @@ export default function SearchScreen() {
         activeOpacity={item.isJoined ? 0.2 : 1}
         onPress={() => {
           if (item.isJoined) {
-            handleGoToServer(item); // Chỉ cho phép đi tới nếu đã tham gia
+            handleGoToServer(item); 
           }
         }}
       >
         <Image source={{ uri: item.icon || 'https://via.placeholder.com/50' }} style={styles.serverAvatar} />
         <View style={{ flex: 1 }}>
           <Text style={styles.resultName}>{item.name}</Text>
-          <Text style={styles.resultSub}>Máy chủ</Text>
+          <Text style={styles.resultSub}>{t('search.server')}</Text>
         </View>
       </TouchableOpacity>
 
@@ -85,14 +81,14 @@ export default function SearchScreen() {
       {item.isJoined ? (
          <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 10 }}>
             <Ionicons name="checkmark-circle" size={16} color="#2e8b57" />
-            <Text style={{ color: '#2e8b57', marginLeft: 4, fontWeight: 'bold', fontSize: 12 }}>Đã tham gia</Text>
+            <Text style={{ color: '#2e8b57', marginLeft: 4, fontWeight: 'bold', fontSize: 12 }}>{t('search.joined')}</Text>
          </View>
       ) : (
          <TouchableOpacity
             style={{ backgroundColor: '#5865F2', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, marginLeft: 10 }}
             onPress={() => handleJoinServer(item)}
          >
-            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 13 }}>Tham gia</Text>
+            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 13 }}>{t('search.join')}</Text>
          </TouchableOpacity>
       )}
     </View>
@@ -108,6 +104,8 @@ export default function SearchScreen() {
     }
   };
 
+  const currentTabLabel = SEARCH_TABS.find(t => t.id === activeTab)?.label.toLowerCase() || '';
+
   return (
     <View style={styles.container}>
       <Stack.Screen
@@ -117,7 +115,8 @@ export default function SearchScreen() {
               <View style={styles.searchBarContainer}>
                 <TextInput
                   style={styles.searchInput}
-                  placeholder={`Tìm kiếm ${SEARCH_TABS.find(t => t.id === activeTab)?.label.toLowerCase().replace('tìm ', '')}`}
+                  // Truyền biến label vào thay vì dùng replace() cứng ngắc như cũ
+                  placeholder={t('search.search_placeholder', { label: currentTabLabel.replace(t('search.tab_users').split(' ')[0].toLowerCase(), '').trim() })}
                   value={search}
                   onChangeText={setSearch}
                   autoFocus={true}
@@ -157,9 +156,13 @@ export default function SearchScreen() {
         keyExtractor={(item: any) => item._id}
         ItemSeparatorComponent={() => <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: Colors.border }} />}
         ListEmptyComponent={() => {
-          if (activeTab === 'channel_posts' && !activeChannelId) return <Text style={styles.emptyText}>Vui lòng chọn một kênh trước khi tìm kiếm</Text>;
-          if (activeTab === 'server_posts' && !activeServerId) return <Text style={styles.emptyText}>Vui lòng tham gia một máy chủ trước khi tìm kiếm</Text>;
-          return <Text style={styles.emptyText}>{search === '' ? `Hãy ${SEARCH_TABS.find(t => t.id === activeTab)?.label.toLowerCase()}` : 'Không tìm thấy kết quả nào'}</Text>;
+          if (activeTab === 'channel_posts' && !activeChannelId) return <Text style={styles.emptyText}>{t('search.empty_channel_posts')}</Text>;
+          if (activeTab === 'server_posts' && !activeServerId) return <Text style={styles.emptyText}>{t('search.empty_server_posts')}</Text>;
+          return (
+            <Text style={styles.emptyText}>
+              {search === '' ? t('search.empty_prompt', { label: currentTabLabel }) : t('search.no_results')}
+            </Text>
+          );
         }}
         renderItem={(props) => {
           if (activeTab === 'users') return <ProfileSearchResult key={props.item._id} user={props.item} />;

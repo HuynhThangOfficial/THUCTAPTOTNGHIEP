@@ -8,10 +8,14 @@ import { Id } from '@/convex/_generated/dataModel';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { isHttpUrl } from '@/convex/utils';
+import { useTranslation } from 'react-i18next'; // 👈 Thêm thư viện dịch thuật
+
+// 👇 1. IMPORT THÊM USEUSER TỪ CLERK 👇
+import { useUser } from '@clerk/clerk-expo';
 
 const getValidAvatar = (url?: string | null): string => {
   if (isHttpUrl(url)) return url as string;
-  return 'https://www.gravatar.com/avatar/?d=mp';
+  return 'https://cdn.discordapp.com/embed/avatars/0.png'; // Ảnh mặc định
 };
 
 type UserProfileProps = {
@@ -21,8 +25,12 @@ type UserProfileProps = {
 };
 
 export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }: UserProfileProps) => {
+  const { t } = useTranslation(); // 👈 Khởi tạo hàm dịch
   const { userProfile } = useUserProfile();
   const router = useRouter();
+  
+  // 👇 2. LẤY DỮ LIỆU TỪ CLERK ĐỂ CẬP NHẬT INSTANT CHO CHÍNH MÌNH 👇
+  const { user: clerkUser } = useUser();
 
   const currentId = userId || userProfile?._id;
   const isSelf = userProfile?._id === currentId;
@@ -57,7 +65,13 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
 
   const handleShare = async () => {
     try {
-      await Share.share({ message: `Khám phá trang cá nhân của ${profile?.first_name} ${profile?.last_name}!` });
+      // 👈 Thay bằng hàm t() truyền biến động vào trong text
+      await Share.share({ 
+        message: t('profile.share_message', { 
+          firstName: profile?.first_name || '', 
+          lastName: profile?.last_name || '' 
+        }) 
+      });
     } catch (error) { console.log(error); }
   };
 
@@ -69,7 +83,7 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
         {showBackButton ? (
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={24} color="#000" />
-            <Text style={styles.backText}>Back</Text>
+            <Text style={styles.backText}>{t('profile.back')}</Text>
           </TouchableOpacity>
         ) : (
           <MaterialCommunityIcons name="web" size={24} color="black" />
@@ -90,10 +104,26 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
 
       <View style={styles.profileContainer}>
         <View style={styles.userInfoColumn}>
-          <Image source={{ uri: getValidAvatar(profile?.imageUrl) }} style={styles.image} />
+          {/* 👇 3. AVATAR: NẾU LÀ MÌNH THÌ LẤY TỪ CLERK CHO MƯỢT 👇 */}
+          <Image 
+            source={{ uri: getValidAvatar(isSelf ? clerkUser?.imageUrl : profile?.imageUrl) }} 
+            style={styles.image} 
+          />
+          
           <View style={styles.textStack}>
-             <Text style={styles.name}>{profile?.first_name} {profile?.last_name}</Text>
-             <Text style={styles.email}>{profile?.email}</Text>
+             {/* 👇 4. TÊN HIỂN THỊ: Ưu tiên lấy từ Clerk nếu là tài khoản của mình 👇 */}
+             <Text style={styles.name}>
+               {isSelf 
+                 ? clerkUser?.firstName 
+                 : `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim()}
+             </Text>
+             
+             {/* 👇 5. ID NGƯỜI DÙNG: Ưu tiên lấy từ Clerk nếu là tài khoản của mình 👇 */}
+             <Text style={styles.usernameText}>
+               @{isSelf 
+                 ? clerkUser?.username 
+                 : (profile?.username || profile?.email?.split('@')[0])}
+             </Text>
           </View>
         </View>
 
@@ -103,7 +133,7 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
             asChild>
             <TouchableOpacity style={styles.editButtonTop}>
               <Ionicons name="create-outline" size={20} color="black" />
-              <Text style={styles.editButtonText}>Chỉnh sửa</Text>
+              <Text style={styles.editButtonText}>{t('profile.edit_profile')}</Text>
             </TouchableOpacity>
           </Link>
         )}
@@ -112,25 +142,25 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
       <View style={styles.statsRow}>
         <TouchableOpacity onPress={() => router.push({ pathname: '/follow-list', params: { userId: profile?._id, initialTab: 'followers' } })}>
           <Text style={styles.followersText}>
-            <Text style={{ fontWeight: 'bold' }}>{profile?.followersCount || 0}</Text> người theo dõi
+            <Text style={{ fontWeight: 'bold' }}>{profile?.followersCount || 0}</Text> {t('profile.followers')}
           </Text>
         </TouchableOpacity>
         <Text style={styles.dot}>·</Text>
         <TouchableOpacity onPress={() => router.push({ pathname: '/follow-list', params: { userId: profile?._id, initialTab: 'following' } })}>
           <Text style={styles.followersText}>
-            <Text style={{ fontWeight: 'bold' }}>{followingCount}</Text> đang theo dõi
+            <Text style={{ fontWeight: 'bold' }}>{followingCount}</Text> {t('profile.following')}
           </Text>
         </TouchableOpacity>
         <Text style={styles.dot}>·</Text>
         <View style={styles.statItem}>
           <Text style={styles.followersText}>
-            <Text style={{ fontWeight: 'bold' }}>{postCount}</Text> bài viết
+            <Text style={{ fontWeight: 'bold' }}>{postCount}</Text> {t('profile.posts')}
           </Text>
         </View>
       </View>
 
       <View style={styles.bioContainer}>
-        <Text style={styles.bioText}>{profile?.bio ? profile?.bio : 'Chưa thêm tiểu sử'}</Text>
+        <Text style={styles.bioText}>{profile?.bio ? profile?.bio : t('profile.no_bio')}</Text>
         
         {profile?.websiteUrl && (
           <TouchableOpacity 
@@ -157,12 +187,12 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
               onPress={handleToggleFollow}
             >
               <Text style={[styles.fullButtonText, isFollowing && { color: '#000' }]}>
-                {isFollowing ? 'Đang theo dõi' : 'Theo dõi'}
+                {isFollowing ? t('profile.btn_following') : t('profile.btn_follow')}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.messageButton} onPress={handleMessagePress}>
-              <Text style={styles.messageButtonText}>Nhắn tin</Text>
+              <Text style={styles.messageButtonText}>{t('profile.btn_message')}</Text>
             </TouchableOpacity>
         </View>
       )}
@@ -171,7 +201,6 @@ export const UserProfile = ({ userId, onSettingsPress, showBackButton = false }:
 };
 
 const styles = StyleSheet.create({
-  // 👇 Đã ép sát bottom và bỏ mọi flex 👇
   container: { paddingHorizontal: 16, paddingTop: 0, paddingBottom: 5, backgroundColor: '#fff', flex: 0 }, 
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, height: 40 },
   backButton: { flexDirection: 'row', alignItems: 'center', gap: 5 },
@@ -183,7 +212,8 @@ const styles = StyleSheet.create({
   image: { width: 60, height: 60, borderRadius: 30 },
   textStack: { gap: 2 },
   name: { fontSize: 20, fontWeight: 'bold' },
-  email: { fontSize: 14, color: 'gray' },
+  
+  usernameText: { fontSize: 15, color: '#666', fontWeight: '500' },
   
   editButtonTop: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, marginTop: 10 },
   editButtonText: { fontWeight: '600', fontSize: 14 },
@@ -193,10 +223,10 @@ const styles = StyleSheet.create({
   dot: { fontSize: 14, color: 'gray' },
   followersText: { fontSize: 15, color: '#000' },
   
-  bioContainer: { marginBottom: 0 }, // Đã set về 0 để không cắn xuống dưới
+  bioContainer: { marginBottom: 0 },
   bioText: { fontSize: 15, color: '#000', marginBottom: 4, lineHeight: 20 },
   linkRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  linkText: { fontSize: 15, color: '#0095f6', fontWeight: '500' }, // Chắc chắn đã mất flex: 1
+  linkText: { fontSize: 15, color: '#0095f6', fontWeight: '500' },
   
   buttonRow: { flexDirection: 'row', justifyContent: 'space-evenly', marginTop: 10, gap: 16 },
   

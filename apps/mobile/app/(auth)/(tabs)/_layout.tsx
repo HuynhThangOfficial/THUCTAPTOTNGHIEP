@@ -10,6 +10,7 @@ import Animated, { useAnimatedStyle, interpolate, Extrapolation, runOnJS } from 
 import SideMenu from '@/components/SideMenu';
 import { MenuProvider, useMenu } from '@/context/MenuContext';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
 
 // 👇 THÊM 2 IMPORT CỦA CONVEX 👇
 import { useQuery } from 'convex/react';
@@ -24,6 +25,7 @@ const CreateTabIcon = ({ color, size }: { color: string; size: number }) => (
 const TabsWithSwipe = () => {
   const { signOut, isSignedIn } = useAuth();
   const router = useRouter();
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
 
   usePush();
   // Hợp nhất logic useOnlineStatus từ cả 2 nhánh
@@ -62,7 +64,7 @@ const TabsWithSwipe = () => {
           <Tabs.Screen
             name="feed"
             options={{
-              title: 'Home',
+              title: t('tabs.home'), // 👈 Dùng t()
               headerShown: false,
               tabBarIcon: ({ color, size, focused }) => (
                 <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
@@ -72,7 +74,7 @@ const TabsWithSwipe = () => {
           <Tabs.Screen
             name="messages"
             options={{
-              title: 'Messages',
+              title: t('tabs.messages'), // 👈 Dùng t()
               headerShown: false,
               tabBarIcon: ({ color, size, focused }) => (
                 <Ionicons name={focused ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'} size={size} color={color} />
@@ -82,7 +84,7 @@ const TabsWithSwipe = () => {
           <Tabs.Screen
             name="create"
             options={{
-              title: 'Create',
+              title: t('tabs.create'), // 👈 Dùng t()
               tabBarIcon: ({ color, size }) => <CreateTabIcon color={color} size={size} />,
             }}
             listeners={{
@@ -96,7 +98,7 @@ const TabsWithSwipe = () => {
           <Tabs.Screen
             name="notifications"
             options={{
-              title: 'Thông báo',
+              title: t('tabs.notifications'), // 👈 Dùng t()
               // 👇 HIỂN THỊ CHẤM ĐỎ TRÊN TAB BAR 👇
               tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
               tabBarBadgeStyle: { backgroundColor: '#F23F42', fontSize: 10 }, // Đỏ chuẩn Discord
@@ -108,7 +110,7 @@ const TabsWithSwipe = () => {
           <Tabs.Screen
             name="profile"
             options={{
-              title: 'Profile',
+              title: t('tabs.profile'), // 👈 Dùng t()
               headerShown: false,
               tabBarIcon: ({ color, size, focused }) => (
                 <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color} />

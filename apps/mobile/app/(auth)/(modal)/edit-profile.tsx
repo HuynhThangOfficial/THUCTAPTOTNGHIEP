@@ -6,9 +6,10 @@ import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import * as ImagePicker from 'expo-image-picker';
-import * as Sentry from '@sentry/react-native';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
 
 const Page = () => {
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
   // 1. Nhận tham số (có fallback để tránh lỗi undefined)
   const { biostring, linkstring, linkTitlestring, userId, imageUrl } = useLocalSearchParams<{
     biostring?: string;
@@ -55,7 +56,7 @@ const Page = () => {
       router.dismiss();
     } catch (error) {
       console.error("Lỗi cập nhật profile:", error);
-      Alert.alert("Lỗi", "Không thể cập nhật hồ sơ. Vui lòng thử lại!");
+      Alert.alert(t('edit_profile.error_title'), t('edit_profile.update_error'));
     } finally {
       setIsUpdating(false);
     }
@@ -99,7 +100,7 @@ const Page = () => {
             headerRight: () => (
               <TouchableOpacity onPress={onDone} disabled={isUpdating}>
                 <Text style={[styles.doneButtonText, isUpdating && { color: 'gray' }]}>
-                  {isUpdating ? "Đang lưu..." : "Lưu"}
+                  {isUpdating ? t('edit_profile.saving') : t('edit_profile.save')}
                 </Text>
               </TouchableOpacity>
             ),
@@ -112,16 +113,16 @@ const Page = () => {
             source={{ uri: selectedImage ? selectedImage.uri : (imageUrl || 'https://www.gravatar.com/avatar/?d=mp') }} 
             style={styles.image} 
           />
-          <Text style={styles.changePhotoText}>Đổi ảnh đại diện</Text>
+          <Text style={styles.changePhotoText}>{t('edit_profile.change_photo')}</Text>
         </TouchableOpacity>
 
         {/* Tiểu sử */}
         <View style={styles.section}>
-          <Text style={styles.label}>Tiểu sử</Text>
+          <Text style={styles.label}>{t('edit_profile.bio_label')}</Text>
           <TextInput
             value={bio}
             onChangeText={setBio}
-            placeholder="Viết đôi dòng về bạn..."
+            placeholder={t('edit_profile.bio_placeholder')}
             multiline
             style={styles.bioInput}
           />
@@ -129,7 +130,7 @@ const Page = () => {
 
         {/* Liên kết */}
         <View style={styles.section}>
-          <Text style={styles.label}>Liên kết</Text>
+          <Text style={styles.label}>{t('edit_profile.link_label')}</Text>
           
           <TextInput 
             value={link} 
@@ -141,11 +142,11 @@ const Page = () => {
 
           <View style={styles.divider} />
           
-          <Text style={[styles.label, { marginTop: 10 }]}>Tiêu đề liên kết (Tùy chọn)</Text>
+          <Text style={[styles.label, { marginTop: 10 }]}>{t('edit_profile.link_title_label')}</Text>
           <TextInput 
             value={linkTitle} 
             onChangeText={setLinkTitle} 
-            placeholder="Ví dụ: LinkedIn, Facebook của tôi..." 
+            placeholder={t('edit_profile.link_title_placeholder')}
             style={styles.input}
           />
         </View>

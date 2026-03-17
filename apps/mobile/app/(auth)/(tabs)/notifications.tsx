@@ -2,11 +2,13 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ActivityIndi
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useRouter, Stack } from 'expo-router';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
 
 export default function NotificationsScreen() {
   const notifications = useQuery(api.messages.getNotifications);
   const markRead = useMutation(api.messages.markNotificationRead);
   const router = useRouter();
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
 
   const handlePress = (item: any) => {
        markRead({ notificationId: item._id });
@@ -27,10 +29,10 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Thông báo', headerShadowVisible: false }} />
+      <Stack.Screen options={{ title: t('notifications.title'), headerShadowVisible: false }} />
       <FlatList
          data={notifications}
-         ListEmptyComponent={<Text style={styles.emptyText}>Chưa có thông báo nào.</Text>}
+         ListEmptyComponent={<Text style={styles.emptyText}>{t('notifications.empty')}</Text>}
          keyExtractor={item => item._id}
          renderItem={({ item }) => {
             let actionText = '';
@@ -38,13 +40,16 @@ export default function NotificationsScreen() {
             // 👇 LOGIC HIỂN THỊ KÊNH VÀ SERVER Ở ĐÂY 👇
             if (item.type === 'post') {
               if (item.channelName && item.workspaceName) {
-                actionText = `đã đăng bài trong #${item.channelName} • ${item.workspaceName}`;
+                actionText = t('notifications.posted_in_channel', { 
+                  channelName: item.channelName, 
+                  workspaceName: item.workspaceName 
+                });
               } else {
-                actionText = `đã đăng một bài viết mới`;
+                actionText = t('notifications.posted_new');
               }
             }
-            if (item.type === 'message') actionText = 'đã gửi tin nhắn cho bạn';
-            if (item.type === 'follow') actionText = 'đã bắt đầu theo dõi bạn';
+            if (item.type === 'message') actionText = t('notifications.sent_message');
+            if (item.type === 'follow') actionText = t('notifications.started_following');
 
             return (
               <TouchableOpacity style={[styles.item, !item.isRead && styles.unread]} onPress={() => handlePress(item)}>

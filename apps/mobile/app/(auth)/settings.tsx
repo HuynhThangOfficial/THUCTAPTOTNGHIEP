@@ -1,86 +1,126 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Share, Linking, Switch, Modal, FlatList, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Share, Linking, Switch, Modal, FlatList, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { useAuth, useClerk, useUser } from '@clerk/clerk-expo';
 import { useRouter, Stack } from 'expo-router';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
+import { useTranslation } from 'react-i18next'; // Hook đa ngôn ngữ
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 export default function SettingsScreen() {
   const { signOut } = useAuth();
   const { client, setActive } = useClerk();
   const { user } = useUser();
   const router = useRouter();
+  const { t, i18n } = useTranslation(); // Lấy hàm t và biến i18n ra
   
   const [isAccountModalVisible, setAccountModalVisible] = useState(false);
+  const [isLanguageModalVisible, setLanguageModalVisible] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // 1. Lấy dữ liệu và Mutation từ Convex
   const userProfile = useQuery(api.users.current);
   const updateActiveStatus = useMutation(api.users.updateActiveStatus);
+  const updateLanguage = useMutation(api.users.updateLanguage);
 
-  // 2. Chức năng Đăng xuất
+  const getLanguageName = (code: string) => {
+    switch(code) {
+      case 'vi': return 'Tiếng Việt 🇻🇳';
+      case 'en': return 'English 🇺🇸';
+      case 'zh': return '中文 🇨🇳';
+      default: return 'English 🇺🇸';
+    }
+  };
+
+  const LANGUAGES = [
+    { code: 'vi', label: 'Tiếng Việt 🇻🇳' },
+    { code: 'en', label: 'English 🇺🇸' },
+    { code: 'zh', label: '中文 🇨🇳' }
+  ];
+
+  const handleLanguageChange = async (langCode: string) => {
+    i18n.changeLanguage(langCode);
+    setLanguageModalVisible(false);
+    
+    if (userProfile?._id) {
+      try {
+        await updateLanguage({ 
+          userId: userProfile._id, 
+          language: langCode 
+        });
+      } catch(e) {
+        console.log("Lỗi lưu ngôn ngữ:", e);
+      }
+    }
+  };
+
   const handleLogout = () => {
-    Alert.alert('Đăng xuất', 'Bạn có chắc chắn muốn đăng xuất khỏi KonKet?', [
-      { text: 'Hủy', style: 'cancel' },
-      { text: 'Đăng xuất', style: 'destructive', onPress: () => {
-          router.dismissAll(); 
-          signOut();
+    Alert.alert(t('settings.logout'), t('settings.logout_confirm'), [
+      { text: t('common.cancel', 'Hủy'), style: 'cancel' },
+      { text: t('settings.logout'), style: 'destructive', onPress: async () => {
+          await signOut();
+          router.replace('/(public)' as any); 
       }},
     ]);
   };
 
-  // 3. Chức năng Xóa tài khoản
   const handleDeleteAccount = () => {
     Alert.alert(
-      'Cảnh báo nguy hiểm', 
-      'Hành động này sẽ xóa vĩnh viễn dữ liệu của bạn và không thể khôi phục. Bạn vẫn muốn tiếp tục?', 
+      t('settings.delete_account_warning_title'), 
+      t('settings.delete_account_warning_desc'), 
       [
-        { text: 'Hủy', style: 'cancel' },
-        { text: 'Xóa vĩnh viễn', style: 'destructive', onPress: () => {
-            Alert.alert("Thông báo", "Vui lòng liên hệ Admin để thực hiện xóa tài khoản an toàn.");
+        { text: t('common.cancel', 'Hủy'), style: 'cancel' },
+        { text: t('settings.delete_permanently'), style: 'destructive', onPress: async () => {
+            try {
+              setIsDeleting(true);
+              await user?.delete();
+              await signOut();
+              router.replace('/(public)' as any);
+            } catch (error: any) {
+              Alert.alert(t('common.error', 'Lỗi'), error.errors?.[0]?.message || t('settings.delete_account_error'));
+            } finally {
+              setIsDeleting(false);
+            }
         }},
       ]
     );
   };
 
-  // 4. Chức năng Chia sẻ hồ sơ
   const handleShareProfile = async () => {
     try {
       const profileLink = `https://konket.app/profile/${userProfile?.username || userProfile?._id}`;
       await Share.share({
-        message: `Hãy kết nối với mình trên mạng xã hội KonKet nhé! ${profileLink}`,
+        message: t('settings.share_profile_msg', { url: profileLink }),
       });
     } catch (error) {
       console.log('Lỗi chia sẻ:', error);
     }
   };
 
-  // 5. Mở Link Web
   const openWebLink = (url: string) => {
     Linking.openURL(url).catch(() => {
-      Alert.alert('Lỗi', 'Không thể mở liên kết này lúc này.');
+      Alert.alert(t('common.error', 'Lỗi'), t('settings.open_link_error'));
     });
   };
 
-  // 6. Chuyển đổi tài khoản
   const handleSwitchAccount = async (sessionId: string) => {
     try {
       await setActive({ session: sessionId });
       setAccountModalVisible(false);
       router.replace('/(auth)/(tabs)/feed' as any);
     } catch (err) {
-      Alert.alert("Lỗi", "Không thể chuyển đổi tài khoản.");
+      Alert.alert(t('common.error', 'Lỗi'), t('settings.switch_account_error'));
     }
   };
 
-  const handleAddAccount = () => {
+  const handleAddAccount = async () => {
     setAccountModalVisible(false);
-    // 👇 ĐÃ FIX ĐƯỜNG DẪN TỪ (public) THÀNH (auth) 👇
-    router.push('/' as any); 
+    await signOut();
+    router.replace('/(public)' as any); 
   };
 
-  // Component render từng dòng cài đặt
   const SettingsItem = ({ icon, title, onPress, color = '#000', subTitle = "" }: any) => (
     <TouchableOpacity style={styles.itemContainer} onPress={onPress}>
       <Ionicons name={icon} size={24} color={color} style={styles.icon} />
@@ -96,16 +136,22 @@ export default function SettingsScreen() {
     <>
       <Stack.Screen 
         options={{ 
-          title: 'Cài đặt',
+          title: t('settings.title'),
           headerTitleAlign: 'center',
           headerBackTitleVisible: false,
           headerShadowVisible: false,
         }} 
       />
 
+      {isDeleting && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={{ marginTop: 10, fontWeight: 'bold' }}>{t('settings.deleting_account')}</Text>
+        </View>
+      )}
+
       <ScrollView style={styles.container}>
         <View style={styles.section}>
-          {/* TRẠNG THÁI HOẠT ĐỘNG */}
           <View style={styles.itemContainer}>
             <Ionicons 
               name="ellipse" 
@@ -114,8 +160,8 @@ export default function SettingsScreen() {
               style={[styles.icon, { marginLeft: 6, marginRight: 21 }]} 
             />
             <View style={{ flex: 1 }}>
-              <Text style={styles.itemText}>Trạng thái hoạt động</Text>
-              <Text style={styles.subText}>Hiển thị khi bạn đang online</Text>
+              <Text style={styles.itemText}>{t('settings.active_status')}</Text>
+              <Text style={styles.subText}>{t('settings.active_status_desc')}</Text>
             </View>
             <Switch
               value={userProfile?.showActiveStatus ?? true}
@@ -131,17 +177,23 @@ export default function SettingsScreen() {
             />
           </View>
 
-          {/* CHUYỂN ĐỔI TÀI KHOẢN */}
           <SettingsItem 
             icon="people-circle-outline" 
-            title="Chuyển đổi tài khoản" 
-            subTitle={`Đang dùng: @${user?.username || 'user'}`}
+            title={t('settings.switch_account')} 
+            subTitle={t('settings.current_user', { username: user?.username || t('settings.default_user') })}
             onPress={() => setAccountModalVisible(true)} 
+          />
+
+          <SettingsItem 
+            icon="language-outline" 
+            title={t('settings.app_language')} 
+            subTitle={getLanguageName(i18n.language)}
+            onPress={() => setLanguageModalVisible(true)} 
           />
           
           <SettingsItem 
             icon="share-social-outline" 
-            title="Chia sẻ hồ sơ" 
+            title={t('settings.share_profile')} 
             onPress={handleShareProfile} 
           />
         </View>
@@ -149,17 +201,17 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <SettingsItem 
             icon="book-outline" 
-            title="Nguyên tắc cộng đồng" 
+            title={t('settings.community_guidelines')} 
             onPress={() => openWebLink('https://www.google.com/search?q=nguyen+tac+cong+dong')} 
           />
           <SettingsItem 
             icon="document-text-outline" 
-            title="Điều khoản dịch vụ" 
+            title={t('settings.terms_of_service')} 
             onPress={() => openWebLink('https://www.google.com/search?q=dieu+khoan+dich+vu')} 
           />
           <SettingsItem 
             icon="shield-checkmark-outline" 
-            title="Chính sách bảo mật" 
+            title={t('settings.privacy_policy')} 
             onPress={() => openWebLink('https://www.google.com/search?q=chinh+sach+bao+mat')} 
           />
         </View>
@@ -167,27 +219,58 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <SettingsItem 
             icon="log-out-outline" 
-            title="Đăng xuất" 
+            title={t('settings.logout')} 
             onPress={handleLogout} 
             color="red" 
           />
           <SettingsItem 
             icon="trash-outline" 
-            title="Xóa tài khoản" 
+            title={t('settings.delete_account')} 
             onPress={handleDeleteAccount} 
             color="red" 
           />
         </View>
         
-        <Text style={styles.versionText}>KonKet Version 1.0.0 (Beta)</Text>
+        <Text style={styles.versionText}>{t('settings.version')}</Text>
       </ScrollView>
+
+      {/* MODAL CHỌN NGÔN NGỮ */}
+      <Modal visible={isLanguageModalVisible} animationType="slide" transparent>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setLanguageModalVisible(false)}>
+          <TouchableOpacity activeOpacity={1} style={styles.accountSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t('settings.choose_language')}</Text>
+              <TouchableOpacity onPress={() => setLanguageModalVisible(false)}>
+                <Ionicons name="close" size={24} color="black" />
+              </TouchableOpacity>
+            </View>
+            <View style={{ padding: 20 }}>
+              {LANGUAGES.map((lang) => {
+                const isActive = i18n.language === lang.code;
+                return (
+                  <TouchableOpacity 
+                    key={lang.code}
+                    style={[styles.langBtn, isActive && styles.langBtnActive]}
+                    onPress={() => handleLanguageChange(lang.code)}
+                  >
+                    <Text style={[styles.langText, isActive && styles.langTextActive]}>
+                      {lang.label}
+                    </Text>
+                    {isActive && <Ionicons name="checkmark-circle" size={24} color="#5865F2" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* MODAL CHUYỂN ĐỔI TÀI KHOẢN */}
       <Modal visible={isAccountModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.accountSheet}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setAccountModalVisible(false)}>
+          <TouchableOpacity activeOpacity={1} style={styles.accountSheet}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chuyển đổi tài khoản</Text>
+              <Text style={styles.modalTitle}>{t('settings.switch_account')}</Text>
               <TouchableOpacity onPress={() => setAccountModalVisible(false)}>
                 <Ionicons name="close" size={24} color="black" />
               </TouchableOpacity>
@@ -206,14 +289,14 @@ export default function SettingsScreen() {
                     <Image source={{ uri: item.user.imageUrl }} style={styles.accountAvatar} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.accountName}>
-                        {item.user.fullName || item.user.username}
+                        {item.user.firstName || item.user.fullName || t('settings.default_user')}
                       </Text>
                       <Text style={styles.accountEmail}>
-                        {item.user.primaryEmailAddress?.emailAddress}
+                        @{item.user.username || t('settings.no_id_yet')}
                       </Text>
                     </View>
                     {item.id === client.lastActiveSessionId && (
-                      <Ionicons name="checkmark-circle" size={24} color="#007aff" />
+                      <Ionicons name="checkmark-circle" size={24} color="#44b669" />
                     )}
                   </TouchableOpacity>
                 );
@@ -222,10 +305,10 @@ export default function SettingsScreen() {
 
             <TouchableOpacity style={styles.addAccountBtn} onPress={handleAddAccount}>
               <Ionicons name="add-circle-outline" size={24} color="#007aff" />
-              <Text style={styles.addAccountText}>Thêm tài khoản khác</Text>
+              <Text style={styles.addAccountText}>{t('settings.login_other_account')}</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </>
   );
@@ -250,4 +333,9 @@ const styles = StyleSheet.create({
   accountEmail: { fontSize: 13, color: 'gray' },
   addAccountBtn: { flexDirection: 'row', alignItems: 'center', padding: 20, gap: 10 },
   addAccountText: { fontSize: 16, color: '#007aff', fontWeight: '600' },
+  loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 10, justifyContent: 'center', alignItems: 'center' },
+  langBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, backgroundColor: '#f9f9f9', borderRadius: 12, marginBottom: 10, borderWidth: 1, borderColor: '#eee' },
+  langBtnActive: { borderColor: '#5865F2', backgroundColor: '#eef0fd' },
+  langText: { fontSize: 16, color: '#333' },
+  langTextActive: { fontWeight: 'bold', color: '#5865F2' }
 });

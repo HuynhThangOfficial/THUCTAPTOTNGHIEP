@@ -1,19 +1,31 @@
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { Id, Doc } from '@/convex/_generated/dataModel';
 import Thread from '@/components/Thread';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT I18N
 
 interface CommentsProps {
   threadId: Id<'messages'>;
 }
 
 const Comments = ({ threadId }: CommentsProps) => {
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
   const comments = useQuery(api.messages.getThreadComments, {
     messageId: threadId,
   });
 
-  if (!comments) return <View />;
+  // Đang tải dữ liệu
+  if (comments === undefined) return <View />;
+
+  // Xử lý khi không có bình luận nào
+  if (comments !== undefined && comments.length === 0) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>{t('comments.no_comments')}</Text>
+      </View>
+    );
+  }
 
   // Phân loại bình luận gốc và bình luận con
   const rootComments = comments.filter(c => !c.parentId);
@@ -53,5 +65,15 @@ const styles = StyleSheet.create({
     borderColor: '#e4e6eb',
     paddingLeft: 5,
     marginTop: 2,
+  },
+  emptyContainer: {
+    paddingVertical: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    color: 'gray',
+    fontSize: 15,
+    fontStyle: 'italic',
   }
 });

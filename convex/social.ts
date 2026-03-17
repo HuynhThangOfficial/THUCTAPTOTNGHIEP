@@ -18,11 +18,13 @@ export const getAllNotes = query({
     // 2. Lọc quyền riêng tư
     for (const note of validNotes) {
       const isMyNote = args.viewerId === note.userId;
-      const isPublic = !note.privacy || note.privacy === 'Công khai';
+      // 👇 ĐỔI SANG MÃ CHUẨN 'public'
+      const isPublic = !note.privacy || note.privacy === 'public';
 
       if (isMyNote || isPublic) {
         result.push(note);
-      } else if (note.privacy === 'Bạn bè' && args.viewerId) {
+      // 👇 ĐỔI SANG MÃ CHUẨN 'friends'
+      } else if (note.privacy === 'friends' && args.viewerId) {
         // Kiểm tra xem viewer có follow người viết note không (trong bảng follows)
         const isFollowing = await ctx.db
           .query("follows")
@@ -62,7 +64,8 @@ export const upsertNote = mutation({
 
     const hours = args.durationHours ?? 24;
     const expiresAt = Date.now() + hours * 60 * 60 * 1000;
-    const privacy = args.privacy ?? 'Công khai';
+    // 👇 ĐỔI SANG MÃ CHUẨN 'public'
+    const privacy = args.privacy ?? 'public';
 
     if (existing) {
       await ctx.db.patch(existing._id, { content: args.content, expiresAt, privacy });

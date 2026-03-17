@@ -16,12 +16,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useOAuth, useSignIn } from '@clerk/clerk-expo';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import { Colors } from '@/constants/Colors'; // Lấy màu Xanh Lá xịn từ đây
+import { Colors } from '@/constants/Colors';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
 
 WebBrowser.maybeCompleteAuthSession();
 
 const LoginScreen = () => {
   const router = useRouter(); // Bật bộ điều hướng
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
 
   // Clerk OAuth
   const { startOAuthFlow: facebookAuth } = useOAuth({ strategy: 'oauth_facebook' });
@@ -42,7 +44,7 @@ const LoginScreen = () => {
   const onSignInPress = async () => {
     if (!isLoaded || isLoading) return;
     if (!agreeTerms || !agreePrivacy) {
-      alert("Bạn cần đồng ý với các điều khoản trước.");
+      alert(t('login.agree_terms_first'));
       return;
     }
 
@@ -54,7 +56,7 @@ const LoginScreen = () => {
       });
       await setActive({ session: completeSignIn.createdSessionId });
     } catch (err: any) {
-      alert("Lỗi đăng nhập: " + err.errors[0].message);
+      alert(`${t('login.login_error')} ${err.errors[0].message}`);
     } finally {
       setIsLoading(false);
     }
@@ -89,7 +91,7 @@ const LoginScreen = () => {
       <View style={styles.header}>
         <View style={styles.logoCircle}>
            <Image 
-             source={require('@/assets/images/KonKet-logo.png')} 
+             source={require('@/assets/images/logo.png')} 
              style={styles.logoImage} 
              resizeMode="contain" 
            />
@@ -102,11 +104,11 @@ const LoginScreen = () => {
           
           {/* Input Email */}
           <View style={styles.inputWrapper}>
-            <Text style={styles.inputLabel}>Tên người dùng/Email</Text>
+            <Text style={styles.inputLabel}>{t('login.username_email_label')}</Text>
             <View style={styles.inputBox}>
               <TextInput 
                 style={styles.textInput}
-                placeholder="Nhập tên người dùng hoặc email"
+                placeholder={t('login.username_email_placeholder')}
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
@@ -121,11 +123,11 @@ const LoginScreen = () => {
 
           {/* Input Password */}
           <View style={styles.inputWrapper}>
-            <Text style={styles.inputLabel}>Mật khẩu</Text>
+            <Text style={styles.inputLabel}>{t('login.password_label')}</Text>
             <View style={styles.inputBox}>
               <TextInput 
                 style={styles.textInput}
-                placeholder="Nhập mật khẩu"
+                placeholder={t('login.password_placeholder')}
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
@@ -139,12 +141,16 @@ const LoginScreen = () => {
           {/* Checkboxes */}
           <TouchableOpacity style={styles.checkboxRow} onPress={() => setAgreeTerms(!agreeTerms)}>
             <Ionicons name={agreeTerms ? "checkbox" : "square-outline"} size={22} color={agreeTerms ? Colors.primary : "#ccc"} />
-            <Text style={styles.checkboxText}>Đã đọc và đồng ý với <Text style={styles.linkBold}>Điều Khoản Dịch Vụ Của Forums</Text></Text>
+            <Text style={styles.checkboxText}>
+              {t('login.agree_to')}<Text style={styles.linkBold}>{t('login.terms_of_service')}</Text>
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.checkboxRow} onPress={() => setAgreePrivacy(!agreePrivacy)}>
             <Ionicons name={agreePrivacy ? "checkbox" : "square-outline"} size={22} color={agreePrivacy ? Colors.primary : "#ccc"} />
-            <Text style={styles.checkboxText}>Đồng ý cho phép thu thập và sử dụng thông tin theo <Text style={styles.linkBold}>Chính Sách Bảo Mật</Text></Text>
+            <Text style={styles.checkboxText}>
+              {t('login.agree_privacy_policy')}<Text style={styles.linkBold}>{t('login.privacy_policy')}</Text>
+            </Text>
           </TouchableOpacity>
 
           {/* Nút Đăng Nhập Chính */}
@@ -156,30 +162,32 @@ const LoginScreen = () => {
             onPress={onSignInPress}
             disabled={isLoading}
           >
-            {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Đăng Nhập</Text>}
+            {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>{t('login.login_button')}</Text>}
           </TouchableOpacity>
 
-          {/* Links: Quên mật khẩu & Đăng ký (ĐÃ GẮN ROUTER) */}
+          {/* Links: Quên mật khẩu & Đăng ký */}
           <View style={styles.footerLinks}>
             <TouchableOpacity>
-              <Text style={styles.linkGreen}>Quên mật khẩu</Text>
+              <Text style={styles.linkGreen}>{t('login.forgot_password')}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity onPress={() => router.push('/(public)/register' as any)}>
-  <Text style={styles.linkGreen}>Đăng Ký Ngay</Text>
-</TouchableOpacity>
+              <Text style={styles.linkGreen}>{t('login.register_now')}</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Login Social */}
           <View style={styles.dividerRow}>
-            <View style={styles.line} /><Text style={styles.dividerText}>Đăng nhập bằng phương thức khác</Text><View style={styles.line} />
+            <View style={styles.line} />
+            <Text style={styles.dividerText}>{t('login.login_with_other_methods')}</Text>
+            <View style={styles.line} />
           </View>
 
           <View style={styles.socialRow}>
             {/* Nút Google */}
             <TouchableOpacity style={styles.socialBtn} onPress={() => handleSocialLogin('google')}>
                <Image 
-                 source={require('@/assets/images/google_icon.png')} 
+                 source={require('@/assets/images/google-icon.png')} 
                  style={styles.socialIconImage} 
                  resizeMode="contain" 
                />
@@ -188,7 +196,7 @@ const LoginScreen = () => {
             {/* Nút Facebook */}
             <TouchableOpacity style={styles.socialBtn} onPress={() => handleSocialLogin('facebook')}>
                <Image 
-                 source={require('@/assets/images/facebook_icon.png')} 
+                 source={require('@/assets/images/facebook-icon.png')} 
                  style={styles.socialIconImage} 
                  resizeMode="contain" 
                />

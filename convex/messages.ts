@@ -27,7 +27,7 @@ export const addThread = mutation({
     const userId = await getCurrentUserId(ctx);
     if (!userId) throw new Error("Unauthorized");
 
-let isAnon = false;
+    let isAnon = false;
     let finalChannelId = args.channelId;
     let finalServerId = args.serverId;
     let finalUniId = args.universityId;
@@ -136,7 +136,8 @@ export const deleteThread = mutation({
       if (server?.adminIds?.includes(userId)) canDelete = true;
     }
 
-    if (!canDelete) throw new Error("Bạn không có quyền xóa bài viết này");
+    // 👇 ĐỔI SANG MÃ LỖI CHUẨN
+    if (!canDelete) throw new Error("FORBIDDEN_DELETE");
 
     await ctx.db.delete(args.messageId);
 
@@ -167,14 +168,16 @@ export const updateThread = mutation({
       const newMedia = args.mediaFiles;
       const addedCount = newMedia.filter(id => !oldMedia.includes(id)).length;
       const removedCount = oldMedia.filter(id => !newMedia.includes(id)).length;
+      
+      // 👇 SỬ DỤNG SYSTEM CODES CHO LOG LỊCH SỬ CHỈNH SỬA
       if (addedCount > 0 && removedCount > 0 && addedCount === removedCount) {
-        changeLog = `(Đã thay đổi ${addedCount} ảnh)`;
+        changeLog = `SYS_MEDIA_CHANGED|${addedCount}`;
       } else if (addedCount > 0 && removedCount === 0) {
-        changeLog = `(Đã thêm ${addedCount} ảnh)`;
+        changeLog = `SYS_MEDIA_ADDED|${addedCount}`;
       } else if (removedCount > 0 && addedCount === 0) {
-        changeLog = `(Đã xóa ${removedCount} ảnh)`;
+        changeLog = `SYS_MEDIA_REMOVED|${removedCount}`;
       } else if (addedCount !== removedCount && (addedCount > 0 || removedCount > 0)) {
-        changeLog = `(Đã cập nhật danh sách ảnh)`;
+        changeLog = `SYS_MEDIA_UPDATED`;
       }
     }
 
@@ -271,7 +274,6 @@ export const getThreads = query({
           .filter((q) => q.and(
              q.eq(q.field('userId'), args.userId),
              q.neq(q.field('threadId'), undefined),
-             // 👇 CHỈNH LẠI: Lấy bài có isAnonymous bằng false HOẶC không tồn tại trường này (bài cũ)
              q.or(
                 q.eq(q.field('isAnonymous'), false),
                 q.eq(q.field('isAnonymous'), undefined)
@@ -283,7 +285,6 @@ export const getThreads = query({
           .filter((q) => q.and(
              q.eq(q.field('userId'), args.userId),
              q.eq(q.field('threadId'), undefined),
-             // 👇 CHỈNH LẠI TƯƠNG TỰ Ở ĐÂY 👇
              q.or(
                 q.eq(q.field('isAnonymous'), false),
                 q.eq(q.field('isAnonymous'), undefined)
@@ -304,7 +305,7 @@ export const getThreads = query({
         const creator = await getMessageCreator(ctx, thread.userId);
         const mediaUrls = await getMediaUrls(ctx, thread.mediaFiles);
         let isLiked = false;
-        let isReposted = false; // 👇 KHAI BÁO isReposted
+        let isReposted = false;
         let isServerAdmin = false;
         let amIAdmin = false;
 
@@ -314,7 +315,6 @@ export const getThreads = query({
             .unique();
           isLiked = !!like;
 
-          // 👇 CHECK XEM USER ĐÃ REPOST CHƯA 👇
           const repost = await ctx.db.query('retweets')
             .withIndex('by_user_message', (q) => q.eq('userId', currentUserId).eq('messageId', thread._id))
             .unique();
@@ -368,7 +368,7 @@ export const likeThread = mutation({
 
 export const getFavoriteThreads = query({
   args: { 
-    userId: v.optional(v.id('users')), // Nhận userId để phân biệt
+    userId: v.optional(v.id('users')),
     paginationOpts: paginationOptsValidator 
   },
   handler: async (ctx, args) => {
@@ -925,9 +925,10 @@ export const sendShareMessage = mutation({
      });
      
      // Cập nhật lại phòng chat để nó nhảy lên đầu danh sách
+     // 👇 ĐỔI SANG MÃ HỆ THỐNG
      await ctx.db.patch(args.conversationId, {
         updatedAt: Date.now(),
-        lastMessageText: "Đã chia sẻ một bài viết"
+        lastMessageText: "SYS_SHARED_POST"
      });
   }
 });

@@ -12,14 +12,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMenu } from '@/context/MenuContext';
 import { useChannel } from '@/context/ChannelContext';
 import ChannelDetailsModal from '@/components/ChannelDetailsModal';
-
-const SORT_OPTIONS = [{ id: 'newest', label: 'Mới nhất' }, { id: 'trending', label: 'Xu Hướng' }];
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
 
 const Page = () => {
   const { toggleMenu } = useMenu();
   const { activeChannelId, activeChannelName, activeServerId, activeUniversityId } = useChannel();
   const { top } = useSafeAreaInsets();
   const router = useRouter();
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
+
+  // Định nghĩa mảng SORT_OPTIONS bên trong component để nhận t()
+  const SORT_OPTIONS = [
+    { id: 'newest', label: t('feed.sort_newest') }, 
+    { id: 'trending', label: t('feed.sort_trending') }
+  ];
 
   const [sortBy, setSortBy] = useState<'newest' | 'trending'>('newest');
   const [isSortModalVisible, setSortModalVisible] = useState(false);
@@ -104,7 +110,7 @@ const Page = () => {
       </View>
 
       <View style={styles.filterRow}>
-         <Text style={styles.filterTitle}>Bài Viết</Text>
+         <Text style={styles.filterTitle}>{t('feed.posts_title')}</Text>
          <TouchableOpacity style={styles.sortDropdownBtn} onPress={() => setSortModalVisible(true)}>
             <Text style={styles.sortDropdownText}>{currentSortLabel}</Text>
             <Ionicons name="caret-down" size={14} color="gray" />
@@ -131,7 +137,7 @@ const Page = () => {
           <View style={styles.modalOverlay}>
             <TouchableWithoutFeedback>
               <View style={styles.bellMenu}>
-                <Text style={styles.modalTitle}>Cài đặt thông báo</Text>
+                <Text style={styles.modalTitle}>{t('feed.notification_settings')}</Text>
 
                 {activeChannelName !== 'đại-sảnh' && (
                   <TouchableOpacity
@@ -144,7 +150,7 @@ const Page = () => {
                       }
                     }}
                   >
-                    <Text style={[styles.dropdownItemText, subStatus?.channelSubbed && styles.dropdownItemTextActive]}>Thông báo kênh này</Text>
+                    <Text style={[styles.dropdownItemText, subStatus?.channelSubbed && styles.dropdownItemTextActive]}>{t('feed.notify_this_channel')}</Text>
                     {subStatus?.channelSubbed && <Ionicons name="checkmark" size={18} color="#007aff" />}
                   </TouchableOpacity>
                 )}
@@ -159,7 +165,7 @@ const Page = () => {
                     }
                   }}
                 >
-                  <Text style={styles.dropdownItemText}>Bật thông báo toàn Server</Text>
+                  <Text style={styles.dropdownItemText}>{t('feed.turn_on_all_server')}</Text>
                   <Ionicons name="notifications-outline" size={18} color="gray" />
                 </TouchableOpacity>
 
@@ -173,7 +179,7 @@ const Page = () => {
                     }
                   }}
                 >
-                  <Text style={[styles.dropdownItemText, { color: '#ff3b30' }]}>Tắt thông báo toàn Server</Text>
+                  <Text style={[styles.dropdownItemText, { color: '#ff3b30' }]}>{t('feed.turn_off_all_server')}</Text>
                   <Ionicons name="notifications-off-outline" size={18} color="#ff3b30" />
                 </TouchableOpacity>
 
@@ -181,7 +187,7 @@ const Page = () => {
                   style={styles.dropdownItem}
                   onPress={() => { setBellModalVisible(false); setTimeout(() => setAdvancedSettingsVisible(true), 300); }}
                 >
-                  <Text style={styles.dropdownItemText}>Tuỳ chỉnh từng kênh</Text>
+                  <Text style={styles.dropdownItemText}>{t('feed.custom_per_channel')}</Text>
                   <Ionicons name="chevron-forward" size={16} color="gray" />
                 </TouchableOpacity>
               </View>
@@ -195,7 +201,7 @@ const Page = () => {
         <View style={styles.modalOverlay}>
           <View style={[styles.bellMenu, { width: 320, maxHeight: '70%' }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15, alignItems: 'center' }}>
-              <Text style={styles.modalTitle}>Thông báo từng kênh</Text>
+              <Text style={styles.modalTitle}>{t('feed.channel_notifications')}</Text>
               <TouchableOpacity onPress={() => setAdvancedSettingsVisible(false)}><Ionicons name="close-circle" size={26} color="#ccc" /></TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -204,7 +210,6 @@ const Page = () => {
                   <Text style={styles.channelSettingName} numberOfLines={1} ellipsizeMode="tail">#{channel.name}</Text>
                   <Switch
                     value={channel.isSubscribed}
-                    // 👇 FIX LỖI TYPE VOID TẠI ĐÂY 👇
                     onValueChange={async (value) => {
                       try {
                         await toggleChannel({ channelId: channel._id });

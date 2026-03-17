@@ -10,7 +10,12 @@ const handleClerkWebhook = httpAction(async (ctx, request) => {
 
   switch (type) {
     case 'user.created':
-      const safeUsername = data.username || data.first_name || data.email_addresses?.[0]?.email_address?.split('@')[0] || "nguoidung";
+      // Đổi "nguoidung" thành "user" để chuẩn hóa dữ liệu Backend
+      const safeUsername = data.username || 
+                           data.first_name || 
+                           data.email_addresses?.[0]?.email_address?.split('@')[0] || 
+                           "user";
+
       await ctx.runMutation(internal.users.createUser, {
         clerkId: data.id,
         // Chuyển null thành undefined để khớp với v.optional trong schema
@@ -19,14 +24,13 @@ const handleClerkWebhook = httpAction(async (ctx, request) => {
         // Đảm bảo không lỗi nếu mảng email trống
         email: data.email_addresses?.[0]?.email_address ?? "",
         imageUrl: data.image_url ?? undefined,
-        // Schema của bạn cho phép v.null() ở username nên giữ nguyên hoặc ?? null
         username: safeUsername,
         followersCount: 0,
       });
       break;
 
     case 'user.deleted':
-      // Bạn nên thêm logic xóa user ở đây nếu cần
+      // Có thể kích hoạt khi Thắng muốn dọn dẹp data khi user xóa acc bên Clerk
       // await ctx.runMutation(internal.users.deleteUser, { clerkId: data.id });
       break;
 

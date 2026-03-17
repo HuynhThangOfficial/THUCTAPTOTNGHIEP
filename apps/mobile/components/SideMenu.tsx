@@ -8,6 +8,7 @@ import { api } from '@/convex/_generated/api';
 import { useChannel } from '@/context/ChannelContext';
 import * as ImagePicker from 'expo-image-picker';
 import { Id } from '@/convex/_generated/dataModel';
+import { useTranslation } from 'react-i18next'; 
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -17,14 +18,22 @@ const LOCAL_IMAGES: Record<string, any> = { 'local:login': require('../assets/im
 const getIconSource = (iconString?: string) => (iconString && LOCAL_IMAGES[iconString] ? LOCAL_IMAGES[iconString] : { uri: iconString || 'https://via.placeholder.com/50' });
 
 const TEMPLATES = [
-  { id: 'Gaming', name: 'Gaming', icon: '🎮' },
-  { id: 'School', name: 'Câu Lạc Bộ Trường Học', icon: '🏫' },
-  { id: 'Study', name: 'Nhóm Học Tập', icon: '🍎' },
-  { id: 'Friends', name: 'Bạn bè', icon: '💗' },
-  { id: 'Creators', name: 'Nghệ Sĩ và Người Sáng Tạo', icon: '🎨' },
+  { id: 'Gaming', icon: '🎮' },
+  { id: 'School', icon: '🏫' },
+  { id: 'Study', icon: '🍎' },
+  { id: 'Friends', icon: '💗' },
+  { id: 'Creators', icon: '🎨' },
+];
+
+const UPGRADE_LEVELS = [
+  { level: 1, stones: 1 }, { level: 2, stones: 2 }, { level: 3, stones: 2 },
+  { level: 4, stones: 3 }, { level: 5, stones: 3 }, { level: 6, stones: 4 },
+  { level: 7, stones: 4 }, { level: 8, stones: 4 }, { level: 9, stones: 5 },
+  { level: 10, stones: 5 },
 ];
 
 export default function SideMenu() {
+  const { t } = useTranslation(); 
   const { top, bottom } = useSafeAreaInsets();
   const { userProfile } = useUserProfile();
 
@@ -43,9 +52,14 @@ export default function SideMenu() {
   const createChannel = useMutation(api.university.createChannel);
   const deleteChannel = useMutation(api.university.deleteChannel);
   const leaveServer = useMutation(api.university.leaveServer);
+  const removeMember = useMutation(api.university.removeMember);
+
+  const buyStones = useMutation(api.boosts.buyStones);
+  const boostServer = useMutation(api.boosts.boostServer);
 
   const { activeUniversityId, setActiveUniversityId, activeServerId, setActiveServerId, activeChannelId, setActiveChannelId, setActiveChannelName } = useChannel();
-
+  const topBoosters = useQuery(api.boosts.getTopBoosters, { serverId: activeServerId || undefined });
+  
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [isSettingsModalVisible, setSettingsModalVisible] = useState(false);
   const [editServerName, setEditServerName] = useState('');
@@ -59,7 +73,6 @@ export default function SideMenu() {
   const [invitedUsers, setInvitedUsers] = useState<Record<string, boolean>>({});
 
   const [isInviteOnlyModalVisible, setInviteOnlyModalVisible] = useState(false);
-
   const [isServerMenuVisible, setServerMenuVisible] = useState(false);
   const [isMemberListModalVisible, setMemberListModalVisible] = useState(false);
   const [isCreateChannelModalVisible, setCreateChannelModalVisible] = useState(false);
@@ -68,10 +81,37 @@ export default function SideMenu() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<Id<'channels'> | undefined>(undefined);
   const [isAnonymousChannel, setIsAnonymousChannel] = useState(false);
 
-  // 👇 STATE GHIM & NÂNG CẤP 👇
   const [pinnedServers, setPinnedServers] = useState<string[]>([]);
   const [pinnedChannels, setPinnedChannels] = useState<string[]>([]);
   const [isUpgradeModalVisible, setUpgradeModalVisible] = useState(false);
+
+  const handleKickMember = (targetUserId: Id<"users">, targetName: string) => {
+    if (!activeServerId) return;
+    Alert.alert(
+      t('alerts.kick_title'),
+      t('alerts.kick_desc', { name: targetName }),
+      [
+        { text: t('common.cancel'), style: "cancel" },
+        { 
+          text: t('common.delete'), 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await removeMember({ serverId: activeServerId, targetUserId });
+            } catch (error: any) {
+              if (error.message.includes("ONLY_ADMIN_ALLOWED")) {
+                Alert.alert(t('common.error'), t('server_errors.only_admin_allowed'));
+              } else if (error.message.includes("CANNOT_REMOVE_OWNER")) {
+                Alert.alert(t('common.error'), t('server_errors.cannot_remove_owner'));
+              } else {
+                Alert.alert(t('common.error'), error.message);
+              }
+            }
+          } 
+        }
+      ]
+    );
+  };
 
   const channelsData = useQuery(api.university.getChannels, {
     universityId: activeUniversityId || undefined,
@@ -116,11 +156,32 @@ export default function SideMenu() {
   const currentWorkspace = activeUniversityId ? universities.find(u => u._id === activeUniversityId) : myServers?.find(s => s._id === activeServerId);
   const isOwner = activeServerId && currentWorkspace && 'creatorId' in currentWorkspace && currentWorkspace.creatorId === userProfile?._id;
 
-  // Giả lập lấy số lần nâng cấp (Nitro) của máy chủ hiện tại
-  // @ts-ignore
-  const serverBoostCount = currentWorkspace?.boostCount || 0;
+  const serverTotalStones = (currentWorkspace as any)?.totalStones || 0;
+  const myStones = (userProfile as any)?.stones || 0;
+
+  let currentLevel = 0;
+  let accumulatedStones = 0;
+  let stonesNeededForNext = UPGRADE_LEVELS[0].stones;
+  let isMaxLevel = false;
+
+  for (let i = 0; i < UPGRADE_LEVELS.length; i++) {
+    accumulatedStones += UPGRADE_LEVELS[i].stones;
+    if (serverTotalStones >= accumulatedStones) {
+      currentLevel = UPGRADE_LEVELS[i].level;
+    } else {
+      stonesNeededForNext = UPGRADE_LEVELS[i].stones;
+      break;
+    }
+  }
+
+  if (currentLevel >= 10) {
+    currentLevel = 10;
+    isMaxLevel = true;
+    stonesNeededForNext = 0;
+  }
+
   const MAX_CHANNELS_BASE = 30;
-  const currentChannelLimit = MAX_CHANNELS_BASE + (serverBoostCount * 5);
+  const currentChannelLimit = MAX_CHANNELS_BASE + (currentLevel * 5);
 
   const switchToUniversity = (id: Id<'universities'>) => {
     if (id === activeUniversityId) return;
@@ -138,17 +199,16 @@ export default function SideMenu() {
 
   const toggleGroup = (groupId: string) => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] })); };
 
-  // 👇 HÀM KIỂM TRA GIỚI HẠN KÊNH TRƯỚC KHI TẠO 👇
   const checkLimitAndOpenCreate = (type: 'category' | 'channel', parentId?: Id<'channels'>) => {
     const currentTotalChannels = channels.length + groups.length;
 
     if (currentTotalChannels >= currentChannelLimit) {
       Alert.alert(
-        "Đã đạt giới hạn kênh!",
-        `Máy chủ này đã tạo tối đa ${currentChannelLimit} kênh/danh mục.\n\nHãy Nâng Cấp Máy Chủ để mở rộng thêm không gian!`,
+        t('alerts.limit_title'),
+        t('alerts.limit_desc', { limit: currentChannelLimit, total: currentTotalChannels }),
         [
-          { text: "Hủy", style: "cancel" },
-          { text: "Nâng cấp ngay", onPress: () => setUpgradeModalVisible(true) }
+          { text: t('common.cancel'), style: "cancel" },
+          { text: t('alerts.upgrade_now'), onPress: () => setUpgradeModalVisible(true) }
         ]
       );
       return;
@@ -161,29 +221,35 @@ export default function SideMenu() {
     setCreateChannelModalVisible(true);
   };
 
-  // 👇 HÀM TƯƠNG TÁC LONG PRESS ĐỂ GHIM HOẶC XÓA 👇
   const handleChannelLongPress = (target: any, isCategory: boolean) => {
-    if (target.name === 'đại-sảnh') { Alert.alert("Không hợp lệ", "Không thể thao tác kênh mặc định!"); return; }
+    if (target.name === 'đại-sảnh') { Alert.alert(t('alerts.invalid'), t('alerts.no_default_edit')); return; }
 
     const isPinned = pinnedChannels.includes(target._id);
 
-    Alert.alert(`Tùy chọn ${isCategory ? 'Danh mục' : 'Kênh'}`, `Bạn muốn làm gì với "${target.name}"?`, [
-      { text: "Hủy", style: "cancel" },
-      { text: isPinned ? "Bỏ ghim" : "Ghim lên đầu", onPress: () => {
-          setPinnedChannels(prev => isPinned ? prev.filter(id => id !== target._id) : [...prev, target._id]);
-      }},
-      ...(isOwner ? [{ text: "Xóa", style: "destructive" as const, onPress: async () => {
-          await deleteChannel({ channelId: target._id });
-          if (activeChannelId === target._id || isCategory) setActiveChannelId(null as any);
-      }}] : [])
-    ]);
+    Alert.alert(
+      t('alerts.option_title', { type: isCategory ? t('common.category') : t('common.channel') }), 
+      t('alerts.option_desc', { name: target.name }), 
+      [
+        { text: t('common.cancel'), style: "cancel" },
+        { text: isPinned ? t('alerts.unpin') : t('alerts.pin_top'), onPress: () => {
+            setPinnedChannels(prev => isPinned ? prev.filter(id => id !== target._id) : [...prev, target._id]);
+        }},
+        ...(isOwner ? [{ text: t('common.delete'), style: "destructive" as const, onPress: async () => {
+            try {
+              await deleteChannel({ channelId: target._id });
+              if (activeChannelId === target._id || isCategory) setActiveChannelId(null as any);
+            } catch(e: any) {
+              Alert.alert(t('common.error'), e.message);
+            }
+        }}] : [])
+      ]
+    );
   };
 
   const togglePinServer = (serverId: string) => {
     setPinnedServers(prev => prev.includes(serverId) ? prev.filter(id => id !== serverId) : [...prev, serverId]);
   };
 
-  // XỬ LÝ SẮP XẾP SERVER & KÊNH
   const sortedServers = myServers ? [...myServers].sort((a, b) => {
     const aPinned = pinnedServers.includes(a._id);
     const bPinned = pinnedServers.includes(b._id);
@@ -204,25 +270,15 @@ export default function SideMenu() {
     return [...channelList].sort((a, b) => {
       const aPinned = pinnedChannels.includes(a._id);
       const bPinned = pinnedChannels.includes(b._id);
-      if (aPinned && !bPinned) return -1; // Thằng nào ghim thì bay lên đầu
+      if (aPinned && !bPinned) return -1;
       if (!aPinned && bPinned) return 1;
-      return a.sortOrder - b.sortOrder;   // Không ghim thì nằm im theo thứ tự cũ
+      return a.sortOrder - b.sortOrder;
     });
   };
 
-  const handleCreateServerClick = async (templateName: string) => {
-    const serverName = `Máy chủ của ${userProfile?.first_name || 'Tôi'}`;
-    const result = await createServer({ name: serverName, template: templateName });
-    if (result && result.success === false) { Alert.alert("Thông báo", result.message); return; }
-    if (result && result.success === true) {
-      setCreateModalVisible(false);
-      switchToServer(result.serverId as Id<'servers'>);
-    }
-  };
-
-  const handleStartCustomCreate = () => {
-    setSelectedTemplate('Custom');
-    setServerNameInput(`Máy chủ của ${userProfile?.first_name || 'Tôi'}`);
+  const handleSelectTemplate = (templateName: string) => {
+    setSelectedTemplate(templateName);
+    setServerNameInput(t('server.default_name', { name: userProfile?.first_name || t('common.me') }));
     setServerIconUri(null);
     setCreateStep(1);
     setSearchQuery('');
@@ -246,12 +302,26 @@ export default function SideMenu() {
         const res = await uploadResult.json();
         storageId = res.storageId;
       }
-      const result = await createServer({ name: serverNameInput, template: 'Custom', iconStorageId: storageId });
+      
+      const result = await createServer({ 
+        name: serverNameInput, 
+        template: selectedTemplate || 'Custom', 
+        iconStorageId: storageId 
+      });
+
       if (result.success) {
         setNewlyCreatedId(result.serverId || null);
         setCreateStep(2);
-      } else { Alert.alert("Thông báo", result.message); }
-    } catch (e) { console.log(e); }
+      } else { 
+        if (result.message === "SERVER_LIMIT_REACHED") {
+          Alert.alert(t('common.notification'), t('server_errors.server_limit_reached'));
+        } else {
+          Alert.alert(t('common.notification'), result.message); 
+        }
+      }
+    } catch (e: any) { 
+      Alert.alert(t('common.error'), e.message); 
+    }
   };
 
   const handleInviteAction = async (userId: any) => {
@@ -262,23 +332,29 @@ export default function SideMenu() {
 
   const handleCreateChannelSubmit = async () => {
     if (newChannelName.trim() === '' || !activeServerId) return;
-    await createChannel({
-      serverId: activeServerId,
-      name: newChannelName.trim(),
-      type: newChannelType,
-      parentId: selectedCategoryId,
-      // @ts-ignore
-      isAnonymous: isAnonymousChannel
-    });
-    setCreateChannelModalVisible(false);
-    setNewChannelName('');
-    setIsAnonymousChannel(false);
+    try {
+      await createChannel({
+        serverId: activeServerId,
+        name: newChannelName.trim(),
+        type: newChannelType,
+        parentId: selectedCategoryId,
+        // @ts-ignore
+        isAnonymous: isAnonymousChannel
+      });
+      setCreateChannelModalVisible(false);
+      setNewChannelName('');
+      setIsAnonymousChannel(false);
+    } catch (e: any) {
+      if (e.message.includes("ONLY_OWNER_CAN_CREATE_CHANNEL")) {
+        Alert.alert(t('common.error'), t('server_errors.only_owner_can_create_channel'));
+      }
+    }
   };
 
   const handleSaveName = async () => {
     if (editServerName.trim() === '' || !activeServerId) return;
     await updateServer({ serverId: activeServerId, name: editServerName });
-    Alert.alert("Thành công", "Đã lưu tên máy chủ!");
+    Alert.alert(t('common.success'), t('alerts.save_server_name'));
   };
 
   const handleUpdateImage = async () => {
@@ -290,14 +366,14 @@ export default function SideMenu() {
       const uploadResult = await fetch(postUrl, { method: 'POST', body: blob });
       const { storageId } = await uploadResult.json();
       await updateServer({ serverId: activeServerId, iconStorageId: storageId });
-      Alert.alert("Thành công", "Đã đổi ảnh máy chủ!");
+      Alert.alert(t('common.success'), t('alerts.change_server_icon'));
     }
   };
 
   const handleDeleteServer = () => {
-      Alert.alert("Cảnh báo", "Bạn có chắc chắn muốn xóa máy chủ này?", [
-        { text: "Hủy", style: "cancel" },
-        { text: "Xóa", style: "destructive", onPress: () => {
+      Alert.alert(t('common.warning'), t('alerts.delete_server_desc'), [
+        { text: t('common.cancel'), style: "cancel" },
+        { text: t('common.delete'), style: "destructive", onPress: () => {
             if (activeServerId) {
               const serverIdToDelete = activeServerId;
               setSettingsModalVisible(false);
@@ -313,7 +389,7 @@ export default function SideMenu() {
 
   const renderInviteList = () => (
     <View style={{flex: 1}}>
-      <TextInput style={[styles.textInput, {marginBottom: 15}]} placeholder="Tìm theo username..." value={searchQuery} onChangeText={setSearchQuery} />
+      <TextInput style={[styles.textInput, {marginBottom: 15}]} placeholder={t('members.search_placeholder')} value={searchQuery} onChangeText={setSearchQuery} />
       <ScrollView showsVerticalScrollIndicator={false}>
         {allUsers?.filter(u => u._id !== userProfile?._id).map((user) => {
           const isFriend = myFriends?.some(f => f._id === user._id);
@@ -325,7 +401,7 @@ export default function SideMenu() {
                 <View><Text style={{fontWeight: 'bold'}}>{user.first_name}</Text><Text style={{fontSize: 12, color: 'gray'}}>@{user.username}</Text></View>
               </View>
               <TouchableOpacity disabled={isInvited} onPress={() => handleInviteAction(user._id)} style={{backgroundColor: isInvited ? '#ccc' : '#5865F2', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20}}>
-                <Text style={{color: 'white', fontWeight: 'bold'}}>{isInvited ? 'Thành viên' : (isFriend ? 'Thêm' : 'Mời')}</Text>
+                <Text style={{color: 'white', fontWeight: 'bold'}}>{isInvited ? t('common.member') : (isFriend ? t('common.add') : t('common.invite'))}</Text>
               </TouchableOpacity>
             </View>
           );
@@ -346,7 +422,6 @@ export default function SideMenu() {
             ))}
             <View style={styles.railSeparator} />
 
-            {/* LẤY DANH SÁCH SERVER ĐÃ ĐƯỢC SẮP XẾP (CÓ GHIM) */}
             {sortedServers.map((server) => (
               <TouchableOpacity key={server._id} style={styles.serverItem} onPress={() => switchToServer(server._id)}>
                 <Image source={getIconSource(server.icon)} style={styles.serverIcon} resizeMode="cover" />
@@ -369,7 +444,7 @@ export default function SideMenu() {
             onPress={() => { if (activeServerId) setServerMenuVisible(true); }}
             disabled={!activeServerId}
           >
-            <Text style={styles.serverName} numberOfLines={1}>{currentWorkspace?.name || "Chọn Không Gian"}</Text>
+            <Text style={styles.serverName} numberOfLines={1}>{currentWorkspace?.name || t('server.choose_workspace')}</Text>
             {activeServerId && <Ionicons name="chevron-down" size={16} color="gray" style={{marginLeft: 5}}/>}
           </TouchableOpacity>
 
@@ -380,9 +455,8 @@ export default function SideMenu() {
             </View>
           )}
         </View>
-<ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
 
-            {/* 👇 ĐÃ SỬA: Bọc hàm getSortedChannels vào đây 👇 */}
             {getSortedChannels(channels.filter(c => !c.parentId)).map((channel) => (
                 <TouchableOpacity key={channel._id} style={[styles.channelItem, activeChannelId === channel._id && styles.activeChannel]} onPress={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} onLongPress={() => handleChannelLongPress(channel, false)}>
                     <MaterialCommunityIcons name="pound" size={20} color={activeChannelId === channel._id ? "black" : "gray"} />
@@ -397,7 +471,6 @@ export default function SideMenu() {
 
             {sortedGroups.map((group) => {
               const isExpanded = expandedGroups[group._id] ?? true;
-              // 👇 ĐÃ SỬA: Bọc hàm getSortedChannels vào childChannels 👇
               const childChannels = getSortedChannels(channels.filter(c => c.parentId === group._id));
               const isGroupPinned = pinnedChannels.includes(group._id);
 
@@ -412,7 +485,6 @@ export default function SideMenu() {
                     {isOwner && (<TouchableOpacity onPress={() => checkLimitAndOpenCreate('channel', group._id)}><Ionicons name="add" size={18} color="gray" /></TouchableOpacity>)}
                   </View>
 
-                  {/* Vòng lặp hiển thị kênh con bên trong Category */}
                   {isExpanded && childChannels.map(channel => (
                     <TouchableOpacity key={channel._id} style={[styles.channelItem, activeChannelId === channel._id && styles.activeChannel]} onPress={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} onLongPress={() => handleChannelLongPress(channel, false)}>
                         <MaterialCommunityIcons name="pound" size={20} color={activeChannelId === channel._id ? "black" : "gray"} />
@@ -428,10 +500,6 @@ export default function SideMenu() {
               );
             })}
         </ScrollView>
-        <View style={styles.userFooter}>
-            <Image source={{ uri: userProfile?.imageUrl || 'https://github.com/shadcn.png' }} style={styles.footerAvatar} />
-            <View style={{ marginLeft: 8, flex: 1 }}><Text style={styles.footerName} numberOfLines={1}>{userProfile?.first_name}</Text><Text style={styles.footerUsername} numberOfLines={1}>@{userProfile?.username}</Text></View>
-        </View>
       </View>
 
       <Modal visible={isCreateModalVisible} animationType="slide" presentationStyle="pageSheet">
@@ -440,25 +508,28 @@ export default function SideMenu() {
           <ScrollView style={styles.modalBody}>
             {!selectedTemplate ? (
               <>
-                <Text style={styles.modalTitle}>Tạo Máy Chủ Của Bạn</Text><Text style={styles.modalSubtitle}>Máy chủ của bạn là nơi bạn giao lưu với bạn bè của mình.</Text>
-                <TouchableOpacity style={styles.templateOptionPrimary} onPress={handleStartCustomCreate}><View style={styles.emojiWrapper}><Text style={styles.templateEmoji}>🌍</Text></View><Text style={styles.templateTextPrimary}>Tạo Mẫu Riêng</Text></TouchableOpacity>
-                <Text style={styles.sectionTitle}>Bắt đầu từ mẫu</Text>
+                <Text style={styles.modalTitle}>{t('server.create_title')}</Text><Text style={styles.modalSubtitle}>{t('server.create_desc')}</Text>
+                <TouchableOpacity style={styles.templateOptionPrimary} onPress={() => handleSelectTemplate('Custom')}><View style={styles.emojiWrapper}><Text style={styles.templateEmoji}>🌍</Text></View><Text style={styles.templateTextPrimary}>{t('server.create_custom')}</Text></TouchableOpacity>
+                <Text style={styles.sectionTitle}>{t('server.start_from_template')}</Text>
                 {TEMPLATES.map((item) => (
-                  <TouchableOpacity key={item.id} style={styles.templateOption} onPress={() => handleCreateServerClick(item.id)}><View style={styles.emojiWrapper}><Text style={styles.templateEmoji}>{item.icon}</Text></View><Text style={styles.templateText}>{item.name}</Text></TouchableOpacity>
+                  <TouchableOpacity key={item.id} style={styles.templateOption} onPress={() => handleSelectTemplate(item.id)}>
+                    <View style={styles.emojiWrapper}><Text style={styles.templateEmoji}>{item.icon}</Text></View>
+                    <Text style={styles.templateText}>{t(`templates.${item.id}`)}</Text>
+                  </TouchableOpacity>
                 ))}
               </>
             ) : (
               createStep === 1 ? (
                 <View style={{alignItems: 'center'}}>
-                  <Text style={styles.modalTitle}>Tùy chỉnh máy chủ</Text>
+                  <Text style={styles.modalTitle}>{t('server.customize')}</Text>
                   <TouchableOpacity onPress={pickIcon} style={{marginVertical: 20}}>
                     {serverIconUri ? (<Image source={{uri: serverIconUri}} style={{width: 100, height: 100, borderRadius: 50}} />) : (<View style={{width: 100, height: 100, borderRadius: 50, backgroundColor: '#f2f3f5', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1, borderColor: 'gray'}}><Ionicons name="camera" size={40} color="gray" /></View>)}
                   </TouchableOpacity>
-                  <View style={{width: '100%'}}><Text style={styles.sectionTitle}>TÊN MÁY CHỦ</Text><TextInput style={styles.textInput} value={serverNameInput} onChangeText={setServerNameInput} /></View>
-                  <TouchableOpacity style={[styles.submitBtn, {width: '100%', marginTop: 20}]} onPress={handleFinalCreateServer}><Text style={styles.submitBtnText}>Tạo máy chủ</Text></TouchableOpacity>
+                  <View style={{width: '100%'}}><Text style={styles.sectionTitle}>{t('server.server_name_label')}</Text><TextInput style={styles.textInput} value={serverNameInput} onChangeText={setServerNameInput} /></View>
+                  <TouchableOpacity style={[styles.submitBtn, {width: '100%', marginTop: 20}]} onPress={handleFinalCreateServer}><Text style={styles.submitBtnText}>{t('server.create_btn')}</Text></TouchableOpacity>
                 </View>
               ) : (
-                <View style={{flex: 1, height: 600}}><Text style={styles.modalTitle}>Mời bạn bè</Text>{renderInviteList()}<TouchableOpacity onPress={() => { setCreateModalVisible(false); setSelectedTemplate(null); setInvitedUsers({}); if(newlyCreatedId) switchToServer(newlyCreatedId); }} style={[styles.submitBtn, {marginTop: 20}]}><Text style={styles.submitBtnText}>Hoàn tất</Text></TouchableOpacity></View>
+                <View style={{flex: 1, height: 600}}><Text style={styles.modalTitle}>{t('server.invite_friends')}</Text>{renderInviteList()}<TouchableOpacity onPress={() => { setCreateModalVisible(false); setSelectedTemplate(null); setInvitedUsers({}); if(newlyCreatedId) switchToServer(newlyCreatedId); }} style={[styles.submitBtn, {marginTop: 20}]}><Text style={styles.submitBtnText}>{t('server.finish')}</Text></TouchableOpacity></View>
               )
             )}
           </ScrollView>
@@ -467,30 +538,30 @@ export default function SideMenu() {
 
       <Modal visible={isSettingsModalVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{flex: 1, backgroundColor: '#f2f3f5'}}>
-          <View style={[styles.modalHeader, { backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}><Text style={{fontSize: 18, fontWeight: 'bold'}}>Cài đặt máy chủ</Text><TouchableOpacity onPress={() => setSettingsModalVisible(false)}><Text style={{fontSize: 16, color: '#007aff', fontWeight: 'bold'}}>Xong</Text></TouchableOpacity></View>
+          <View style={[styles.modalHeader, { backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}><Text style={{fontSize: 18, fontWeight: 'bold'}}>{t('server.settings')}</Text><TouchableOpacity onPress={() => setSettingsModalVisible(false)}><Text style={{fontSize: 16, color: '#007aff', fontWeight: 'bold'}}>{t('common.done')}</Text></TouchableOpacity></View>
           <ScrollView style={{padding: 20}}>
-            <View style={{alignItems: 'center', marginBottom: 20}}><Image source={getIconSource(currentWorkspace?.icon)} style={{width: 80, height: 80, borderRadius: 40, marginBottom: 10}} /><TouchableOpacity onPress={handleUpdateImage} style={{backgroundColor: '#e0e0e0', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20}}><Text style={{fontWeight: 'bold'}}>Đổi ảnh đại diện</Text></TouchableOpacity></View>
-            <Text style={styles.sectionTitle}>TÊN MÁY CHỦ</Text>
-            <View style={{flexDirection: 'row', backgroundColor: '#fff', borderRadius: 8, padding: 10, marginBottom: 20}}><TextInput style={{flex: 1, fontSize: 16}} value={editServerName} onChangeText={setEditServerName} /><TouchableOpacity onPress={handleSaveName}><Text style={{color: '#007aff', fontWeight: 'bold', paddingLeft: 10}}>Lưu</Text></TouchableOpacity></View>
-            <TouchableOpacity onPress={() => { setSettingsModalVisible(false); setInviteOnlyModalVisible(true); }} style={{backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 8, marginBottom: 20}}><Ionicons name="person-add-outline" size={22} color="#5865F2" style={{marginRight: 10}} /><Text style={{fontSize: 16, fontWeight: 'bold', color: '#5865F2'}}>Mời bạn bè</Text></TouchableOpacity>
-            <TouchableOpacity onPress={handleDeleteServer} style={{backgroundColor: '#ffdddd', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 20}}><Text style={{color: 'red', fontWeight: 'bold', fontSize: 16}}>Xóa máy chủ</Text></TouchableOpacity>
+            <View style={{alignItems: 'center', marginBottom: 20}}><Image source={getIconSource(currentWorkspace?.icon)} style={{width: 80, height: 80, borderRadius: 40, marginBottom: 10}} /><TouchableOpacity onPress={handleUpdateImage} style={{backgroundColor: '#e0e0e0', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20}}><Text style={{fontWeight: 'bold'}}>{t('server.change_avatar')}</Text></TouchableOpacity></View>
+            <Text style={styles.sectionTitle}>{t('server.server_name_label')}</Text>
+            <View style={{flexDirection: 'row', backgroundColor: '#fff', borderRadius: 8, padding: 10, marginBottom: 20}}><TextInput style={{flex: 1, fontSize: 16}} value={editServerName} onChangeText={setEditServerName} /><TouchableOpacity onPress={handleSaveName}><Text style={{color: '#007aff', fontWeight: 'bold', paddingLeft: 10}}>{t('common.save')}</Text></TouchableOpacity></View>
+            <TouchableOpacity onPress={() => { setSettingsModalVisible(false); setInviteOnlyModalVisible(true); }} style={{backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 8, marginBottom: 20}}><Ionicons name="person-add-outline" size={22} color="#5865F2" style={{marginRight: 10}} /><Text style={{fontSize: 16, fontWeight: 'bold', color: '#5865F2'}}>{t('server.invite_friends')}</Text></TouchableOpacity>
+            <TouchableOpacity onPress={handleDeleteServer} style={{backgroundColor: '#ffdddd', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 20}}><Text style={{color: 'red', fontWeight: 'bold', fontSize: 16}}>{t('server.delete_server')}</Text></TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
       </Modal>
 
-      <Modal visible={isInviteOnlyModalVisible} animationType="slide" presentationStyle="pageSheet"><SafeAreaView style={{flex: 1, backgroundColor: '#fff', padding: 20}}><View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20}}><Text style={{fontSize: 22, fontWeight: 'bold'}}>Mời bạn bè</Text><TouchableOpacity onPress={() => setInviteOnlyModalVisible(false)}><Text style={{color: '#007aff', fontWeight: 'bold', fontSize: 16}}>Xong</Text></TouchableOpacity></View>{renderInviteList()}</SafeAreaView></Modal>
+      <Modal visible={isInviteOnlyModalVisible} animationType="slide" presentationStyle="pageSheet"><SafeAreaView style={{flex: 1, backgroundColor: '#fff', padding: 20}}><View style={{flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20}}><Text style={{fontSize: 22, fontWeight: 'bold'}}>{t('server.invite_friends')}</Text><TouchableOpacity onPress={() => setInviteOnlyModalVisible(false)}><Text style={{color: '#007aff', fontWeight: 'bold', fontSize: 16}}>{t('common.done')}</Text></TouchableOpacity></View>{renderInviteList()}</SafeAreaView></Modal>
 
       <Modal visible={isCreateChannelModalVisible} transparent animationType="fade">
          <View style={styles.modalOverlay}>
            <View style={styles.smallModalContainer}>
-             <Text style={styles.smallModalTitle}>Tạo {newChannelType === 'category' ? 'Danh Mục' : 'Kênh'}</Text>
-             <TextInput style={styles.textInput} placeholder={newChannelType === 'category' ? "Tên danh mục mới" : "tên-kênh-mới"} value={newChannelName} onChangeText={setNewChannelName} autoFocus />
+             <Text style={styles.smallModalTitle}>{t('channel.create_title', { type: newChannelType === 'category' ? t('common.category') : t('common.channel') })}</Text>
+             <TextInput style={styles.textInput} placeholder={newChannelType === 'category' ? t('channel.placeholder_category') : t('channel.placeholder_channel')} value={newChannelName} onChangeText={setNewChannelName} autoFocus />
 
              {newChannelType === 'channel' && (
                <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                  <View style={{flex: 1, paddingRight: 10}}>
-                   <Text style={{ fontWeight: 'bold', fontSize: 15, color: '#333' }}>Kênh ẩn danh (Confession)</Text>
-                   <Text style={{ fontSize: 12, color: 'gray', marginTop: 4 }}>Thành viên đăng bài trong kênh này sẽ bị ẩn danh tính hoàn toàn.</Text>
+                   <Text style={{ fontWeight: 'bold', fontSize: 15, color: '#333' }}>{t('channel.confession_title')}</Text>
+                   <Text style={{ fontSize: 12, color: 'gray', marginTop: 4 }}>{t('channel.confession_desc')}</Text>
                  </View>
                  <Switch
                    value={isAnonymousChannel}
@@ -502,8 +573,8 @@ export default function SideMenu() {
              )}
 
              <View style={styles.modalButtonRow}>
-               <TouchableOpacity onPress={() => { setCreateChannelModalVisible(false); setIsAnonymousChannel(false); }} style={styles.cancelBtn}><Text style={styles.cancelBtnText}>Hủy</Text></TouchableOpacity>
-               <TouchableOpacity onPress={handleCreateChannelSubmit} style={styles.submitBtn}><Text style={styles.submitBtnText}>Tạo</Text></TouchableOpacity>
+               <TouchableOpacity onPress={() => { setCreateChannelModalVisible(false); setIsAnonymousChannel(false); }} style={styles.cancelBtn}><Text style={styles.cancelBtnText}>{t('common.cancel')}</Text></TouchableOpacity>
+               <TouchableOpacity onPress={handleCreateChannelSubmit} style={styles.submitBtn}><Text style={styles.submitBtnText}>{t('channel.create_btn')}</Text></TouchableOpacity>
              </View>
            </View>
          </View>
@@ -516,50 +587,47 @@ export default function SideMenu() {
               <Image source={getIconSource(currentWorkspace?.icon)} style={styles.bottomSheetIcon} />
               <View style={{flex: 1}}>
                  <Text style={styles.bottomSheetTitle} numberOfLines={1}>{currentWorkspace?.name}</Text>
-                 {/* @ts-ignore */}
-                 {currentWorkspace?.boostCount > 0 && (
-                   <Text style={{fontSize: 12, color: '#ff73fa', fontWeight: 'bold'}}>✨ Đã Nâng Cấp Cấp {(currentWorkspace as any).boostCount}</Text>
+                 {currentLevel > 0 && (
+                   <Text style={{fontSize: 12, color: '#44b669', fontWeight: 'bold'}}>{t('menu.reached_level', { level: currentLevel })}</Text>
                  )}
               </View>
             </View>
 
-            {/* 👇 NÚT NÂNG CẤP MÁY CHỦ 👇 */}
             <TouchableOpacity style={styles.bottomSheetItem} onPress={() => { setServerMenuVisible(false); setUpgradeModalVisible(true); }}>
-              <FontAwesome5 name="gem" size={20} color="#ff73fa" />
-              <Text style={[styles.bottomSheetItemText, {color: '#ff73fa'}]}>Nâng Cấp Máy Chủ</Text>
+              <FontAwesome5 name="gem" size={20} color="#44b669" />
+              <Text style={[styles.bottomSheetItemText, {color: '#44b669'}]}>{t('menu.upgrade_server')}</Text>
             </TouchableOpacity>
 
-            {/* 👇 NÚT GHIM MÁY CHỦ 👇 */}
             <TouchableOpacity style={styles.bottomSheetItem} onPress={() => { setServerMenuVisible(false); togglePinServer(activeServerId!); }}>
               <Ionicons name="pin" size={24} color="black" />
-              <Text style={styles.bottomSheetItemText}>{pinnedServers.includes(activeServerId!) ? "Bỏ ghim máy chủ" : "Ghim máy chủ lên đầu"}</Text>
+              <Text style={styles.bottomSheetItemText}>{pinnedServers.includes(activeServerId!) ? t('menu.unpin_server') : t('menu.pin_server')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.bottomSheetItem} onPress={() => { setServerMenuVisible(false); setMemberListModalVisible(true); }}>
-              <Ionicons name="people" size={24} color="black" /><Text style={styles.bottomSheetItemText}>Xem thành viên</Text>
+              <Ionicons name="people" size={24} color="black" /><Text style={styles.bottomSheetItemText}>{t('menu.view_members')}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.bottomSheetItem} onPress={() => { setServerMenuVisible(false); Alert.alert("Báo cáo", "Cảm ơn bạn. Quản trị viên sẽ xem xét máy chủ này."); }}>
-              <Ionicons name="flag" size={24} color="black" /><Text style={styles.bottomSheetItemText}>Báo cáo máy chủ</Text>
+            <TouchableOpacity style={styles.bottomSheetItem} onPress={() => { setServerMenuVisible(false); Alert.alert(t('alerts.report_title', { defaultValue: 'Báo cáo' }), t('alerts.report_thanks')); }}>
+              <Ionicons name="flag" size={24} color="black" /><Text style={styles.bottomSheetItemText}>{t('menu.report_server')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.bottomSheetItem} onPress={() => {
               setServerMenuVisible(false);
-              if (isOwner) { Alert.alert("Thông báo", "Bạn là chủ máy chủ, hãy dùng Cài đặt (Icon bánh răng) để Xóa máy chủ thay vì Thoát."); return; }
-              Alert.alert("Thoát máy chủ", `Bạn có chắc chắn muốn rời khỏi "${currentWorkspace?.name}" không?`, [
-                { text: "Hủy", style: "cancel" },
-                { text: "Thoát", style: "destructive", onPress: async () => {
+              if (isOwner) { Alert.alert(t('common.notification'), t('server_errors.owner_cannot_leave')); return; }
+              Alert.alert(t('alerts.leave_server'), t('alerts.leave_server_desc', { name: currentWorkspace?.name }), [
+                { text: t('common.cancel'), style: "cancel" },
+                { text: t('common.delete'), style: "destructive", onPress: async () => {
                     if (activeServerId) {
                       try {
                         await leaveServer({ serverId: activeServerId });
                         if (universities && universities.length > 0) switchToUniversity(universities[0]._id);
-                      } catch (error: any) { Alert.alert("Lỗi", error.message); }
+                      } catch (error: any) { Alert.alert(t('common.error'), error.message); }
                     }
                 }}
               ]);
             }}>
               <Ionicons name="log-out" size={24} color="#ff4d4f" />
-              <Text style={[styles.bottomSheetItemText, {color: '#ff4d4f'}]}>Thoát Server</Text>
+              <Text style={[styles.bottomSheetItemText, {color: '#ff4d4f'}]}>{t('menu.leave_server')}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -568,88 +636,156 @@ export default function SideMenu() {
       <Modal visible={isMemberListModalVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{flex: 1, backgroundColor: '#f2f3f5'}}>
           <View style={[styles.modalHeader, { backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#eee', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-            <Text style={{fontSize: 18, fontWeight: 'bold'}}>Thành viên máy chủ</Text>
-            <TouchableOpacity onPress={() => setMemberListModalVisible(false)}><Text style={{fontSize: 16, color: '#007aff', fontWeight: 'bold'}}>Đóng</Text></TouchableOpacity>
+            <Text style={{fontSize: 18, fontWeight: 'bold'}}>{t('members.title')}</Text>
+            <TouchableOpacity onPress={() => setMemberListModalVisible(false)}><Text style={{fontSize: 16, color: '#007aff', fontWeight: 'bold'}}>{t('common.close')}</Text></TouchableOpacity>
           </View>
           <ScrollView style={{padding: 20}}>
-            <Text style={{fontSize: 12, fontWeight: 'bold', color: 'gray', marginBottom: 15, textTransform: 'uppercase'}}>Thành viên — {serverMembers?.length || 0}</Text>
+            <Text style={{fontSize: 12, fontWeight: 'bold', color: 'gray', marginBottom: 15, textTransform: 'uppercase'}}>{t('members.count', { count: serverMembers?.length || 0 })}</Text>
             {serverMembers?.map(member => (
               <View key={member._id} style={{flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 15, borderRadius: 8, marginBottom: 10}}>
                 <Image source={{uri: member.imageUrl}} style={{width: 40, height: 40, borderRadius: 20, marginRight: 15}} />
+                
                 <View style={{flex: 1}}>
                   <View style={{flexDirection: 'row', alignItems: 'center'}}>
                     <Text style={{fontWeight: 'bold', fontSize: 16}}>{member.first_name}</Text>
-                    {member.isCreator && (<Text style={{fontSize: 10, backgroundColor: '#ffd700', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, marginLeft: 8, fontWeight: 'bold'}}>CHỦ SERVER</Text>)}
-                    {!member.isCreator && member.isAdmin && (<Text style={{fontSize: 10, backgroundColor: '#ff4d4f', color: 'white', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, marginLeft: 8, fontWeight: 'bold'}}>QTV</Text>)}
+                    {member.isCreator && (<Text style={{fontSize: 10, backgroundColor: '#ffd700', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, marginLeft: 8, fontWeight: 'bold'}}>{t('members.owner')}</Text>)}
+                    {!member.isCreator && member.isAdmin && (<Text style={{fontSize: 10, backgroundColor: '#ff4d4f', color: 'white', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, marginLeft: 8, fontWeight: 'bold'}}>{t('members.admin')}</Text>)}
                   </View>
                   <Text style={{color: 'gray', fontSize: 13}}>@{member.username}</Text>
                 </View>
+
+                {isOwner && member._id !== userProfile?._id && (
+                  <TouchableOpacity 
+                    style={{ padding: 8, marginLeft: 10 }} 
+                    onPress={() => handleKickMember(member._id, member.first_name || t('common.member'))}
+                  >
+                    <Ionicons name="person-remove" size={22} color="#ff4d4f" />
+                  </TouchableOpacity>
+                )}
               </View>
             ))}
           </ScrollView>
         </SafeAreaView>
       </Modal>
 
-      {/* ========================================== */}
-      {/* 💎 GIAO DIỆN MODAL NÂNG CẤP MÁY CHỦ (NITRO) 💎 */}
-      {/* ========================================== */}
       <Modal visible={isUpgradeModalVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{flex: 1, backgroundColor: '#fff'}}>
           <View style={styles.upgradeHeader}>
             <TouchableOpacity onPress={() => setUpgradeModalVisible(false)} hitSlop={{top:10, bottom:10, left:10, right:10}}>
               <Ionicons name="close" size={28} color="#000" />
             </TouchableOpacity>
-            <Text style={styles.upgradeHeaderTitle}>Nâng Cấp Máy Chủ</Text>
+            <Text style={styles.upgradeHeaderTitle}>{t('upgrade.header_title')}</Text>
             <TouchableOpacity><Ionicons name="settings-outline" size={24} color="#000" /></TouchableOpacity>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-             {/* Banner Top */}
              <View style={styles.upgradeBanner}>
-               <Text style={styles.upgradeBannerText}>Nâng cấp máy chủ này để mở khóa các đặc quyền ✨</Text>
+               <Text style={styles.upgradeBannerText}>{t('upgrade.banner_desc')}</Text>
                <Image source={getIconSource(currentWorkspace?.icon)} style={styles.upgradeBannerIcon} />
                <Text style={styles.upgradeBannerTitle}>{currentWorkspace?.name}</Text>
-               {/* @ts-ignore */}
-               <Text style={styles.upgradeBannerSubtitle}>💎 {currentWorkspace?.boostCount > 0 ? `Đã Nâng Cấp Cấp ${currentWorkspace.boostCount}` : 'Không Có Nâng Cấp'}</Text>
-               <Text style={styles.channelLimitInfo}>Giới hạn kênh: {channels.length + groups.length} / {currentChannelLimit}</Text>
+               
+               <Text style={styles.upgradeBannerSubtitle}>
+                  {currentLevel > 0 ? t('upgrade.banner_status', { total: serverTotalStones, level: currentLevel }) : t('upgrade.banner_status_no_level', { total: serverTotalStones })}
+               </Text>
+               <Text style={styles.channelLimitInfo}>{t('upgrade.capacity', { current: channels.length + groups.length, limit: currentChannelLimit })}</Text>
 
-               <TouchableOpacity style={styles.upgradeBtnPrimary} onPress={() => Alert.alert("Nâng cấp", "Tính năng thanh toán Nitro đang được phát triển!")}>
-                  <Text style={styles.upgradeBtnTextPrimary}>Nâng Cấp Máy Chủ Này</Text>
+               <TouchableOpacity 
+                 style={styles.upgradeBtnPrimary} 
+                 onPress={async () => {
+                   try {
+                     if (!activeServerId) return;
+                     await boostServer({ serverId: activeServerId });
+                     Alert.alert(t('common.success', { defaultValue: 'Tuyệt vời!' }), t('alerts.donate_success'));
+                   } catch (e: any) {
+                     if (e.message.includes("NOT_ENOUGH_STONES")) {
+                       Alert.alert(t('common.notification'), t('boost.not_enough_stones'));
+                     } else {
+                       Alert.alert(t('common.notification'), e.message);
+                     }
+                   }
+                 }}
+               >
+                  <Text style={styles.upgradeBtnTextPrimary}>{t('upgrade.btn_donate')}</Text>
+                  <Text style={{color: '#a5d6a7', fontSize: 12, marginTop: 4, fontWeight: '500'}}>
+                    {isMaxLevel 
+                      ? t('upgrade.max_level_reached') 
+                      : t('upgrade.stones_needed', { stones: stonesNeededForNext })}
+                  </Text>
                </TouchableOpacity>
-               <TouchableOpacity style={styles.upgradeBtnSecondary}>
-                  <Text style={styles.upgradeBtnTextSecondary}>Nhận Nitro</Text>
+
+               <TouchableOpacity 
+                 style={styles.upgradeBtnSecondary} 
+                 onPress={async () => {
+                    Alert.alert(t('alerts.buy_confirm_title'), t('alerts.buy_confirm_desc'), [
+                      { text: t('common.cancel'), style: "cancel" },
+                      { 
+                        text: t('common.confirm'), 
+                        onPress: async () => {
+                          try {
+                            await buyStones();
+                            Alert.alert(t('common.success'), t('alerts.buy_success'));
+                          } catch(err: any) {
+                            Alert.alert(t('common.error'), err.message);
+                          }
+                        } 
+                      }
+                    ]);
+                 }}
+               >
+                  <Text style={styles.upgradeBtnTextSecondary}>{t('upgrade.btn_buy')}</Text>
+                  <Text style={{fontSize: 11, color: '#44b669', marginTop: 2}}>{t('upgrade.wallet', { stones: myStones })}</Text>
                </TouchableOpacity>
              </View>
 
              <View style={{padding: 20}}>
-                <Text style={styles.upgradeLevelsTitle}>CÁC ĐẶC QUYỀN BỔ SUNG</Text>
+                <Text style={styles.upgradeLevelsTitle}>{t('upgrade.path_title')}</Text>
+                <Text style={{fontSize: 13, color: 'gray', marginBottom: 10}}>{t('upgrade.path_desc')}</Text>
 
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 15, paddingVertical: 10}}>
-                  {/* Cấp 1 */}
-                  <View style={styles.levelCard}>
-                     <View style={styles.levelCardHeader}>
-                        <Text style={styles.levelCardTitle}>Cấp 1</Text>
-                     </View>
-                     <View style={styles.levelCardFeature}><Text>📺</Text><Text style={styles.featureText}>+5 Giới hạn số lượng Kênh</Text></View>
-                     <View style={styles.levelCardFeature}><Text>😎</Text><Text style={styles.featureText}>100 Ô Emoji tùy chỉnh</Text></View>
-                     <View style={styles.levelCardFeature}><Text>🎵</Text><Text style={styles.featureText}>Chất lượng Âm thanh 128kbps</Text></View>
-                     <View style={styles.levelCardFeature}><Text>🖼️</Text><Text style={styles.featureText}>Biểu Tượng Máy Chủ Động</Text></View>
-                     <Text style={styles.levelPriceText}>💎 Yêu cầu: 2 Nâng cấp</Text>
-                  </View>
-
-                  {/* Cấp 2 */}
-                  <View style={styles.levelCard}>
-                     <View style={styles.levelCardHeader}>
-                        <Text style={styles.levelCardTitle}>Cấp 2</Text>
-                     </View>
-                     <View style={styles.levelCardFeature}><Text>📺</Text><Text style={styles.featureText}>+10 Giới hạn số lượng Kênh</Text></View>
-                     <View style={styles.levelCardFeature}><Text>🎥</Text><Text style={styles.featureText}>Stream video HD</Text></View>
-                     <View style={styles.levelCardFeature}><Text>⬆️</Text><Text style={styles.featureText}>Dung lượng tải lên 50MB</Text></View>
-                     <View style={styles.levelCardFeature}><Text>🎭</Text><Text style={styles.featureText}>Biểu ngữ máy chủ tùy biến</Text></View>
-                     <Text style={styles.levelPriceText}>💎 Yêu cầu: 7 Nâng cấp</Text>
-                  </View>
+                  {UPGRADE_LEVELS.map((item) => {
+                    const isReached = currentLevel >= item.level;
+                    return (
+                      <View key={item.level} style={[styles.levelCard, isReached && { borderColor: '#44b669', borderWidth: 2 }]}>
+                         <View style={[styles.levelCardHeader, isReached && { backgroundColor: '#44b669' }]}>
+                            <Text style={styles.levelCardTitle}>{t('upgrade.level', { level: item.level })} {isReached && '✅'}</Text>
+                         </View>
+                         <View style={styles.levelCardFeature}>
+                           <Text>📺</Text>
+                           <Text style={styles.featureText}>{t('upgrade.max_channels', { max: MAX_CHANNELS_BASE + (item.level * 5) })}</Text>
+                         </View>
+                         <Text style={[styles.levelPriceText, isReached && { color: 'gray' }]}>
+                           {t('upgrade.requirement', { stones: item.stones })}
+                         </Text>
+                      </View>
+                    )
+                  })}
                 </ScrollView>
              </View>
+             {topBoosters && topBoosters.length > 0 && (
+               <View style={{padding: 20, paddingTop: 0, paddingBottom: 40}}>
+                 <Text style={styles.upgradeLevelsTitle}>{t('upgrade.leaderboard_title')}</Text>
+                 <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 15, borderWidth: 1, borderColor: '#eee', elevation: 2, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.05 }}>
+                   
+                   {topBoosters.map((booster, index) => {
+                     const rankColor = index === 0 ? '#ffd700' : index === 1 ? '#c0c0c0' : '#cd7f32';
+                     return (
+                       <View key={booster._id} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: index === topBoosters.length - 1 ? 0 : 15 }}>
+                         <Text style={{ fontSize: 18, fontWeight: '900', width: 35, color: rankColor, fontStyle: 'italic' }}>
+                           #{index + 1}
+                         </Text>
+                         <Image source={{ uri: booster.imageUrl }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12, borderWidth: index === 0 ? 2 : 0, borderColor: rankColor }} />
+                         <View style={{ flex: 1 }}>
+                           <Text style={{ fontWeight: 'bold', fontSize: 15, color: '#333' }}>{booster.first_name}</Text>
+                           <Text style={{ color: '#44b669', fontSize: 13, fontWeight: '700' }}>{t('upgrade.stones', { stones: booster.totalStones })}</Text>
+                         </View>
+                         {index === 0 && <Text style={{ fontSize: 24 }}>👑</Text>}
+                       </View>
+                     );
+                   })}
+                   
+                 </View>
+               </View>
+             )}
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -705,25 +841,23 @@ const styles = StyleSheet.create({
   bottomSheetTitle: { color: 'black', fontSize: 20, fontWeight: 'bold' },
   bottomSheetItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15 },
   bottomSheetItemText: { color: 'black', fontSize: 16, fontWeight: 'bold', marginLeft: 15 },
-
-  // Giao diện Nâng Cấp Máy Chủ
-  upgradeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, backgroundColor: '#fff' },
-  upgradeHeaderTitle: { fontSize: 18, fontWeight: 'bold' },
-  upgradeBanner: { backgroundColor: '#8a2be2', alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
-  upgradeBannerText: { color: 'white', fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
-  upgradeBannerIcon: { width: 70, height: 70, borderRadius: 35, borderWidth: 3, borderColor: 'white', marginBottom: 10 },
-  upgradeBannerTitle: { color: 'white', fontSize: 20, fontWeight: 'bold' },
-  upgradeBannerSubtitle: { color: '#ffd700', fontSize: 14, fontWeight: 'bold', marginTop: 5 },
-  channelLimitInfo: { color: '#e0e0e0', fontSize: 13, marginTop: 8, marginBottom: 20 },
-  upgradeBtnPrimary: { backgroundColor: '#5865F2', paddingVertical: 14, width: '100%', borderRadius: 25, alignItems: 'center', marginBottom: 12 },
+  upgradeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  upgradeHeaderTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+  upgradeBanner: { backgroundColor: '#44b669', alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20, borderBottomLeftRadius: 25, borderBottomRightRadius: 25 },
+  upgradeBannerText: { color: 'white', fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 20, lineHeight: 28 },
+  upgradeBannerIcon: { width: 80, height: 80, borderRadius: 20, borderWidth: 3, borderColor: 'white', marginBottom: 12 },
+  upgradeBannerTitle: { color: 'white', fontSize: 22, fontWeight: 'bold' },
+  upgradeBannerSubtitle: { color: '#ffd700', fontSize: 14, fontWeight: 'bold', marginTop: 5 }, 
+  channelLimitInfo: { color: '#e0f2f1', fontSize: 13, marginTop: 8, marginBottom: 20 },
+  upgradeBtnPrimary: { backgroundColor: '#1b5e20', paddingVertical: 15, width: '100%', borderRadius: 30, alignItems: 'center', marginBottom: 12, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2 },
   upgradeBtnTextPrimary: { color: 'white', fontWeight: 'bold', fontSize: 16 },
-  upgradeBtnSecondary: { backgroundColor: 'white', paddingVertical: 14, width: '100%', borderRadius: 25, alignItems: 'center' },
-  upgradeBtnTextSecondary: { color: '#5865F2', fontWeight: 'bold', fontSize: 16 },
-  upgradeLevelsTitle: { fontSize: 16, fontWeight: 'bold', color: 'gray', marginTop: 10, marginBottom: 10 },
-  levelCard: { backgroundColor: '#f2f3f5', padding: 20, borderRadius: 16, width: 260, borderWidth: 1, borderColor: '#e0e0e0' },
-  levelCardHeader: { backgroundColor: '#8a2be2', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 12, alignSelf: 'flex-start', marginBottom: 15 },
-  levelCardTitle: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  upgradeBtnSecondary: { backgroundColor: 'white', paddingVertical: 15, width: '100%', borderRadius: 30, alignItems: 'center', borderWidth: 1.5, borderColor: '#44b669' },
+  upgradeBtnTextSecondary: { color: '#44b669', fontWeight: 'bold', fontSize: 16 },
+  upgradeLevelsTitle: { fontSize: 14, fontWeight: 'bold', color: '#888', marginTop: 15, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 },
+  levelCard: { backgroundColor: '#fff', padding: 20, borderRadius: 20, width: 260, borderWidth: 1, borderColor: '#eee', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, elevation: 2 },
+  levelCardHeader: { backgroundColor: '#999', paddingVertical: 6, paddingHorizontal: 15, borderRadius: 15, alignSelf: 'flex-start', marginBottom: 15 },
+  levelCardTitle: { color: 'white', fontWeight: 'bold', fontSize: 15 },
   levelCardFeature: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  featureText: { fontSize: 14, color: '#333', marginLeft: 10, fontWeight: '500' },
-  levelPriceText: { color: '#ff73fa', fontWeight: 'bold', marginTop: 10, fontSize: 14 }
+  featureText: { fontSize: 14, color: '#444', marginLeft: 10, fontWeight: '500' },
+  levelPriceText: { color: '#44b669', fontWeight: 'bold', marginTop: 10, fontSize: 14 },
 });

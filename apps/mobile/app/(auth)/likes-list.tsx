@@ -6,10 +6,12 @@ import { api } from '@/convex/_generated/api';
 import { Id } from '@/convex/_generated/dataModel';
 import ProfileSearchResult from '@/components/ProfileSearchResult';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
 
 const LikesListPage = () => {
   const { messageId } = useLocalSearchParams<{ messageId: string }>();
   const navigation = useNavigation();
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
 
   // Gọi API lấy danh sách người đã thả tim
   const likers = useQuery(api.messages.getLikers, { 
@@ -28,7 +30,7 @@ const LikesListPage = () => {
         >
           <Ionicons name="arrow-back" size={26} color="black" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Lượt thích</Text>
+        <Text style={styles.headerTitle}>{t('likes_list.title')}</Text>
         <View style={{ width: 26 }} /> 
       </View>
 
@@ -41,7 +43,7 @@ const LikesListPage = () => {
           keyExtractor={(item) => item._id}
           renderItem={({ item }) => <ProfileSearchResult user={item} />}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>Chưa có ai thích bài viết này.</Text>
+            <Text style={styles.emptyText}>{t('likes_list.empty_text')}</Text>
           }
           contentContainerStyle={{ paddingBottom: 20 }}
         />

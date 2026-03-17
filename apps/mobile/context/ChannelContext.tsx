@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Id } from '@/convex/_generated/dataModel';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
 
 interface ChannelContextType {
   activeChannelId: Id<'channels'> | null;
@@ -14,24 +15,33 @@ interface ChannelContextType {
   activeChannelName: string;
   setActiveChannelName: (name: string) => void;
 
-  // 👇 THÊM HÀM NÀY ĐỂ RESET NHANH
   clearActiveStatus: () => void;
 }
 
 const ChannelContext = createContext<ChannelContextType | undefined>(undefined);
 
 export const ChannelProvider = ({ children }: { children: React.ReactNode }) => {
+  const { t, i18n } = useTranslation(); // 👈 KHỞI TẠO HOOK
+  
   const [activeChannelId, setActiveChannelId] = useState<Id<'channels'> | null>(null);
   const [activeUniversityId, setActiveUniversityId] = useState<Id<'universities'> | null>(null);
   const [activeServerId, setActiveServerId] = useState<Id<'servers'> | null>(null);
-  const [activeChannelName, setActiveChannelName] = useState<string>('Trang chủ');
+  
+  // Khởi tạo với giá trị dịch
+  const [activeChannelName, setActiveChannelName] = useState<string>(t('tabs.home'));
 
-  // Hàm giúp xóa sạch trạng thái hiện tại
+  // Cập nhật lại tên "Trang chủ" khi người dùng đổi ngôn ngữ máy (nếu đang ở trạng thái mặc định)
+  useEffect(() => {
+    if (!activeChannelId && !activeServerId && !activeUniversityId) {
+      setActiveChannelName(t('tabs.home'));
+    }
+  }, [i18n.language]); // Theo dõi sự thay đổi ngôn ngữ
+
   const clearActiveStatus = () => {
     setActiveChannelId(null);
     setActiveServerId(null);
     setActiveUniversityId(null);
-    setActiveChannelName('Trang chủ');
+    setActiveChannelName(t('tabs.home')); // 👈 DÙNG t() KHI RESET
   };
 
   return (
@@ -41,7 +51,7 @@ export const ChannelProvider = ({ children }: { children: React.ReactNode }) => 
         activeUniversityId, setActiveUniversityId,
         activeServerId, setActiveServerId,
         activeChannelName, setActiveChannelName,
-        clearActiveStatus // MỚI
+        clearActiveStatus
       }}
     >
       {children}

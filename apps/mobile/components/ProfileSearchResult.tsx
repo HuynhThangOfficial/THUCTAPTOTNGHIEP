@@ -4,6 +4,7 @@ import { api } from '@/convex/_generated/api';
 import { Doc } from '@/convex/_generated/dataModel';
 import { Colors } from '@/constants/Colors';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT I18N
 
 type ProfileSearchResultProps = {
   user: Doc<'users'>;
@@ -11,6 +12,7 @@ type ProfileSearchResultProps = {
 
 const ProfileSearchResult = ({ user }: ProfileSearchResultProps) => {
   const router = useRouter();
+  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK DỊCH
 
   // 1. Lấy thông tin người dùng hiện tại để kiểm tra (tránh hiện nút cho chính mình)
   const currentUser = useQuery(api.users.current);
@@ -52,7 +54,10 @@ const ProfileSearchResult = ({ user }: ProfileSearchResultProps) => {
           {user.first_name} {user.last_name}
         </Text>
         <Text style={styles.username}>@{user.username}</Text>
-        <Text style={styles.followers}>{user.followersCount} người theo dõi</Text>
+        <Text style={styles.followers}>
+          {/* 👇 Truyền số đếm vào file dịch 👇 */}
+          {t('search_result.followers', { count: user.followersCount })}
+        </Text>
       </View>
 
       {/* Chỉ hiện nút nếu KHÔNG phải là chính mình */}
@@ -69,7 +74,9 @@ const ProfileSearchResult = ({ user }: ProfileSearchResultProps) => {
             isFollowing && styles.followingButtonText // Đổi chữ trắng nếu đã follow
           ]}>
             {/* 👇 LOGIC HIỂN THỊ CHỮ MỚI 👇 */}
-            {isFollowing ? 'Đang theo dõi' : (isFollowedBy ? 'Theo dõi lại' : 'Theo dõi')}
+            {isFollowing 
+              ? t('search_result.following') 
+              : (isFollowedBy ? t('search_result.follow_back') : t('search_result.follow'))}
           </Text>
         </TouchableOpacity>
       )}

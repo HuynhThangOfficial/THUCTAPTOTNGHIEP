@@ -17,6 +17,8 @@ export const User = {
   lastSeen: v.optional(v.number()),
   isOnline: v.optional(v.boolean()),
   showActiveStatus: v.optional(v.boolean()),
+  stones: v.optional(v.number()),
+  language: v.optional(v.string()),
 };
 
 export default defineSchema({
@@ -47,7 +49,17 @@ export default defineSchema({
     creatorId: v.id("users"),
     memberIds: v.array(v.id("users")),
     adminIds: v.optional(v.array(v.id("users"))), 
+    totalStones: v.optional(v.number()),
   }),
+
+  server_boosts: defineTable({
+    serverId: v.id("servers"),
+    userId: v.id("users"),
+    amount: v.number(),
+    boostedAt: v.number(), // Thời gian quyên góp
+  })
+  .index("by_server", ["serverId"])
+  .index("by_user", ["userId"]),
 
   channels: defineTable({
     name: v.string(),
