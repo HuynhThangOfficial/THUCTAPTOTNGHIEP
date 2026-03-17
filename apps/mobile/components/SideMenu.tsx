@@ -14,7 +14,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const LOCAL_IMAGES: Record<string, any> = { 'local:login': require('../assets/images/login.png') };
+const LOCAL_IMAGES: Record<string, any> = { 'local:login': require('../assets/images/login.png'), 'local:community': require('../assets/images/icon.png'), };
 const getIconSource = (iconString?: string) => (iconString && LOCAL_IMAGES[iconString] ? LOCAL_IMAGES[iconString] : { uri: iconString || 'https://via.placeholder.com/50' });
 
 const TEMPLATES = [

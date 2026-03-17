@@ -158,7 +158,7 @@ export const seedAndMigrate = mutation({
       const cdId = await ctx.db.insert('universities', {
         name: 'Cộng Đồng',
         slug: 'cong-dong',
-        icon: 'icon.png', 
+        icon: 'local:community',
         sortOrder: 2,
       });
       congdong = await ctx.db.get(cdId);
