@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px; /* Làm thanh cuộn mỏng lại cho tinh tế */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent; /* Ẩn cái nền xám đi */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.2); /* Màu xanh emerald mờ mờ */
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.6); /* Sáng lên khi di chuột vào */
+}
+
+/* Hỗ trợ cho trình duyệt Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(16, 185, 129, 0.3) transparent;
+}
