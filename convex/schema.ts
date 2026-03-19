@@ -206,4 +206,16 @@ messages: defineTable({
     .index("by_server", ["serverId"])
     .index("by_user", ["userId"])
     .index("by_server_user", ["serverId", "userId"]),
+
+  reports: defineTable({
+      userId: v.id("users"), // Người gửi báo cáo
+      messageId: v.id("messages"), // Bài viết bị báo cáo
+      serverId: v.optional(v.id("servers")), // Phân loại theo Server
+      universityId: v.optional(v.id("universities")), // Phân loại theo University
+      reason: v.string(), // Lý do báo cáo
+      status: v.string(), // Trạng thái: 'pending', 'resolved', 'dismissed'
+    })
+      .index("by_server", ["serverId"])
+      .index("by_message", ["messageId"])
+      .index("by_user", ["userId"]),
 });

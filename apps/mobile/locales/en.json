@@ -517,5 +517,25 @@
     "user_not_found": "User not found",
     "storage_error": "Cannot retrieve image path from the server.",
     "cannot_follow_self": "You cannot follow yourself!"
+  },
+  "report": {
+    "title": "Report Post",
+    "reason_spam": "Spam or advertising",
+    "reason_harassment": "Harassment or bullying",
+    "reason_inappropriate": "Inappropriate content",
+    "reason_other": "Other reason",
+    "success": "Report submitted successfully",
+    "already_reported": "You have already reported this post",
+    "moderation_title": "Moderation",
+    "moderation_empty": "No pending reports",
+    "reporter": "Reporter",
+    "reason": "Reason",
+    "action_delete": "Delete Post",
+    "action_dismiss": "Dismiss",
+    "reason_wrong_channel": "Posted in wrong channel or server",
+    "reason_minors": "Issues involving minors",
+    "reason_adult": "Adult content",
+    "custom_reason_prompt": "Please enter your specific reason",
+    "custom_reason_placeholder": "Enter reason..."
   }
 }

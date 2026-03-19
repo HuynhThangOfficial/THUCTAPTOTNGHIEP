@@ -517,5 +517,25 @@
     "user_not_found": "Không tìm thấy người dùng",
     "storage_error": "Không thể lấy đường dẫn ảnh từ máy chủ.",
     "cannot_follow_self": "Bạn không thể tự theo dõi chính mình!"
+  },
+  "report": {
+    "title": "Báo cáo bài viết",
+    "reason_spam": "Spam hoặc quảng cáo",
+    "reason_harassment": "Quấy rối hoặc bắt nạt",
+    "reason_inappropriate": "Nội dung không phù hợp",
+    "reason_other": "Lý do khác",
+    "success": "Đã gửi báo cáo thành công",
+    "already_reported": "Bạn đã báo cáo bài viết này rồi",
+    "moderation_title": "Kiểm duyệt",
+    "moderation_empty": "Không có báo cáo nào cần xử lý",
+    "reporter": "Người báo cáo",
+    "reason": "Lý do",
+    "action_delete": "Xóa bài vi phạm",
+    "action_dismiss": "Bỏ qua",
+    "reason_wrong_channel": "Đăng không đúng kênh hoặc máy chủ",
+    "reason_minors": "Vấn đề liên quan đến người dưới 18 tuổi",
+    "reason_adult": "Nội dung người lớn",
+    "custom_reason_prompt": "Vui lòng nhập lý do cụ thể của bạn",
+    "custom_reason_placeholder": "Nhập lý do..."
   }
 }

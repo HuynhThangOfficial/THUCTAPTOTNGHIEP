@@ -389,3 +389,70 @@ export const adminGetAdminUsers = query({
       .collect();
   }
 });
+
+// =========================================================
+// 7. BÁO CÁO VÀ KIỂM DUYỆT
+// =========================================================
+
+// Lấy tất cả báo cáo cho Web Admin (Bao gồm cả Server và University)
+export const adminGetReports = query({
+  handler: async (ctx) => {
+    const reports = await ctx.db.query("reports").order("desc").collect();
+
+    // Nhóm theo messageId (Ép kiểu Map rõ ràng)
+    const grouped = new Map<string, any[]>();
+    for (const r of reports) {
+        if (!grouped.has(r.messageId)) grouped.set(r.messageId, []);
+        grouped.get(r.messageId)!.push(r);
+    }
+
+    const result = [];
+    for (const [msgId, groupReports] of grouped.entries()) {
+      // 👇 ÉP KIỂU ID CHUẨN XÁC CHO MESSAGES
+      const message = await ctx.db.get(msgId as Id<"messages">);
+      const author = message ? await ctx.db.get(message.userId) : null;
+      const channel = message?.channelId ? await ctx.db.get(message.channelId) : null;
+
+      const firstReport = groupReports[0];
+      let targetName = "Không xác định";
+      let targetType = "Unknown";
+
+      if (firstReport.serverId) {
+        // 👇 ÉP KIỂU ID CHUẨN XÁC CHO SERVERS
+        const server = await ctx.db.get(firstReport.serverId as Id<"servers">);
+        targetName = server?.name || "Server đã xóa";
+        targetType = "Server";
+      } else if (firstReport.universityId) {
+        // 👇 ÉP KIỂU ID CHUẨN XÁC CHO UNIVERSITIES
+        const uni = await ctx.db.get(firstReport.universityId as Id<"universities">);
+        targetName = uni?.name || "University đã xóa";
+        targetType = "University";
+      }
+
+      const reporters = await Promise.all(groupReports.map(async r => {
+          // 👇 ÉP KIỂU ID CHUẨN XÁC CHO USERS
+          const user = await ctx.db.get(r.userId as Id<"users">);
+          return { ...user, reason: r.reason, status: r.status };
+      }));
+
+      const overallStatus = groupReports.some(r => r.status === 'pending') ? 'pending' : firstReport.status;
+
+      result.push({
+        _id: firstReport._id,
+        reportIds: groupReports.map(r => r._id),
+        messageId: msgId,
+        reportCount: groupReports.length,
+        status: overallStatus,
+        reporters,
+        message,
+        author,
+        channel,
+        targetName,
+        targetType,
+        createdAt: firstReport._creationTime
+      });
+    }
+
+    return result.sort((a, b) => b.createdAt - a.createdAt);
+  }
+});

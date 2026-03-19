@@ -974,3 +974,124 @@ export const deleteAllNotifications = mutation({
     }
   }
 });
+
+// ==========================================
+// HỆ THỐNG BÁO CÁO & KIỂM DUYỆT (REPORT & MODERATION)
+// ==========================================
+
+// 1. Gửi báo cáo bài viết
+export const reportMessage = mutation({
+  args: {
+    messageId: v.id("messages"),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthorized");
+    const user = await ctx.db.query("users").withIndex("byClerkId", q => q.eq("clerkId", identity.subject)).unique();
+    if (!user) throw new Error("User not found");
+
+    const message = await ctx.db.get(args.messageId);
+    if (!message) throw new Error("Message not found");
+
+    // Tránh spam: Kiểm tra xem user này đã báo cáo bài này chưa
+    const existingReport = await ctx.db.query("reports")
+      .withIndex("by_message", q => q.eq("messageId", args.messageId))
+      .filter(q => q.eq(q.field("userId"), user._id))
+      .first();
+
+    if (existingReport) {
+      throw new Error("ALREADY_REPORTED");
+    }
+
+    await ctx.db.insert("reports", {
+      userId: user._id,
+      messageId: args.messageId,
+      serverId: message.serverId,
+      universityId: message.universityId,
+      reason: args.reason,
+      status: "pending", // Đang chờ duyệt
+    });
+
+    return { success: true };
+  }
+});
+
+// 2. Lấy danh sách báo cáo (Chỉ dành cho Chủ Server) - ĐÃ GỘP NHIỀU NGƯỜI
+export const getServerReports = query({
+  args: { serverId: v.id("servers") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthorized");
+    const user = await ctx.db.query("users").withIndex("byClerkId", q => q.eq("clerkId", identity.subject)).unique();
+    if (!user) return [];
+
+    const server = await ctx.db.get(args.serverId);
+    if (!server || server.creatorId !== user._id) return [];
+
+    const reports = await ctx.db.query("reports")
+      .withIndex("by_server", q => q.eq("serverId", args.serverId))
+      .filter(q => q.eq(q.field("status"), "pending"))
+      .order("desc")
+      .collect();
+
+    // Nhóm các báo cáo cùng 1 bài viết lại với nhau
+    const grouped = new Map<string, any[]>();
+    for (const r of reports) {
+        if (!grouped.has(r.messageId)) grouped.set(r.messageId, []);
+        grouped.get(r.messageId)!.push(r);
+    }
+
+    const result = [];
+    for (const [msgId, groupReports] of grouped.entries()) {
+        const message = await ctx.db.get(msgId as Id<"messages">);
+        const author = message ? await ctx.db.get(message.userId) : null;
+        const channel = message?.channelId ? await ctx.db.get(message.channelId) : null;
+
+        // Lấy thông tin tất cả những người đã báo cáo bài này
+        const reporters = await Promise.all(groupReports.map(async r => {
+            const user = await ctx.db.get(r.userId);
+            return { ...user, reason: r.reason };
+        }));
+
+        result.push({
+            _id: groupReports[0]._id,
+            reportIds: groupReports.map(r => r._id), // Mảng chứa ID của các reports để xử lý 1 lần
+            messageId: msgId,
+            reportCount: groupReports.length, // Số lần bị báo cáo
+            reporters,
+            message,
+            author,
+            channel,
+            createdAt: groupReports[0]._creationTime
+        });
+    }
+    return result.sort((a, b) => b.createdAt - a.createdAt);
+  }
+});
+
+// 3. Xử lý báo cáo (Xóa bài hoặc Bỏ qua) - XỬ LÝ NHIỀU REPORT CÙNG LÚC
+export const resolveReport = mutation({
+  args: { reportIds: v.array(v.id("reports")), action: v.string() },
+  handler: async (ctx, args) => {
+    if (args.reportIds.length === 0) return;
+
+    const firstReport = await ctx.db.get(args.reportIds[0]);
+    if (!firstReport) return;
+
+    if (args.action === 'delete') {
+      const msg = await ctx.db.get(firstReport.messageId);
+      if (msg) await ctx.db.delete(msg._id);
+
+      // Đổi trạng thái tất cả report của bài này thành resolved
+      for (const rId of args.reportIds) {
+        await ctx.db.patch(rId, { status: "resolved" });
+      }
+    } else {
+      // Đổi trạng thái tất cả report của bài này thành dismissed
+      for (const rId of args.reportIds) {
+        await ctx.db.patch(rId, { status: "dismissed" });
+      }
+    }
+  }
+});

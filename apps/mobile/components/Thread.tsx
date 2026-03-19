@@ -31,7 +31,6 @@ type ThreadProps = {
   viewContext?: 'feed' | 'profileReplies' | 'profileReposts' | 'profile';
 };
 
-// Truyền hàm `t` vào để dịch thứ ngày tháng
 const formatTimeAgo = (timestamp: number, t: any) => {
   const now = new Date();
   const postDate = new Date(timestamp);
@@ -54,7 +53,7 @@ const formatTimeAgo = (timestamp: number, t: any) => {
 };
 
 const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
-  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
+  const { t } = useTranslation();
   const { content, mediaFiles, likeCount, commentCount, retweetCount, shareCount, creator, isLiked, isServerAdmin, amIAdmin, isReposted, allowComments } = thread;
 
   const { userProfile } = useUserProfile();
@@ -72,6 +71,10 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
   const [shareSearchQuery, setShareSearchQuery] = useState('');
   const [sentStatus, setSentStatus] = useState<Record<string, 'sending' | 'sent'>>({});
 
+  // 👇 STATE QUẢN LÝ BÁO CÁO TÙY CHỈNH
+  const [isCustomReportVisible, setIsCustomReportVisible] = useState(false);
+  const [customReportText, setCustomReportText] = useState('');
+
   const likeThread = useMutation(api.messages.likeThread);
   const toggleRepost = useMutation(api.messages.toggleRepost);
   const deleteThread = useMutation(api.messages.deleteThread);
@@ -81,6 +84,8 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
   const sendShareMessage = useMutation(api.messages.sendShareMessage);
   const shareSuggestions = useQuery(api.messages.getShareSuggestions, { searchQuery: shareSearchQuery });
   const incrementShare = useMutation(api.messages.incrementShareCount);
+
+  const reportMessageMutation = useMutation(api.messages.reportMessage);
 
   const editHistory = useQuery(api.messages.getEditHistory, { messageId: thread._id });
   const channelInfo = useQuery(api.university.getChannelDetails, thread.channelId ? { channelId: thread.channelId } : "skip");
@@ -129,24 +134,87 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
     Alert.alert(t('thread.change_history'), historyList);
   };
 
+  // 👇 HÀM CHUNG ĐỂ GỬI BÁO CÁO LÊN SERVER
+  const submitReport = async (reason: string) => {
+    try {
+      await reportMessageMutation({
+        messageId: thread._id,
+        reason: reason
+      });
+      Alert.alert(t('common.success'), t('report.success'));
+    } catch (error: any) {
+      if (error.message.includes("ALREADY_REPORTED")) {
+        Alert.alert(t('common.error'), t('report.already_reported'));
+      } else {
+        Alert.alert(t('common.error'), t('common.error'));
+      }
+    }
+  };
+
+  // 👇 HÀM XỬ LÝ MENU BÁO CÁO (DÙNG MÃ KEY)
+  const handleReport = () => {
+    const reportKeys = [
+      'reason_wrong_channel',
+      'reason_spam',
+      'reason_harassment',
+      'reason_inappropriate',
+      'reason_minors',
+      'reason_adult'
+    ];
+
+    const options = [
+      ...reportKeys.map(key => t(`report.${key}`)),
+      t('report.reason_other'), // Nút Lý do khác
+      t('thread.opt_cancel')    // Nút Hủy
+    ];
+
+    const cancelButtonIndex = options.length - 1;
+    const otherButtonIndex = options.length - 2;
+
+    showActionSheetWithOptions(
+      { options, cancelButtonIndex, title: t('report.title') },
+      (selectedIndex?: number) => {
+        if (selectedIndex !== undefined && selectedIndex !== cancelButtonIndex) {
+          if (selectedIndex === otherButtonIndex) {
+            // Nếu chọn "Lý do khác", bật Modal nhập văn bản
+            setIsCustomReportVisible(true);
+          } else {
+            // Các lý do còn lại gửi MÃ KEY trực tiếp
+            submitReport(reportKeys[selectedIndex]);
+          }
+        }
+      }
+    );
+  };
+
   const onActionPress = () => {
     let options = isOwner ? [t('thread.opt_edit'), t('thread.opt_history'), t('thread.opt_delete'), t('thread.opt_cancel')] :
-                  amIAdmin ? [t('common.report', 'Báo cáo'), t('thread.opt_history'), t('thread.opt_delete_admin'), t('thread.opt_cancel')] :
-                  [t('common.report', 'Báo cáo'), t('thread.opt_history'), t('thread.opt_cancel')];
+                  amIAdmin ? [t('thread.opt_report'), t('thread.opt_history'), t('thread.opt_delete_admin'), t('thread.opt_cancel')] :
+                  [t('thread.opt_report'), t('thread.opt_history'), t('thread.opt_cancel')];
+
     let icons = isOwner ? [
         <Ionicons name="pencil-outline" size={24} color="black" />, <Ionicons name="time-outline" size={24} color="black" />, <Ionicons name="trash-outline" size={24} color="red" />, <Ionicons name="close-outline" size={24} color="black" />,
       ] : amIAdmin ? [
-        <Ionicons name="alert-circle-outline" size={24} color="black" />, <Ionicons name="time-outline" size={24} color="black" />, <Ionicons name="trash-outline" size={24} color="red" />, <Ionicons name="close-outline" size={24} color="black" />,
+        <Ionicons name="flag-outline" size={24} color="black" />, <Ionicons name="time-outline" size={24} color="black" />, <Ionicons name="trash-outline" size={24} color="red" />, <Ionicons name="close-outline" size={24} color="black" />,
       ] : [
-        <Ionicons name="alert-circle-outline" size={24} color="black" />, <Ionicons name="time-outline" size={24} color="black" />, <Ionicons name="close-outline" size={24} color="black" />,
+        <Ionicons name="flag-outline" size={24} color="black" />, <Ionicons name="time-outline" size={24} color="black" />, <Ionicons name="close-outline" size={24} color="black" />,
       ];
 
     showActionSheetWithOptions(
       { options, icons, cancelButtonIndex: options.length - 1, destructiveButtonIndex: isOwner || amIAdmin ? 2 : undefined, title: isComment ? t('thread.comment_options') : t('thread.post_options'), titleTextStyle: { fontWeight: 'bold' } },
       (selectedIndex?: number) => {
-        if (selectedIndex === 0 && isOwner) router.push(`/(auth)/(modal)/edit/${thread._id}`);
-        else if (selectedIndex === 1) showHistory();
-        else if (selectedIndex === 2 && (isOwner || amIAdmin)) handleDelete();
+        if (isOwner) {
+          if (selectedIndex === 0) router.push(`/(auth)/(modal)/edit/${thread._id}`);
+          else if (selectedIndex === 1) showHistory();
+          else if (selectedIndex === 2) handleDelete();
+        } else if (amIAdmin) {
+          if (selectedIndex === 0) handleReport();
+          else if (selectedIndex === 1) showHistory();
+          else if (selectedIndex === 2) handleDelete();
+        } else {
+          if (selectedIndex === 0) handleReport();
+          else if (selectedIndex === 1) showHistory();
+        }
       }
     );
   };
@@ -199,12 +267,6 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
     }
   };
 
-  const ImageHeader = ({ imageIndex }: { imageIndex: number }) => (
-    <SafeAreaView style={styles.imageHeader}>
-      <TouchableOpacity style={styles.closeImageButton} onPress={() => setVisible(false)}><Ionicons name="close" size={28} color="white" /></TouchableOpacity>
-    </SafeAreaView>
-  );
-
   const renderHeaderRow = (name: string, isAnonFlag: boolean, isMainAdmin: boolean = false) => {
     const textNode = (
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -222,9 +284,6 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
     );
   };
 
-  // =======================================================
-  // 🎨 GIAO DIỆN 1: BÌNH LUẬN TRONG PROFILE (CÓ ĐƯỜNG KẺ)
-  // =======================================================
   if (viewContext === 'profileReplies' && isComment) {
     return (
       <TouchableOpacity activeOpacity={0.8} onPress={handleNavigateToDetail} style={styles.mainWrapper}>
@@ -270,9 +329,6 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
     );
   }
 
-  // =======================================================
-  // 🎨 GIAO DIỆN CHÍNH (BÌNH THƯỜNG / ĐĂNG LẠI / GỐC)
-  // =======================================================
   return (
     <View style={viewContext !== 'feed' ? [styles.mainWrapper, { padding: 15 }] : styles.container}>
 
@@ -377,6 +433,39 @@ const Thread = ({ thread, viewContext = 'feed' }: ThreadProps) => {
         </View>
       </View>
 
+      {/* 👇 MODAL NHẬP LÝ DO KHÁC KHI BÁO CÁO 👇 */}
+      <Modal visible={isCustomReportVisible} transparent animationType="fade" onRequestClose={() => setIsCustomReportVisible(false)}>
+        <View style={styles.customReportOverlay}>
+          <View style={styles.customReportContainer}>
+            <Text style={styles.customReportTitle}>{t('report.reason_other')}</Text>
+            <Text style={styles.customReportDesc}>{t('report.custom_reason_prompt')}</Text>
+            <TextInput
+              style={styles.customReportInput}
+              placeholder={t('report.custom_reason_placeholder')}
+              value={customReportText}
+              onChangeText={setCustomReportText}
+              multiline
+              autoFocus
+            />
+            <View style={styles.customReportActionRow}>
+              <TouchableOpacity style={styles.customReportBtnCancel} onPress={() => { setIsCustomReportVisible(false); setCustomReportText(''); }}>
+                <Text style={styles.customReportBtnTextCancel}>{t('common.cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.customReportBtnSubmit, !customReportText.trim() && { backgroundColor: '#a0a0a0' }]}
+                disabled={!customReportText.trim()}
+                onPress={() => {
+                  submitReport(customReportText);
+                  setIsCustomReportVisible(false);
+                  setCustomReportText('');
+                }}>
+                <Text style={styles.customReportBtnTextSubmit}>{t('thread.send')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={isShareMenuVisible} transparent animationType="slide" onRequestClose={() => { setIsShareMenuVisible(false); setShareSearchQuery(''); setSentStatus({}); }}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => { setIsShareMenuVisible(false); setShareSearchQuery(''); setSentStatus({}); }}>
           <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
@@ -469,5 +558,17 @@ const styles = StyleSheet.create({
   sendBtnText: { color: 'white', fontWeight: '600' },
   sentBtnStyle: { backgroundColor: '#f0f2f5' },
   sendBtnTextSent: { color: '#000', fontWeight: '600' },
-  emptySearchText: { textAlign: 'center', color: 'gray', marginTop: 20, fontStyle: 'italic' }
+  emptySearchText: { textAlign: 'center', color: 'gray', marginTop: 20, fontStyle: 'italic' },
+
+  // 👇 STYLES CHO MODAL BÁO CÁO TÙY CHỈNH
+  customReportOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  customReportContainer: { backgroundColor: 'white', width: '100%', borderRadius: 15, padding: 20, elevation: 5, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.25 },
+  customReportTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 8, color: 'black' },
+  customReportDesc: { fontSize: 14, color: 'gray', marginBottom: 15 },
+  customReportInput: { backgroundColor: '#f2f3f5', borderRadius: 10, padding: 12, fontSize: 15, minHeight: 80, textAlignVertical: 'top', marginBottom: 20 },
+  customReportActionRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 15 },
+  customReportBtnCancel: { paddingVertical: 10, paddingHorizontal: 15 },
+  customReportBtnTextCancel: { color: 'gray', fontWeight: 'bold', fontSize: 15 },
+  customReportBtnSubmit: { backgroundColor: '#5865F2', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 },
+  customReportBtnTextSubmit: { color: 'white', fontWeight: 'bold', fontSize: 15 }
 });

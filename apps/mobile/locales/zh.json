@@ -517,5 +517,25 @@
     "user_not_found": "未找到用户",
     "storage_error": "无法从服务器获取图像路径。",
     "cannot_follow_self": "你不能关注自己！"
+  },
+  "report": {
+    "title": "举报帖子",
+    "reason_spam": "垃圾信息或广告",
+    "reason_harassment": "骚扰或欺凌",
+    "reason_inappropriate": "不适当的内容",
+    "reason_other": "其他原因",
+    "success": "举报提交成功",
+    "already_reported": "您已经举报过此帖子",
+    "moderation_title": "审核",
+    "moderation_empty": "没有待处理的举报",
+    "reporter": "举报人",
+    "reason": "原因",
+    "action_delete": "删除帖子",
+    "action_dismiss": "忽略",
+    "reason_wrong_channel": "发布在错误的频道或服务器",
+    "reason_minors": "涉及未成年人的问题",
+    "reason_adult": "成人内容",
+    "custom_reason_prompt": "请输入您的具体原因",
+    "custom_reason_placeholder": "输入原因..."
   }
 }

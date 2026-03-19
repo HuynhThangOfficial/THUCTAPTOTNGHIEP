@@ -9,6 +9,7 @@ import { useChannel } from '@/context/ChannelContext';
 import * as ImagePicker from 'expo-image-picker';
 import { Id } from '@/convex/_generated/dataModel';
 import { useTranslation } from 'react-i18next'; 
+import { Link, useRouter } from 'expo-router'; // 👈 ĐÃ IMPORT useRouter
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -34,7 +35,8 @@ const UPGRADE_LEVELS = [
 
 export default function SideMenu() {
   const [isBrowseModalVisible, setBrowseModalVisible] = useState(false);
-  const { t } = useTranslation(); 
+  const { t } = useTranslation();
+  const router = useRouter(); // 👈 KHỞI TẠO ROUTER
   const { top, bottom } = useSafeAreaInsets();
   const { userProfile } = useUserProfile();
 
@@ -66,7 +68,7 @@ export default function SideMenu() {
 
   const toggleVisibility = useMutation(api.university.toggleChannelVisibility);
   const topBoosters = useQuery(api.boosts.getTopBoosters, { serverId: activeServerId || undefined });
-  
+
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [isSettingsModalVisible, setSettingsModalVisible] = useState(false);
   const [editServerName, setEditServerName] = useState('');
@@ -99,9 +101,9 @@ export default function SideMenu() {
       t('alerts.kick_desc', { name: targetName }),
       [
         { text: t('common.cancel'), style: "cancel" },
-        { 
-          text: t('common.delete'), 
-          style: "destructive", 
+        {
+          text: t('common.delete'),
+          style: "destructive",
           onPress: async () => {
             try {
               await removeMember({ serverId: activeServerId, targetUserId });
@@ -114,7 +116,7 @@ export default function SideMenu() {
                 Alert.alert(t('common.error'), error.message);
               }
             }
-          } 
+          }
         }
       ]
     );
@@ -234,8 +236,8 @@ export default function SideMenu() {
     const isPinned = pinnedChannels.includes(target._id);
 
     Alert.alert(
-      t('alerts.option_title', { type: isCategory ? t('common.category') : t('common.channel') }), 
-      t('alerts.option_desc', { name: target.name }), 
+      t('alerts.option_title', { type: isCategory ? t('common.category') : t('common.channel') }),
+      t('alerts.option_desc', { name: target.name }),
       [
         { text: t('common.cancel'), style: "cancel" },
         { text: isPinned ? t('alerts.unpin') : t('alerts.pin_top'), onPress: () => {
@@ -309,25 +311,25 @@ export default function SideMenu() {
         const res = await uploadResult.json();
         storageId = res.storageId;
       }
-      
-      const result = await createServer({ 
-        name: serverNameInput, 
-        template: selectedTemplate || 'Custom', 
-        iconStorageId: storageId 
+
+      const result = await createServer({
+        name: serverNameInput,
+        template: selectedTemplate || 'Custom',
+        iconStorageId: storageId
       });
 
       if (result.success) {
         setNewlyCreatedId(result.serverId || null);
         setCreateStep(2);
-      } else { 
+      } else {
         if (result.message === "SERVER_LIMIT_REACHED") {
           Alert.alert(t('common.notification'), t('server_errors.server_limit_reached'));
         } else {
-          Alert.alert(t('common.notification'), result.message); 
+          Alert.alert(t('common.notification'), result.message);
         }
       }
-    } catch (e: any) { 
-      Alert.alert(t('common.error'), e.message); 
+    } catch (e: any) {
+      Alert.alert(t('common.error'), e.message);
     }
   };
 
@@ -464,7 +466,6 @@ export default function SideMenu() {
         </View>
         <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
 
-            {/* 👇 LỌC BỎ KÊNH ẨN Ở ĐÂY 👇 */}
             {getSortedChannels(channels.filter(c => !c.parentId && (!hiddenChannels.includes(c._id) || c.name === 'đại-sảnh'))).map((channel) => (
                 <TouchableOpacity key={channel._id} style={[styles.channelItem, activeChannelId === channel._id && styles.activeChannel]} onPress={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} onLongPress={() => handleChannelLongPress(channel, false)}>
                     <MaterialCommunityIcons name="pound" size={20} color={activeChannelId === channel._id ? "black" : "gray"} />
@@ -479,11 +480,8 @@ export default function SideMenu() {
 
             {sortedGroups.map((group) => {
               const isExpanded = expandedGroups[group._id] ?? true;
-
-              // 👇 LỌC BỎ KÊNH ẨN TRONG DANH MỤC 👇
               const childChannels = getSortedChannels(channels.filter(c => c.parentId === group._id && !hiddenChannels.includes(c._id)));
 
-              // Ẩn luôn danh mục nếu không còn kênh nào hiển thị bên trong (để UI sạch sẽ)
               if (childChannels.length === 0) return null;
 
               const isGroupPinned = pinnedChannels.includes(group._id);
@@ -557,6 +555,24 @@ export default function SideMenu() {
             <View style={{alignItems: 'center', marginBottom: 20}}><Image source={getIconSource(currentWorkspace?.icon)} style={{width: 80, height: 80, borderRadius: 40, marginBottom: 10}} /><TouchableOpacity onPress={handleUpdateImage} style={{backgroundColor: '#e0e0e0', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20}}><Text style={{fontWeight: 'bold'}}>{t('server.change_avatar')}</Text></TouchableOpacity></View>
             <Text style={styles.sectionTitle}>{t('server.server_name_label')}</Text>
             <View style={{flexDirection: 'row', backgroundColor: '#fff', borderRadius: 8, padding: 10, marginBottom: 20}}><TextInput style={{flex: 1, fontSize: 16}} value={editServerName} onChangeText={setEditServerName} /><TouchableOpacity onPress={handleSaveName}><Text style={{color: '#007aff', fontWeight: 'bold', paddingLeft: 10}}>{t('common.save')}</Text></TouchableOpacity></View>
+
+            {/* 👇 ĐÂY LÀ NÚT KIỂM DUYỆT ĐÃ SỬA LỖI ĐƠ MÀN HÌNH 👇 */}
+            {isOwner && (
+              <TouchableOpacity
+                style={{ backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 8, marginBottom: 20 }}
+                onPress={() => {
+                  setSettingsModalVisible(false); // Tắt Modal trước
+                  setTimeout(() => {
+                    router.push(`/(auth)/(modal)/moderation?serverId=${activeServerId}` as any); // Chuyển trang sau 300ms
+                  }, 300);
+                }}
+              >
+                <Ionicons name="shield-checkmark-outline" size={22} color="#5865F2" style={{ marginRight: 10 }} />
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#5865F2' }}>{t('report.moderation_title')}</Text>
+              </TouchableOpacity>
+            )}
+            {/* 👆 KẾT THÚC NÚT KIỂM DUYỆT 👆 */}
+
             <TouchableOpacity onPress={() => { setSettingsModalVisible(false); setInviteOnlyModalVisible(true); }} style={{backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 8, marginBottom: 20}}><Ionicons name="person-add-outline" size={22} color="#5865F2" style={{marginRight: 10}} /><Text style={{fontSize: 16, fontWeight: 'bold', color: '#5865F2'}}>{t('server.invite_friends')}</Text></TouchableOpacity>
             <TouchableOpacity onPress={handleDeleteServer} style={{backgroundColor: '#ffdddd', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 20}}><Text style={{color: 'red', fontWeight: 'bold', fontSize: 16}}>{t('server.delete_server')}</Text></TouchableOpacity>
           </ScrollView>
@@ -617,7 +633,6 @@ export default function SideMenu() {
               <Text style={styles.bottomSheetItemText}>{pinnedServers.includes(activeServerId!) ? t('menu.unpin_server') : t('menu.pin_server')}</Text>
             </TouchableOpacity>
 
-            {/* 👇 NÚT MỞ MODAL DUYỆT KÊNH ĐÃ FIX STYLE 👇 */}
             <TouchableOpacity
               style={styles.bottomSheetItem}
               onPress={() => {
@@ -818,7 +833,6 @@ export default function SideMenu() {
         </SafeAreaView>
       </Modal>
 
-      {/* 👇 MODAL DUYỆT KÊNH MỚI BỔ SUNG 👇 */}
       <Modal visible={isBrowseModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setBrowseModalVisible(false)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: '#f2f2f7' }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 16, backgroundColor: '#fff', alignItems: 'center', borderBottomWidth: 1, borderColor: '#eee' }}>
@@ -832,7 +846,6 @@ export default function SideMenu() {
 
           <ScrollView style={{ flex: 1 }}>
             {channels?.map((channel) => {
-               // Bật nếu id kênh không có trong list hiddenChannels lấy từ DB
                const isVisible = !hiddenChannels.includes(channel._id);
 
                return (
@@ -843,9 +856,7 @@ export default function SideMenu() {
                    </View>
                    <Switch
                      value={channel.name === 'đại-sảnh' ? true : isVisible}
-
                      disabled={channel.name === 'đại-sảnh'}
-
                      onValueChange={() => {
                        if (activeServerId && channel.name !== 'đại-sảnh') {
                          toggleVisibility({
@@ -854,7 +865,6 @@ export default function SideMenu() {
                          });
                        }
                      }}
-
                      trackColor={{
                        false: "#d3d3d3",
                        true: channel.name === 'đại-sảnh' ? "#a0c4ff" : "#007aff"
