@@ -80,7 +80,10 @@
     "pin_server": "Pin Server",
     "view_members": "View Members",
     "report_server": "Report Server",
-    "leave_server": "Leave Server"
+    "leave_server": "Leave Server",
+    "browse_channels": "Browse Channels",
+    "browse_channels_title": "Browse Channels",
+    "browse_channels_desc": "Choose which channels you want to see in the list."
   },
   "members": {
     "title": "Server Members",
@@ -393,7 +396,9 @@
     "posted_in_channel": "posted in #{{channelName}} • {{workspaceName}}",
     "posted_new": "published a new post",
     "sent_message": "sent you a message",
-    "started_following": "started following you"
+    "started_following": "started following you",
+    "delete_all": "Clear all",
+    "confirm_delete_all": "Are you sure you want to clear all notifications?"
   },
   "messages": {
     "sys_shared_post": "Shared a post",

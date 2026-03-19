@@ -80,7 +80,10 @@
     "pin_server": "置顶服务器",
     "view_members": "查看成员",
     "report_server": "举报服务器",
-    "leave_server": "离开服务器"
+    "leave_server": "离开服务器",
+    "browse_channels": "浏览频道",
+    "browse_channels_title": "浏览频道",
+    "browse_channels_desc": "选择您希望在列表中显示的频道。"
   },
   "members": {
     "title": "服务器成员",
@@ -393,7 +396,9 @@
     "posted_in_channel": "在 #{{channelName}} • {{workspaceName}} 中发布了新帖",
     "posted_new": "发布了一篇新帖子",
     "sent_message": "给你发送了一条消息",
-    "started_following": "开始关注你"
+    "started_following": "开始关注你",
+    "delete_all": "全部清除",
+    "confirm_delete_all": "您确定要清除所有通知吗？"
   },
   "messages": {
     "sys_shared_post": "分享了一篇帖子",

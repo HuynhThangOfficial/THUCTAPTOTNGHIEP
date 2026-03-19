@@ -14,7 +14,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const LOCAL_IMAGES: Record<string, any> = { 'local:login': require('../assets/images/login.png') };
+const LOCAL_IMAGES: Record<string, any> = { 'local:login': require('../assets/images/login.png'), 'local:community': require('../assets/images/icon.png'), };
 const getIconSource = (iconString?: string) => (iconString && LOCAL_IMAGES[iconString] ? LOCAL_IMAGES[iconString] : { uri: iconString || 'https://via.placeholder.com/50' });
 
 const TEMPLATES = [
@@ -33,6 +33,7 @@ const UPGRADE_LEVELS = [
 ];
 
 export default function SideMenu() {
+  const [isBrowseModalVisible, setBrowseModalVisible] = useState(false);
   const { t } = useTranslation(); 
   const { top, bottom } = useSafeAreaInsets();
   const { userProfile } = useUserProfile();
@@ -58,6 +59,12 @@ export default function SideMenu() {
   const boostServer = useMutation(api.boosts.boostServer);
 
   const { activeUniversityId, setActiveUniversityId, activeServerId, setActiveServerId, activeChannelId, setActiveChannelId, setActiveChannelName } = useChannel();
+
+  const hiddenChannels = useQuery(api.university.getHiddenChannelIds, {
+    serverId: activeServerId ?? undefined
+  }) || [];
+
+  const toggleVisibility = useMutation(api.university.toggleChannelVisibility);
   const topBoosters = useQuery(api.boosts.getTopBoosters, { serverId: activeServerId || undefined });
   
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
@@ -457,7 +464,8 @@ export default function SideMenu() {
         </View>
         <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
 
-            {getSortedChannels(channels.filter(c => !c.parentId)).map((channel) => (
+            {/* 👇 LỌC BỎ KÊNH ẨN Ở ĐÂY 👇 */}
+            {getSortedChannels(channels.filter(c => !c.parentId && (!hiddenChannels.includes(c._id) || c.name === 'đại-sảnh'))).map((channel) => (
                 <TouchableOpacity key={channel._id} style={[styles.channelItem, activeChannelId === channel._id && styles.activeChannel]} onPress={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} onLongPress={() => handleChannelLongPress(channel, false)}>
                     <MaterialCommunityIcons name="pound" size={20} color={activeChannelId === channel._id ? "black" : "gray"} />
                     <Text style={[styles.channelText, activeChannelId === channel._id && {color: 'black', fontWeight: 'bold'}]}>
@@ -471,7 +479,13 @@ export default function SideMenu() {
 
             {sortedGroups.map((group) => {
               const isExpanded = expandedGroups[group._id] ?? true;
-              const childChannels = getSortedChannels(channels.filter(c => c.parentId === group._id));
+
+              // 👇 LỌC BỎ KÊNH ẨN TRONG DANH MỤC 👇
+              const childChannels = getSortedChannels(channels.filter(c => c.parentId === group._id && !hiddenChannels.includes(c._id)));
+
+              // Ẩn luôn danh mục nếu không còn kênh nào hiển thị bên trong (để UI sạch sẽ)
+              if (childChannels.length === 0) return null;
+
               const isGroupPinned = pinnedChannels.includes(group._id);
 
               return (
@@ -603,6 +617,20 @@ export default function SideMenu() {
               <Text style={styles.bottomSheetItemText}>{pinnedServers.includes(activeServerId!) ? t('menu.unpin_server') : t('menu.pin_server')}</Text>
             </TouchableOpacity>
 
+            {/* 👇 NÚT MỞ MODAL DUYỆT KÊNH ĐÃ FIX STYLE 👇 */}
+            <TouchableOpacity
+              style={styles.bottomSheetItem}
+              onPress={() => {
+                setServerMenuVisible(false);
+                setTimeout(() => setBrowseModalVisible(true), 300);
+              }}
+            >
+              <Ionicons name="list-outline" size={24} color="black" />
+              <Text style={styles.bottomSheetItemText}>
+                {t('menu.browse_channels')}
+              </Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.bottomSheetItem} onPress={() => { setServerMenuVisible(false); setMemberListModalVisible(true); }}>
               <Ionicons name="people" size={24} color="black" /><Text style={styles.bottomSheetItemText}>{t('menu.view_members')}</Text>
             </TouchableOpacity>
@@ -644,7 +672,7 @@ export default function SideMenu() {
             {serverMembers?.map(member => (
               <View key={member._id} style={{flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 15, borderRadius: 8, marginBottom: 10}}>
                 <Image source={{uri: member.imageUrl}} style={{width: 40, height: 40, borderRadius: 20, marginRight: 15}} />
-                
+
                 <View style={{flex: 1}}>
                   <View style={{flexDirection: 'row', alignItems: 'center'}}>
                     <Text style={{fontWeight: 'bold', fontSize: 16}}>{member.first_name}</Text>
@@ -655,8 +683,8 @@ export default function SideMenu() {
                 </View>
 
                 {isOwner && member._id !== userProfile?._id && (
-                  <TouchableOpacity 
-                    style={{ padding: 8, marginLeft: 10 }} 
+                  <TouchableOpacity
+                    style={{ padding: 8, marginLeft: 10 }}
                     onPress={() => handleKickMember(member._id, member.first_name || t('common.member'))}
                   >
                     <Ionicons name="person-remove" size={22} color="#ff4d4f" />
@@ -683,14 +711,14 @@ export default function SideMenu() {
                <Text style={styles.upgradeBannerText}>{t('upgrade.banner_desc')}</Text>
                <Image source={getIconSource(currentWorkspace?.icon)} style={styles.upgradeBannerIcon} />
                <Text style={styles.upgradeBannerTitle}>{currentWorkspace?.name}</Text>
-               
+
                <Text style={styles.upgradeBannerSubtitle}>
                   {currentLevel > 0 ? t('upgrade.banner_status', { total: serverTotalStones, level: currentLevel }) : t('upgrade.banner_status_no_level', { total: serverTotalStones })}
                </Text>
                <Text style={styles.channelLimitInfo}>{t('upgrade.capacity', { current: channels.length + groups.length, limit: currentChannelLimit })}</Text>
 
-               <TouchableOpacity 
-                 style={styles.upgradeBtnPrimary} 
+               <TouchableOpacity
+                 style={styles.upgradeBtnPrimary}
                  onPress={async () => {
                    try {
                      if (!activeServerId) return;
@@ -707,19 +735,19 @@ export default function SideMenu() {
                >
                   <Text style={styles.upgradeBtnTextPrimary}>{t('upgrade.btn_donate')}</Text>
                   <Text style={{color: '#a5d6a7', fontSize: 12, marginTop: 4, fontWeight: '500'}}>
-                    {isMaxLevel 
-                      ? t('upgrade.max_level_reached') 
+                    {isMaxLevel
+                      ? t('upgrade.max_level_reached')
                       : t('upgrade.stones_needed', { stones: stonesNeededForNext })}
                   </Text>
                </TouchableOpacity>
 
-               <TouchableOpacity 
-                 style={styles.upgradeBtnSecondary} 
+               <TouchableOpacity
+                 style={styles.upgradeBtnSecondary}
                  onPress={async () => {
                     Alert.alert(t('alerts.buy_confirm_title'), t('alerts.buy_confirm_desc'), [
                       { text: t('common.cancel'), style: "cancel" },
-                      { 
-                        text: t('common.confirm'), 
+                      {
+                        text: t('common.confirm'),
                         onPress: async () => {
                           try {
                             await buyStones();
@@ -727,7 +755,7 @@ export default function SideMenu() {
                           } catch(err: any) {
                             Alert.alert(t('common.error'), err.message);
                           }
-                        } 
+                        }
                       }
                     ]);
                  }}
@@ -765,7 +793,7 @@ export default function SideMenu() {
                <View style={{padding: 20, paddingTop: 0, paddingBottom: 40}}>
                  <Text style={styles.upgradeLevelsTitle}>{t('upgrade.leaderboard_title')}</Text>
                  <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 15, borderWidth: 1, borderColor: '#eee', elevation: 2, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.05 }}>
-                   
+
                    {topBoosters.map((booster, index) => {
                      const rankColor = index === 0 ? '#ffd700' : index === 1 ? '#c0c0c0' : '#cd7f32';
                      return (
@@ -782,10 +810,59 @@ export default function SideMenu() {
                        </View>
                      );
                    })}
-                   
+
                  </View>
                </View>
              )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* 👇 MODAL DUYỆT KÊNH MỚI BỔ SUNG 👇 */}
+      <Modal visible={isBrowseModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setBrowseModalVisible(false)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f2f2f7' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 16, backgroundColor: '#fff', alignItems: 'center', borderBottomWidth: 1, borderColor: '#eee' }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold' }}>{t('menu.browse_channels_title')}</Text>
+            <TouchableOpacity onPress={() => setBrowseModalVisible(false)}>
+              <Text style={{ color: '#007aff', fontSize: 16, fontWeight: '600' }}>{t('common.done')}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={{ padding: 16, color: 'gray', fontSize: 14 }}>{t('menu.browse_channels_desc')}</Text>
+
+          <ScrollView style={{ flex: 1 }}>
+            {channels?.map((channel) => {
+               // Bật nếu id kênh không có trong list hiddenChannels lấy từ DB
+               const isVisible = !hiddenChannels.includes(channel._id);
+
+               return (
+                 <View key={channel._id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', padding: 16, borderBottomWidth: 1, borderColor: '#f0f0f0' }}>
+                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                     <MaterialCommunityIcons name="pound" size={20} color="gray" />
+                     <Text style={{ fontSize: 16, fontWeight: '500' }}>{channel.name}</Text>
+                   </View>
+                   <Switch
+                     value={channel.name === 'đại-sảnh' ? true : isVisible}
+
+                     disabled={channel.name === 'đại-sảnh'}
+
+                     onValueChange={() => {
+                       if (activeServerId && channel.name !== 'đại-sảnh') {
+                         toggleVisibility({
+                           channelId: channel._id,
+                           serverId: activeServerId
+                         });
+                       }
+                     }}
+
+                     trackColor={{
+                       false: "#d3d3d3",
+                       true: channel.name === 'đại-sảnh' ? "#a0c4ff" : "#007aff"
+                     }}
+                   />
+                 </View>
+               );
+            })}
           </ScrollView>
         </SafeAreaView>
       </Modal>

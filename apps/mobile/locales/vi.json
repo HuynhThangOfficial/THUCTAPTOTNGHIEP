@@ -80,7 +80,10 @@
     "pin_server": "Ghim máy chủ lên đầu",
     "view_members": "Xem thành viên",
     "report_server": "Báo cáo máy chủ",
-    "leave_server": "Thoát Server"
+    "leave_server": "Thoát Server",
+    "browse_channels": "Duyệt kênh",
+    "browse_channels_title": "Duyệt kênh",
+    "browse_channels_desc": "Chọn các kênh bạn muốn hiển thị trên danh sách."
   },
   "members": {
     "title": "Thành viên máy chủ",
@@ -393,7 +396,9 @@
     "posted_in_channel": "đã đăng bài trong #{{channelName}} • {{workspaceName}}",
     "posted_new": "đã đăng một bài viết mới",
     "sent_message": "đã gửi tin nhắn cho bạn",
-    "started_following": "đã bắt đầu theo dõi bạn"
+    "started_following": "đã bắt đầu theo dõi bạn",
+    "delete_all": "Xóa tất cả",
+    "confirm_delete_all": "Bạn có chắc chắn muốn xóa tất cả thông báo không?"
   },
   "messages": {
     "sys_shared_post": "Đã chia sẻ một bài viết",

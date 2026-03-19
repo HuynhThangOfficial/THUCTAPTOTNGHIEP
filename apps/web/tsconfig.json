@@ -19,8 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"],
-      "@convex/*": ["../../convex/*"] // <--- Thêm dòng này để tạo "lối tắt" ra ngoài
+      "@/*": ["./src/*"],
+      "@convex/*": ["../../convex/*"]
     }
   },
   "include": [

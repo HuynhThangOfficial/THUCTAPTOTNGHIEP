@@ -19,6 +19,7 @@ export const User = {
   showActiveStatus: v.optional(v.boolean()),
   stones: v.optional(v.number()),
   language: v.optional(v.string()),
+  role: v.optional(v.string()),
 };
 
 export default defineSchema({
@@ -164,6 +165,7 @@ messages: defineTable({
     channelId: v.optional(v.id("channels")),
     serverId: v.optional(v.union(v.id('servers'), v.id('universities'))),
     isSubscribed: v.boolean(),
+    isHidden: v.optional(v.boolean()),
   })
     .index("by_user_channel", ["userId", "channelId"])
     .index("by_user_server", ["userId", "serverId"])
@@ -176,8 +178,24 @@ messages: defineTable({
     type: v.string(),
     channelId: v.optional(v.id("channels")),
     messageId: v.optional(v.id("messages")),
+    content: v.optional(v.string()),
     isRead: v.boolean(),
   }).index("by_user", ["userId"]),
+
+  admin_broadcasts: defineTable({
+    title: v.string(),
+    message: v.string(),
+    target: v.string(), // 'all', 'admin', 'user'
+    sentCount: v.number(),
+  }),
+
+  audit_logs: defineTable({
+    adminId: v.optional(v.id("users")), // Ai làm (Nếu có Clerk ID thì tốt)
+    adminName: v.string(),              // Tên người làm
+    action: v.string(),                 // Hành động gì (VD: "Đã xóa user", "Đã phát thông báo")
+    target: v.string(),                 // Đối tượng bị tác động
+    type: v.string(),                   // 'info', 'warning', 'danger'
+  }),
 
   server_members: defineTable({
     serverId: v.id("servers"),
