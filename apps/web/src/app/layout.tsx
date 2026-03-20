@@ -21,13 +21,13 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProvider 
-      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-      domain="newyas.com"
-      isSatellite={true}
-      // Vì bạn dùng Modal đăng nhập (AuthModal) ngay trên trang, 
-      // nên signInUrl cứ trỏ thẳng về trang chủ của web là an toàn nhất với TypeScript
-      signInUrl="https://konket.newyas.com" 
-    >
+  publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+  // 🚨 BẮT BUỘC: domain phải là "newyas.com" (không có clerk hay konket)
+  domain="newyas.com" 
+  // 🚨 Vì ta dùng /dashboard (rewrite), cả 2 đều là nhà chính
+  isSatellite={false} 
+  signInUrl="/sign-in"
+>
       <html lang="vi">
         <body className={inter.className}>
           <ConvexClientProvider>

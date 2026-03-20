@@ -9,16 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig({
-  // 👇 CỰC KỲ QUAN TRỌNG: Để Vercel hiểu bạn đang chạy ở thư mục con
-  base: "/dashboard/", 
-  
-  plugins: [
-    react(), 
-    tailwindcss(), 
-    // Nếu bạn muốn export ra 1 file duy nhất để dễ quản lý
-    viteSingleFile()
-  ],
-  
+  plugins: [react(), tailwindcss(), viteSingleFile()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
@@ -26,24 +17,14 @@ export default defineConfig({
     },
     dedupe: ["react", "react-dom"],
   },
-  
   server: {
     port: 5173,
+    // 👇 THÊM ĐOẠN NÀY ĐỂ VITE CHO PHÉP ĐỌC FILE TỪ THƯ MỤC GỐC MONOREPO
     fs: {
       allow: [
         path.resolve(__dirname, "../../"), // Cho phép truy cập toàn bộ thư mục tttn2
         path.resolve(__dirname, "."),      // Thư mục dashboard hiện tại
       ],
-    },
-  },
-
-  // Thêm cái này để khi build nó không bị lỗi đường dẫn ảnh/font
-  build: {
-    assetsDir: "assets",
-    rollupOptions: {
-      input: {
-        main: path.resolve(__dirname, "index.html"),
-      },
     },
   },
 });
