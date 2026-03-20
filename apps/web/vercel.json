@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/dashboard/:path*",
+      "destination": "https://https://dashboardnewyas.vercel.app/:path*"
+    }
+  ]
+}
