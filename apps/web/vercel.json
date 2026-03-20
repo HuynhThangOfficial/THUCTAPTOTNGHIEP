@@ -1,8 +1,12 @@
 {
   "rewrites": [
     {
+      "source": "/dashboard",
+      "destination": "https://dashboardnewyas.vercel.app"
+    },
+    {
       "source": "/dashboard/:path*",
-      "destination": "https://https://dashboardnewyas.vercel.app/:path*"
+      "destination": "https://dashboardnewyas.vercel.app/:path*"
     }
   ]
 }

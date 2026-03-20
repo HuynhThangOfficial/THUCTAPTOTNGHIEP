@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 
 export default defineConfig({
   // 👇 CỰC KỲ QUAN TRỌNG: Để Vercel hiểu bạn đang chạy ở thư mục con
-  base: "/dashboard/", 
+  base: "/", 
   
   plugins: [
     react(), 
