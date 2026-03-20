@@ -18,7 +18,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ClerkProvider 
       publishableKey={PUBLISHABLE_KEY}
       domain="newyas.com" 
-      isSatellite={true}
+      isSatellite={false}
       signInUrl="https://dashboard.newyas.com/sign-in"
     >
       <ConvexProvider client={convex}>

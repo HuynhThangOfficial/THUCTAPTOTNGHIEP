@@ -1,8 +1,9 @@
 export default {
   providers: [
     {
-      domain: "https://delicate-bee-38.clerk.accounts.dev",
-      applicationID: 'convex',
+      // Dùng biến môi trường thay vì hardcode link
+      domain: process.env.CLERK_ISSUER_URL, 
+      applicationID: "convex",
     },
-  ],
+  ]
 };
