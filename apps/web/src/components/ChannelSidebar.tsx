@@ -1,203 +1,137 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery } from 'convex/react';
+import { api } from '../../../../convex/_generated/api';
+import { Id } from '../../../../convex/_generated/dataModel';
 import { useApp } from '../context/AppContext';
-import { Channel } from '../types';
-
-const iconForChannel = (channel: Channel) => {
-  switch (channel.icon || channel.type) {
-    case 'announcement':
-      return '📣';
-    case 'guide':
-      return '📘';
-    case 'people':
-      return '👥';
-    case 'media':
-      return '🖼️';
-    case 'voice':
-      return '🔊';
-    default:
-      return '#';
-  }
-};
+import { useUser } from '@clerk/nextjs';
+import SettingsModal from './SettingsModal';
+import UserProfileModal from './UserProfileModal'; // MỚI: Import Modal Hồ Sơ
 
 export default function ChannelSidebar() {
-  const { servers, activeServerId, activeChannelId, setActiveChannelId, currentUser, setCurrentUser } = useApp();
-  const [showUserMenu, setShowUserMenu] = useState(false);
+  const { activeServerId, activeUniversityId, activeChannelId, setActiveChannelId, setActiveChannelName, setShowAuthModal } = useApp() as any;
 
-  const activeServer = servers.find((s) => s.id === activeServerId);
+  const { user, isLoaded } = useUser();
+  const isLoggedIn = isLoaded && user;
 
-  const initialCollapsed = useMemo(() => ({
-    GENERAL: false,
-    INFORMATION: false,
-    'News-n-Info': false,
-    'Find-friends': false,
-    'content creation': false,
-    Suggestion: false,
-  }), []);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  
+  // STATE CHO CÁC MODAL
+  const [showSettings, setShowSettings] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
-  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>(initialCollapsed);
+  const universities = useQuery(api.university.getUniversities);
+  const myServers = useQuery(api.university.getMyServers);
+  const currentUser = useQuery(api.users.current);
 
-  if (!activeServer) {
+  const channelsData = useQuery(api.university.getChannels, {
+    universityId: activeUniversityId ? (activeUniversityId as Id<"universities">) : undefined,
+    serverId: activeServerId ? (activeServerId as Id<"servers">) : undefined,
+  });
+
+  let currentWorkspaceName = "Đang tải...";
+  if (activeUniversityId && universities) {
+    currentWorkspaceName = universities.find(u => u._id === activeUniversityId)?.name || "Trường học";
+  } else if (activeServerId && myServers) {
+    currentWorkspaceName = myServers.find(s => s._id === activeServerId)?.name || "Máy chủ";
+  }
+
+  const groups = channelsData?.groups || [];
+  const channels = channelsData?.channels || [];
+  const orphanChannels = channels.filter(c => !c.parentId);
+
+  useEffect(() => {
+    if (channels.length > 0 && !activeChannelId) {
+      const defaultChannel = channels.find(c => c.name === 'đại-sảnh') || channels[0];
+      setActiveChannelId(defaultChannel._id);
+      setActiveChannelName(defaultChannel.name);
+    }
+  }, [channels, activeChannelId, setActiveChannelId, setActiveChannelName]);
+
+  const toggleGroup = (groupId: string) => {
+    setCollapsedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
+
+  const renderChannels = (channelList: any[]) => {
+    return channelList.map(channel => {
+      const isActive = activeChannelId === channel._id;
+      return (
+        <button key={channel._id} onClick={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} className={`w-full flex items-center px-2 py-1.5 mb-[2px] rounded-md text-left transition-colors ${isActive ? 'bg-green-100 text-green-800 font-semibold' : 'text-gray-600 hover:bg-green-50 hover:text-green-700'}`}>
+          <span className="text-xl mr-2 text-gray-400">#</span>
+          <span className="truncate flex-1 text-[15px]">{channel.name}</span>
+          {channel.isAnonymous && <span className="ml-1 text-xs" title="Kênh ẩn danh">🎭</span>}
+        </button>
+      );
+    });
+  };
+
+  if (channelsData === undefined) {
     return (
-      <aside className="w-72 bg-[#f7fbf7] border-r border-green-100 flex flex-col shrink-0">
-        <div className="flex-1 flex items-center justify-center text-green-700 text-sm px-6 text-center">
-          Chọn một server để xem danh sách category và channel.
-        </div>
-      </aside>
+      <div className="w-60 bg-[#f9fcfb] flex flex-col h-screen border-r border-green-100 shrink-0 animate-pulse">
+        <div className="h-14 border-b border-green-100 bg-green-50/50" />
+        <div className="p-4 space-y-3"><div className="h-4 bg-green-100 rounded w-2/3" /><div className="h-4 bg-green-100 rounded w-1/2" /><div className="h-4 bg-green-100 rounded w-3/4" /></div>
+      </div>
     );
   }
 
-  const categories: Record<string, Channel[]> = {};
-  for (const ch of activeServer.channels) {
-    const cat = ch.category || 'GENERAL';
-    if (!categories[cat]) categories[cat] = [];
-    categories[cat].push(ch);
-  }
-
-  const toggleCategory = (category: string) => {
-    setCollapsedCategories((prev) => ({ ...prev, [category]: !prev[category] }));
-  };
-
   return (
-    <aside className="w-72 bg-[#f7fbf7] border-r border-green-100 flex flex-col shrink-0">
-      <div className="h-12 px-4 border-b border-green-100 bg-white flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-2 min-w-0">
-          <div
-            className="w-7 h-7 rounded-full text-sm text-white flex items-center justify-center shadow-sm"
-            style={{ backgroundColor: activeServer.color }}
-          >
-            {activeServer.icon}
-          </div>
-          <span className="font-semibold text-sm text-slate-800 truncate">{activeServer.name}</span>
-        </div>
-        <button className="w-7 h-7 rounded-md hover:bg-green-50 text-green-700 transition-colors">
-          ▾
-        </button>
+    <div className="w-60 bg-[#f9fcfb] flex flex-col h-screen border-r border-green-100 shrink-0 relative">
+      <div className="h-14 border-b border-green-100 flex items-center px-4 font-bold text-gray-800 text-[16px] shadow-sm bg-white/50 shrink-0">
+        <span className="truncate">{currentWorkspaceName}</span>
       </div>
 
-      <div className="px-3 pt-3">
-        <div className="rounded-2xl overflow-hidden border border-green-100 bg-white shadow-sm">
-          <div className="h-24 bg-gradient-to-r from-green-400 via-emerald-300 to-lime-200 p-3 text-white relative">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.6),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.45),transparent_30%)]" />
-            <div className="relative">
-              <div className="font-bold text-lg drop-shadow-sm">{activeServer.bannerTitle || activeServer.name}</div>
-              <div className="text-xs text-white/90 max-w-[200px] leading-relaxed mt-1">
-                {activeServer.bannerSubtitle || activeServer.description}
-              </div>
-            </div>
-          </div>
-          <div className="p-3 bg-gradient-to-r from-lime-100 to-emerald-50 border-t border-green-100">
-            <div className="rounded-xl bg-white/80 border border-green-100 px-3 py-2 flex items-center justify-between text-sm">
-              <div>
-                <div className="text-green-800 font-semibold">Nâng cấp</div>
-                <div className="text-green-600 text-xs">{activeServer.members.length * 137} Năng cấp Mục Tiêu</div>
-              </div>
-              <span className="text-lg">✨</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="px-4 pt-4 space-y-2 text-[15px]">
-        <button className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-slate-700 hover:bg-green-50 transition-colors">
-          <span>📅</span>
-          <span>1 Sự kiện</span>
-        </button>
-        <button className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-slate-700 hover:bg-green-50 transition-colors">
-          <span>🧾</span>
-          <span>Kênh &amp; Vai trò</span>
-        </button>
-      </div>
-
-      <div className="mx-4 mt-3 h-px bg-green-100" />
-
-      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-2">
-        {Object.entries(categories).map(([category, channels]) => {
-          const isCollapsed = !!collapsedCategories[category];
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-4">
+        {orphanChannels.length > 0 && <div className="space-y-[2px]">{renderChannels(orphanChannels)}</div>}
+        {groups.map((group) => {
+          const isCollapsed = collapsedGroups[group._id];
+          const childChannels = channels.filter(c => c.parentId === group._id);
+          if (childChannels.length === 0) return null;
           return (
-            <div key={category}>
-              <button
-                onClick={() => toggleCategory(category)}
-                className="w-full flex items-center gap-1 px-2 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-green-700 hover:text-green-900"
-              >
-                <span className={`transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>›</span>
-                <span>{category}</span>
+            <div key={group._id} className="mt-4">
+              <button onClick={() => toggleGroup(group._id)} className="flex items-center w-full px-1 mb-1 text-xs font-bold text-gray-400 uppercase tracking-wide hover:text-gray-600 transition-colors">
+                <svg className={`w-3 h-3 mr-1 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : 'rotate-0'}`} fill="currentColor" viewBox="0 0 24 24"><path d="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z" /></svg>{group.name}
               </button>
-              {!isCollapsed && (
-                <div className="mt-1 space-y-0.5">
-                  {channels.map((ch) => {
-                    const isActive = activeChannelId === ch.id;
-                    return (
-                      <button
-                        key={ch.id}
-                        onClick={() => setActiveChannelId(ch.id)}
-                        className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm transition-colors ${
-                          isActive
-                            ? 'bg-green-100 text-green-900 shadow-sm'
-                            : 'text-slate-600 hover:bg-green-50 hover:text-slate-800'
-                        }`}
-                      >
-                        <span className={`w-5 text-center text-sm ${isActive ? 'text-green-700' : 'text-slate-400'}`}>
-                          {iconForChannel(ch)}
-                        </span>
-                        <span className="truncate text-left flex-1">{ch.name}</span>
-                        {ch.isNew && <span className="text-[11px] font-semibold text-blue-500">New</span>}
-                        {!!ch.badgeCount && (
-                          <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                            {ch.badgeCount}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              {!isCollapsed && <div className="space-y-[2px]">{renderChannels(childChannels)}</div>}
             </div>
           );
         })}
       </div>
 
-      {currentUser && (
-        <div className="h-16 bg-white border-t border-green-100 px-3 flex items-center gap-2 relative shrink-0">
-          <div className="relative">
-            <div className="w-10 h-10 rounded-full bg-green-100 border border-green-200 flex items-center justify-center text-lg shadow-sm">
-              {currentUser.avatar}
-            </div>
-            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-slate-800 truncate">{currentUser.displayName}</div>
-            <div className="text-xs text-slate-500 truncate">@{currentUser.username}</div>
-          </div>
-          <button className="w-8 h-8 rounded-lg hover:bg-green-50 text-slate-500">🎤</button>
-          <button className="w-8 h-8 rounded-lg hover:bg-green-50 text-slate-500">🎧</button>
-          <button
-            onClick={() => setShowUserMenu((v) => !v)}
-            className="w-8 h-8 rounded-lg hover:bg-green-50 text-slate-500"
-            title="Cài đặt"
-          >
-            ⚙️
-          </button>
-
-          {showUserMenu && (
-            <div className="absolute bottom-18 left-3 right-3 bg-white border border-green-100 rounded-xl shadow-xl p-2 z-50">
-              <div className="px-3 py-2 text-xs text-slate-500 border-b border-green-100 mb-1">
-                Đang đăng nhập với <span className="font-semibold text-green-700">@{currentUser.username}</span>
+      <div className="h-16 bg-[#f1f8f2] border-t border-green-100 flex items-center px-3 shrink-0 relative">
+        {isLoggedIn ? (
+          <div className="flex items-center gap-2 flex-1">
+            
+            {/* ẤN VÀO KHU VỰC AVATAR/TÊN -> MỞ HỒ SƠ */}
+            <div className="flex items-center gap-2 hover:bg-green-100/60 p-1.5 rounded-lg flex-1 transition-colors cursor-pointer" onClick={() => setShowProfile(true)}>
+              <div className="relative shrink-0">
+                {/* ƯU TIÊN USER CỦA CLERK TRƯỚC ĐỂ LUÔN UPDATE TỨC THÌ */}
+                <img src={user?.imageUrl || currentUser?.imageUrl || "https://ui-avatars.com/api/?name=User"} alt="Avatar" className="w-9 h-9 rounded-full object-cover border border-green-200" />
+                <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#f1f8f2]" />
               </div>
-              <button
-                onClick={() => {
-                  setCurrentUser(null);
-                  setShowUserMenu(false);
-                }}
-                className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                🚪 Đăng xuất
-              </button>
+              <div className="flex flex-col flex-1 min-w-0">
+                <span className="font-bold text-sm text-gray-800 truncate">{user?.fullName || currentUser?.first_name || currentUser?.username || "Đang tải..."}</span>
+                <span className="text-[11px] text-gray-500 truncate">@{user?.username || currentUser?.username || "..."}</span>
+              </div>
             </div>
-          )}
-        </div>
-      )}
-    </aside>
+
+            {/* ẤN VÀO RĂNG CƯA -> MỞ CÀI ĐẶT */}
+            <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-green-200/50 rounded-md transition-colors" title="Cài đặt người dùng">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            </button>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center w-full px-1">
+             <button onClick={() => setShowAuthModal(true)} className="w-full bg-[#00BA7C] hover:bg-[#009665] text-white font-bold py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 active:scale-95 group">
+               <svg className="w-5 h-5 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+               <span className="text-[15px]">Đăng nhập ngay</span>
+             </button>
+          </div>
+        )}
+      </div>
+
+      {showSettings && isLoggedIn && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showProfile && isLoggedIn && <UserProfileModal onClose={() => setShowProfile(false)} targetUserId={currentUser?._id} />}
+    </div>
   );
 }

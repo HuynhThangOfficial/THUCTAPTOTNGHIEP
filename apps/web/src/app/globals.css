@@ -54,3 +54,14 @@ img {
   max-width: 100%;
   display: block;
 }
+
+/* XÓA ĐOẠN @layer utilities CŨ VÀ DÁN ĐOẠN NÀY VÀO CUỐI FILE */
+
+.hidden-scrollbar {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
+.hidden-scrollbar::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari and Opera */
+  width: 0 !important;
+}

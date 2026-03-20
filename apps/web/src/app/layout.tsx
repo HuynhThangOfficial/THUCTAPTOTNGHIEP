@@ -1,22 +1,17 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
-// Import cái Provider mà mình vừa tạo ở bước trước
+
+import { AppProvider } from "@/context/AppContext";
 import { ConvexClientProvider } from "./ConvexClientProvider";
+import AuthModal from "@/components/AuthModal";
+import { ClerkProvider } from '@clerk/nextjs';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "TTTN2 - Web Version",
-  description: "Hệ thống quản lý tin nhắn đa nền tảng",
+  title: "Mạng Xã Hội",
+  description: "Mạng xã hội học đường",
 };
 
 export default function RootLayout({
@@ -25,17 +20,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {/* Bọc ConvexClientProvider ở đây để toàn bộ các trang con 
-            đều có thể lấy dữ liệu từ Backend và dùng được Clerk Auth
-        */}
-        <ConvexClientProvider>
-          {children}
-        </ConvexClientProvider>
-      </body>
-    </html>
+    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+      <html lang="vi">
+        <body className={inter.className}>
+          <ConvexClientProvider>
+            <AppProvider>
+              {/* Toàn bộ các trang sẽ được render ở đây */}
+              {children}
+              
+              {/* Modal đăng nhập ẩn chực chờ nhảy ra */}
+              <AuthModal />
+            </AppProvider>
+          </ConvexClientProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

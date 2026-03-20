@@ -1,63 +1,17 @@
-export interface User {
-  id: string;
-  username: string;
-  displayName: string;
-  avatar: string;
-  status: 'online' | 'idle' | 'dnd' | 'offline';
-  bio?: string;
-  joinedAt: string;
-}
+// src/types.ts
+// Các kiểu dữ liệu từ nay sẽ được lấy trực tiếp từ Convex:
+// Ví dụ: import { Doc, Id } from "../../convex/_generated/dataModel";
 
-export interface Server {
-  id: string;
-  name: string;
-  icon: string;
-  color: string;
-  ownerId: string;
-  members: string[];
-  channels: Channel[];
-  notificationCount?: number;
-  description?: string;
-  bannerTitle?: string;
-  bannerSubtitle?: string;
-}
-
-export interface Channel {
-  id: string;
-  name: string;
-  type: 'text' | 'announcement' | 'voice';
-  serverId: string;
-  category?: string;
-  description?: string;
-  badgeCount?: number;
-  isNew?: boolean;
-  icon?: 'hash' | 'announcement' | 'guide' | 'people' | 'media' | 'voice';
-}
-
-export interface Post {
-  id: string;
-  authorId: string;
-  channelId: string;
-  serverId: string;
-  title?: string;
-  content: string;
-  imageUrl?: string;
-  createdAt: string;
-  reactions: Reaction[];
-  comments: Comment[];
-  tag?: string;
-  accent?: 'green' | 'amber' | 'blue';
-}
-
-export interface Reaction {
-  emoji: string;
-  count: number;
-  userIds: string[];
-}
-
-export interface Comment {
-  id: string;
-  authorId: string;
-  content: string;
-  createdAt: string;
+export interface AppContextType {
+  activeUniversityId: string | null;
+  setActiveUniversityId: (id: string | null) => void;
+  
+  activeServerId: string | null;
+  setActiveServerId: (id: string | null) => void;
+  
+  activeChannelId: string | null;
+  setActiveChannelId: (id: string | null) => void;
+  
+  activeChannelName: string | null;
+  setActiveChannelName: (name: string | null) => void;
 }
