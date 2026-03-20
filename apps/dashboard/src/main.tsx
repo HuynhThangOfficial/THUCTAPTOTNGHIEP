@@ -21,7 +21,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   isSatellite={false} 
   // 🚨 Bắt buộc phải có cái này nếu bạn dùng Custom Domain cho Clerk
   domain="newyas.com"
-  signInUrl="https://konket.newyas.com"
+  signInUrl="https://konket.newyas.com/sign-in"
 >
       <ConvexProvider client={convex}>
         <App />
