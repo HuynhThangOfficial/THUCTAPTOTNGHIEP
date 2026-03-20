@@ -15,8 +15,12 @@ if (!PUBLISHABLE_KEY) {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {/* BỌC CLERK PROVIDER Ở ĐÂY */}
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+    {/* Cập nhật ClerkProvider với domain chính của bạn */}
+    <ClerkProvider 
+      publishableKey={PUBLISHABLE_KEY}
+      domain="newyas.com"
+      isSatellite={true}
+    >
       <ConvexProvider client={convex}>
         <App />
       </ConvexProvider>
