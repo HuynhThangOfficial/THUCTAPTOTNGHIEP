@@ -26,11 +26,12 @@ export default function ServerSidebar() {
     setActiveServerId, 
     activeUniversityId, 
     setActiveUniversityId, 
-    setActiveChannelId 
+    setActiveChannelId,
+    pinnedServers,
+    togglePinServer
   } = useApp();
 
   const [showCreate, setShowCreate] = useState(false);
-  const [pinnedServers, setPinnedServers] = useState<string[]>([]);
 
   // 1. FETCH DỮ LIỆU TỪ CONVEX
   const universities = useQuery(api.university.getUniversities);
@@ -60,10 +61,8 @@ export default function ServerSidebar() {
 
   // 4. LOGIC GHIM SERVER (Click chuột phải)
   const handleContextMenu = (e: React.MouseEvent, serverId: string) => {
-    e.preventDefault(); // Ngăn chặn menu chuột phải mặc định của trình duyệt
-    setPinnedServers(prev => 
-      prev.includes(serverId) ? prev.filter(id => id !== serverId) : [...prev, serverId]
-    );
+      e.preventDefault();
+      togglePinServer(serverId);
   };
 
   // 5. SẮP XẾP SERVER (Ghim lên đầu)

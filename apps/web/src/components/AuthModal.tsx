@@ -3,37 +3,35 @@
 import { useState, useEffect, useRef } from 'react';
 import { useClerk, useUser } from '@clerk/nextjs';
 import { useApp } from '../context/AppContext';
+import { useTranslation } from 'react-i18next'; // 👈 IMPORT I18N
 
 export default function AuthModal() {
+  const { t } = useTranslation();
   const { showAuthModal, setShowAuthModal } = useApp() as any;
-  
+
   const clerk = useClerk();
-  const { user } = useUser(); 
+  const { user } = useUser();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [mode, setMode] = useState<'login' | 'register' | 'setup'>('login');
-  
-  // State Form
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [agreedTerms, setAgreedTerms] = useState(false);
-  
-  // State Setup Modal 2
+
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState('');
-  
-  // State UI
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [countdown, setCountdown] = useState(0);
 
-  // Hook 1: Đếm ngược OTP
   useEffect(() => {
     if (countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -41,9 +39,6 @@ export default function AuthModal() {
     }
   }, [countdown]);
 
-  // Hook 2: "BẪY" OAUTH THIẾU THÔNG TIN
-  // Ngay khi Clerk load xong và phát hiện user CHƯA CÓ username (Do vừa login bằng Google/FB)
-  // Lập tức bật AuthModal chế độ 'setup' lên để ép nhập!
   useEffect(() => {
     if (clerk.loaded && clerk.user) {
       if (!clerk.user.username) {
@@ -53,11 +48,9 @@ export default function AuthModal() {
     }
   }, [clerk.loaded, clerk.user, setShowAuthModal]);
 
-  // CHẶN RENDER SỚM (Phải nằm dưới các Hooks)
   if (!showAuthModal) return null;
   const isClerkReady = clerk && clerk.client && clerk.loaded;
 
-  // Xử lý chọn ảnh
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -75,74 +68,73 @@ export default function AuthModal() {
       if (result.status === "complete") {
         await clerk.setActive({ session: result.createdSessionId });
         setShowAuthModal(false);
-        window.location.reload(); 
+        window.location.reload();
       }
     } catch (err: any) {
-      setErrorMsg(err.errors?.[0]?.message || "Tài khoản hoặc mật khẩu không chính xác.");
+      setErrorMsg(err.errors?.[0]?.message || t('login.login_error'));
     } finally { setIsLoading(false); }
   };
 
   const handleSendOTP = async () => {
-    if (!email) return setErrorMsg("Vui lòng nhập Email trước khi gửi mã.");
+    if (!email) return setErrorMsg(t('register.invalid_email'));
     setIsLoading(true); setErrorMsg('');
     try {
       await clerk.client.signUp.create({ emailAddress: email });
       await clerk.client.signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-      setCountdown(60); 
-      alert("Đã gửi mã xác nhận đến Email của bạn!");
+      setCountdown(60);
+      alert(t('register.otp_resent'));
     } catch (err: any) {
-      setErrorMsg(err.errors?.[0]?.message || "Lỗi gửi mã xác nhận hoặc email đã tồn tại.");
+      setErrorMsg(err.errors?.[0]?.message || t('register.otp_resend_error'));
     } finally { setIsLoading(false); }
   };
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password) return setErrorMsg("Vui lòng nhập Mật khẩu.");
-    if (password !== confirmPassword) return setErrorMsg("Mật khẩu nhập lại không khớp.");
-    if (!agreedTerms) return setErrorMsg("Vui lòng đồng ý với Điều Khoản Dịch Vụ.");
-    if (!otpCode) return setErrorMsg("Vui lòng nhập Mã Xác Nhận.");
-    
+    if (!password) return setErrorMsg(t('register.password_placeholder'));
+    if (password !== confirmPassword) return setErrorMsg(t('register.password_mismatch'));
+    if (!agreedTerms) return setErrorMsg(t('register.agree_mandatory_terms'));
+    if (!otpCode) return setErrorMsg(t('register.otp_error'));
+
     setIsLoading(true); setErrorMsg('');
     try {
       await clerk.client.signUp.update({ password });
       const result = await clerk.client.signUp.attemptEmailAddressVerification({ code: otpCode });
-      
+
       if (result.status === "complete" || result.status === "missing_requirements") {
         if (result.status === "complete") await clerk.setActive({ session: result.createdSessionId });
-        setUsername(`user_${Math.random().toString(36).substring(2, 9)}`); 
-        setMode('setup'); 
+        setUsername(`user_${Math.random().toString(36).substring(2, 9)}`);
+        setMode('setup');
       }
     } catch (err: any) {
       if (err.errors?.[0]?.code === "verification_already_verified" || err.errors?.[0]?.code === "form_conditional_param_value_disallowed") {
-         setUsername(`user_${Math.random().toString(36).substring(2, 9)}`); 
+         setUsername(`user_${Math.random().toString(36).substring(2, 9)}`);
          setMode('setup');
       } else {
-         setErrorMsg(err.errors?.[0]?.message || "Mã xác nhận không chính xác hoặc mật khẩu chưa đủ mạnh.");
+         setErrorMsg(err.errors?.[0]?.message || t('register.otp_invalid'));
       }
     } finally { setIsLoading(false); }
   };
 
-  // CẬP NHẬT: LƯU TÊN HIỂN THỊ VÀ ẢNH ĐẠI DIỆN
   const handleSetupComplete = async () => {
     setIsLoading(true); setErrorMsg('');
     try {
       let activeUser = clerk.user;
 
       if (clerk.client.signUp.status === "missing_requirements") {
-        const res = await clerk.client.signUp.update({ 
+        const res = await clerk.client.signUp.update({
           username: username,
-          firstName: displayName || username 
+          firstName: displayName || username
         });
         if (res.status === "complete") {
           await clerk.setActive({ session: res.createdSessionId });
-          activeUser = clerk.user; 
+          activeUser = clerk.user;
         }
       }
 
       if (activeUser) {
-        await activeUser.update({ 
-          username: username, 
-          firstName: displayName || username 
+        await activeUser.update({
+          username: username,
+          firstName: displayName || username
         });
         if (avatarFile) {
           await activeUser.setProfileImage({ file: avatarFile });
@@ -150,38 +142,38 @@ export default function AuthModal() {
       }
 
       setShowAuthModal(false);
-      window.location.reload(); 
+      window.location.reload();
     } catch (err: any) {
-      setErrorMsg("Nickname đã tồn tại hoặc không hợp lệ.");
+      setErrorMsg(t('onboarding.id_taken_or_invalid'));
     } finally { setIsLoading(false); }
   };
 
   const handleOAuth = async (strategy: any) => {
     if (!isClerkReady) return;
     try {
-      await clerk.client.signIn.authenticateWithRedirect({ 
-        strategy, 
-        redirectUrl: "/sso-callback", 
+      await clerk.client.signIn.authenticateWithRedirect({
+        strategy,
+        redirectUrl: "/sso-callback",
         redirectUrlComplete: "/",
       });
     } catch (err) {
-      console.log("Lỗi OAuth");
+      console.log(t('common.error'));
     }
   };
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      
+
       {mode !== 'setup' && (
         <div className="bg-white rounded-[20px] shadow-2xl w-[420px] p-8 relative animate-in zoom-in-95 duration-200">
-          
+
           <button onClick={() => setShowAuthModal(false)} className="absolute top-5 right-5 text-gray-500 hover:text-black">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
 
           <div className="text-center mb-6">
             <h1 className="text-[22px] font-black tracking-widest text-slate-800 mb-4">H O Y O V E R S E</h1>
-            <h2 className="text-xl font-bold text-gray-900">{mode === 'login' ? 'Đăng Nhập' : 'Đăng Ký'}</h2>
+            <h2 className="text-xl font-bold text-gray-900">{mode === 'login' ? t('login.login_button') : t('login.register_now')}</h2>
           </div>
 
           {errorMsg && <div className="text-red-500 text-[13px] text-center mb-4 font-medium px-2">{errorMsg}</div>}
@@ -190,17 +182,17 @@ export default function AuthModal() {
 
           {mode === 'register' ? (
             <form onSubmit={handleRegisterSubmit} className="space-y-4">
-              <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full h-11 px-4 rounded-[10px] border border-gray-200 text-[14px] outline-none focus:border-blue-500 transition-colors" />
-              
+              <input type="email" placeholder={t('register.email_placeholder')} value={email} onChange={(e) => setEmail(e.target.value)} className="w-full h-11 px-4 rounded-[10px] border border-gray-200 text-[14px] outline-none focus:border-blue-500 transition-colors" />
+
               <div className="relative">
-                <input type="text" placeholder="Mã Xác Nhận" value={otpCode} onChange={(e) => setOtpCode(e.target.value)} className="w-full h-11 pl-4 pr-16 rounded-[10px] border border-gray-200 text-[14px] outline-none focus:border-blue-500 transition-colors" />
+                <input type="text" placeholder={t('register.verify_otp')} value={otpCode} onChange={(e) => setOtpCode(e.target.value)} className="w-full h-11 pl-4 pr-16 rounded-[10px] border border-gray-200 text-[14px] outline-none focus:border-blue-500 transition-colors" />
                 <button type="button" onClick={handleSendOTP} disabled={countdown > 0 || isLoading} className="absolute right-4 top-1/2 -translate-y-1/2 text-[14px] font-medium text-blue-500 disabled:text-gray-400">
-                  {countdown > 0 ? `${countdown}s` : 'Gửi'}
+                  {countdown > 0 ? `${countdown}s` : t('thread.send')}
                 </button>
               </div>
 
               <div className="relative">
-                <input type={showPassword ? "text" : "password"} placeholder="Vui lòng nhập mật khẩu" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full h-11 pl-4 pr-10 rounded-[10px] border border-gray-200 text-[14px] outline-none focus:border-blue-500 transition-colors" />
+                <input type={showPassword ? "text" : "password"} placeholder={t('register.password_placeholder')} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full h-11 pl-4 pr-10 rounded-[10px] border border-gray-200 text-[14px] outline-none focus:border-blue-500 transition-colors" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                   {showPassword ? (
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
@@ -211,7 +203,7 @@ export default function AuthModal() {
               </div>
 
               <div className="relative">
-                <input type={showConfirmPassword ? "text" : "password"} placeholder="Vui lòng nhập lại mật khẩu" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full h-11 pl-4 pr-10 rounded-[10px] border border-gray-200 text-[14px] outline-none focus:border-blue-500 transition-colors" />
+                <input type={showConfirmPassword ? "text" : "password"} placeholder={t('register.confirm_password_placeholder')} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full h-11 pl-4 pr-10 rounded-[10px] border border-gray-200 text-[14px] outline-none focus:border-blue-500 transition-colors" />
                 <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                   {showConfirmPassword ? (
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
@@ -224,20 +216,20 @@ export default function AuthModal() {
               <label className="flex items-start gap-2 mt-2 cursor-pointer group">
                 <input type="checkbox" checked={agreedTerms} onChange={(e) => setAgreedTerms(e.target.checked)} className="mt-1 border-gray-300 rounded text-blue-600 focus:ring-blue-500 cursor-pointer" />
                 <span className="text-[11px] text-gray-500 leading-snug">
-                  Tôi đã đọc và đồng ý <span className="text-blue-500 hover:underline">Điều Khoản Dịch Vụ</span>, <span className="text-blue-500 hover:underline">Chính Sách Về Quyền Riêng Tư</span>
+                  {t('login.agree_to')} <span className="text-blue-500 hover:underline">{t('login.terms_of_service')}</span>, <span className="text-blue-500 hover:underline">{t('settings.privacy_policy')}</span>
                 </span>
               </label>
 
               <button type="submit" disabled={isLoading || !agreedTerms || !otpCode} className="w-full h-11 bg-[#e6e8eb] text-[#a5a8b1] font-bold rounded-[10px] mt-2 transition-colors [&:not(:disabled)]:bg-gray-900 [&:not(:disabled)]:text-white [&:not(:disabled)]:hover:bg-black">
-                {isLoading ? "Đang xử lý..." : "Đăng Ký"}
+                {isLoading ? t('chat.loading') : t('login.register_now')}
               </button>
             </form>
           ) : (
             <form onSubmit={handleLogin} className="space-y-4">
-              <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full h-11 px-4 rounded-[10px] border border-gray-200 text-[14px] outline-none focus:border-blue-500 transition-colors" />
-              
+              <input type="email" placeholder={t('register.email_placeholder')} value={email} onChange={(e) => setEmail(e.target.value)} className="w-full h-11 px-4 rounded-[10px] border border-gray-200 text-[14px] outline-none focus:border-blue-500 transition-colors" />
+
               <div className="relative">
-                <input type={showPassword ? "text" : "password"} placeholder="Mật Khẩu" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full h-11 pl-4 pr-10 rounded-[10px] border border-gray-200 text-[14px] outline-none focus:border-blue-500 transition-colors" />
+                <input type={showPassword ? "text" : "password"} placeholder={t('login.password_placeholder')} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full h-11 pl-4 pr-10 rounded-[10px] border border-gray-200 text-[14px] outline-none focus:border-blue-500 transition-colors" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                   {showPassword ? (
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
@@ -248,7 +240,7 @@ export default function AuthModal() {
               </div>
 
               <button type="submit" disabled={isLoading || !email || !password} className="w-full h-11 bg-[#e6e8eb] text-[#a5a8b1] font-bold rounded-[10px] mt-2 transition-colors [&:not(:disabled)]:bg-gray-900 [&:not(:disabled)]:text-white [&:not(:disabled)]:hover:bg-black">
-                {isLoading ? "Đang đăng nhập..." : "Đăng Nhập"}
+                {isLoading ? t('chat.loading') : t('login.login_button')}
               </button>
             </form>
           )}
@@ -256,22 +248,22 @@ export default function AuthModal() {
           <div className={`flex items-center mt-5 ${mode === 'login' ? 'justify-between' : 'justify-end'}`}>
             {mode === 'login' && (
               <a href="https://account.newyas.com" target="_blank" rel="noopener noreferrer" className="text-[13px] text-gray-500 hover:text-black font-medium">
-                Quên mật khẩu?
+                {t('login.forgot_password')}
               </a>
             )}
             <div>
               <span className="text-[13px] text-gray-600">
-                {mode === 'login' ? "Chưa có tài khoản? " : "Đã có tài khoản? "}
+                {mode === 'login' ? t('login.login_with_other_methods').split(' ')[0] + "? " : ""}
               </span>
               <button onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setErrorMsg(''); }} className="text-[13px] text-blue-500 hover:underline font-medium">
-                {mode === 'login' ? "Đăng Ký" : "Đăng Nhập"}
+                {mode === 'login' ? t('login.register_now') : t('login.login_button')}
               </button>
             </div>
           </div>
 
           <div className="relative flex items-center justify-center mt-6 mb-4 pointer-events-none">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div>
-            <span className="relative bg-white px-3 text-[11px] text-gray-400 uppercase tracking-wider">Đăng nhập bằng phương thức khác</span>
+            <span className="relative bg-white px-3 text-[11px] text-gray-400 uppercase tracking-wider">{t('login.login_with_other_methods')}</span>
           </div>
 
           <div className="flex justify-center items-center gap-4">
@@ -281,20 +273,17 @@ export default function AuthModal() {
         </div>
       )}
 
-      {/* --------------------------------------------------------- */}
-      {/* MODAL 2: THIẾT LẬP SAU KHI THÀNH CÔNG */}
-      {/* --------------------------------------------------------- */}
+      {/* MODAL 2: THIẾT LẬP */}
       {mode === 'setup' && (
         <div className="bg-white rounded-[20px] shadow-2xl w-[400px] p-8 relative animate-in zoom-in-95 duration-300">
-          
-          {/* Nút Đóng */}
+
           <button onClick={() => setShowAuthModal(false)} className="absolute top-5 right-5 text-gray-500 hover:text-black">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
 
           <div className="text-center mb-6">
-            <h2 className="text-[20px] font-bold text-gray-900 mb-2">Đăng Ký Thành Công</h2>
-            <p className="text-[13px] text-gray-400 leading-relaxed">Vui lòng thiết lập hình đại diện và tên hiển thị để hoàn tất quá trình tham gia cộng đồng.</p>
+            <h2 className="text-[20px] font-bold text-gray-900 mb-2">{t('onboarding.complete_profile')}</h2>
+            <p className="text-[13px] text-gray-400 leading-relaxed">{t('onboarding.setup_desc')}</p>
           </div>
 
           <div className="flex justify-center mb-6 relative w-fit mx-auto group">
@@ -310,16 +299,16 @@ export default function AuthModal() {
           {errorMsg && <div className="text-red-500 text-[13px] text-center mb-4 font-medium">{errorMsg}</div>}
 
           <div className="mb-4">
-            <input type="text" placeholder="Tên hiển thị (Ví dụ: Nguyễn Văn A)" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="w-full border border-gray-200 rounded-[10px] px-4 py-3 text-[14px] outline-none focus:border-blue-500 transition-colors bg-gray-50/50" />
+            <input type="text" placeholder={t('onboarding.display_name_placeholder')} value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="w-full border border-gray-200 rounded-[10px] px-4 py-3 text-[14px] outline-none focus:border-blue-500 transition-colors bg-gray-50/50" />
           </div>
 
           <div className="relative mb-8">
-            <input type="text" placeholder="Tên người dùng (ID duy nhất)" value={username} onChange={(e) => setUsername(e.target.value.substring(0, 20))} className="w-full border-b border-gray-300 py-2 pr-12 text-[15px] font-medium text-gray-800 outline-none focus:border-blue-500 transition-colors bg-transparent text-center" />
+            <input type="text" placeholder={t('onboarding.username_label')} value={username} onChange={(e) => setUsername(e.target.value.substring(0, 20))} className="w-full border-b border-gray-300 py-2 pr-12 text-[15px] font-medium text-gray-800 outline-none focus:border-blue-500 transition-colors bg-transparent text-center" />
             <span className="absolute right-0 bottom-2.5 text-[12px] text-gray-400">{username.length}/20</span>
           </div>
 
           <button onClick={handleSetupComplete} disabled={isLoading || !username || !displayName} className="w-full h-11 bg-[#eaebfc] hover:bg-[#d8dbff] text-[#5865F2] font-bold rounded-[10px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            {isLoading ? "Đang lưu..." : "Bắt Đầu Trải Nghiệm"}
+            {isLoading ? t('edit_profile.saving') : t('onboarding.enter_app')}
           </button>
         </div>
       )}

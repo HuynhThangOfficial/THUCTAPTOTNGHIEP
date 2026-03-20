@@ -1,137 +1,315 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useQuery } from 'convex/react';
+import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { useApp } from '../context/AppContext';
 import { useUser } from '@clerk/nextjs';
+import { useTranslation } from 'react-i18next';
+import { ChevronDown, Settings, LogOut, TrendingUp, Pin, Flag, List, Diamond } from 'lucide-react';
+
 import SettingsModal from './SettingsModal';
-import UserProfileModal from './UserProfileModal'; // MỚI: Import Modal Hồ Sơ
+import UserProfileModal from './UserProfileModal';
+import CreateChannelModal from './CreateChannelModal';
+import ServerSettingsModal from './ServerSettingsModal';
+import ModerationModal from './ModerationModal';
+import UpgradeServerModal from './UpgradeServerModal';
+import BrowseChannelsModal from './BrowseChannelsModal';
+
+const LEVEL_REQUIREMENTS = [
+  { level: 0, totalStones: 0 }, { level: 1, totalStones: 1 }, { level: 2, totalStones: 3 },
+  { level: 3, totalStones: 5 }, { level: 4, totalStones: 8 }, { level: 5, totalStones: 11 },
+  { level: 6, totalStones: 15 }, { level: 7, totalStones: 19 }, { level: 8, totalStones: 23 },
+  { level: 9, totalStones: 28 }, { level: 10, totalStones: 33 }
+];
 
 export default function ChannelSidebar() {
-  const { activeServerId, activeUniversityId, activeChannelId, setActiveChannelId, setActiveChannelName, setShowAuthModal } = useApp() as any;
+  const { t } = useTranslation();
+  const { activeServerId, activeUniversityId, activeChannelId, setActiveChannelId, setActiveChannelName, pinnedServers, togglePinServer } = useApp() as any;
 
   const { user, isLoaded } = useUser();
   const isLoggedIn = isLoaded && user;
 
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  
-  // STATE CHO CÁC MODAL
+
+  const [showServerMenu, setShowServerMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showServerSettings, setShowServerSettings] = useState(false);
+  const [showModeration, setShowModeration] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showBrowseModal, setShowBrowseModal] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createType, setCreateType] = useState<'channel' | 'category'>('channel');
+  const [createParentId, setCreateParentId] = useState<string | undefined>(undefined);
 
   const universities = useQuery(api.university.getUniversities);
   const myServers = useQuery(api.university.getMyServers);
   const currentUser = useQuery(api.users.current);
+  const leaveServer = useMutation(api.university.leaveServer);
+  const deleteChannel = useMutation(api.university.deleteChannel);
 
   const channelsData = useQuery(api.university.getChannels, {
     universityId: activeUniversityId ? (activeUniversityId as Id<"universities">) : undefined,
-    serverId: activeServerId ? (activeServerId as Id<"servers">) : undefined,
+    serverId: activeServerId ? (activeServerId as Id<"servers">) : undefined
   });
 
-  let currentWorkspaceName = "Đang tải...";
-  if (activeUniversityId && universities) {
-    currentWorkspaceName = universities.find(u => u._id === activeUniversityId)?.name || "Trường học";
-  } else if (activeServerId && myServers) {
-    currentWorkspaceName = myServers.find(s => s._id === activeServerId)?.name || "Máy chủ";
-  }
-
-  const groups = channelsData?.groups || [];
-  const channels = channelsData?.channels || [];
-  const orphanChannels = channels.filter(c => !c.parentId);
+  const hiddenChannels = useQuery((api as any).university.getHiddenChannelIds, activeServerId ? { serverId: activeServerId } : "skip") || [];
 
   useEffect(() => {
-    if (channels.length > 0 && !activeChannelId) {
-      const defaultChannel = channels.find(c => c.name === 'đại-sảnh') || channels[0];
-      setActiveChannelId(defaultChannel._id);
-      setActiveChannelName(defaultChannel.name);
+    if (channelsData?.channels && channelsData.channels.length > 0) {
+      const isChannelValid = channelsData.channels.some(c => c._id === activeChannelId);
+      if (!activeChannelId || !isChannelValid) {
+        // 👇 TỰ ĐỘNG CHỌN "đại-sảnh", NẾU KHÔNG CÓ THÌ CHỌN KÊNH ĐẦU TIÊN 👇
+        const generalChannel = channelsData.channels.find(c => c.name === 'đại-sảnh');
+        if (generalChannel) {
+          setActiveChannelId(generalChannel._id);
+          setActiveChannelName(generalChannel.name);
+        } else {
+          setActiveChannelId(channelsData.channels[0]._id);
+          setActiveChannelName(channelsData.channels[0].name);
+        }
+      }
     }
-  }, [channels, activeChannelId, setActiveChannelId, setActiveChannelName]);
+  }, [channelsData?.channels, activeServerId, activeUniversityId]);
 
-  const toggleGroup = (groupId: string) => {
-    setCollapsedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
-  };
+  if (!activeUniversityId && !activeServerId) return null;
+  if (!channelsData) return (
+    <aside className="w-60 bg-[#f2f3f5] flex flex-col border-r border-gray-200">
+      <div className="flex-1 flex items-center justify-center"><div className="animate-spin w-6 h-6 border-2 border-gray-400 border-t-transparent rounded-full"></div></div>
+    </aside>
+  );
 
-  const renderChannels = (channelList: any[]) => {
-    return channelList.map(channel => {
-      const isActive = activeChannelId === channel._id;
-      return (
-        <button key={channel._id} onClick={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} className={`w-full flex items-center px-2 py-1.5 mb-[2px] rounded-md text-left transition-colors ${isActive ? 'bg-green-100 text-green-800 font-semibold' : 'text-gray-600 hover:bg-green-50 hover:text-green-700'}`}>
-          <span className="text-xl mr-2 text-gray-400">#</span>
-          <span className="truncate flex-1 text-[15px]">{channel.name}</span>
-          {channel.isAnonymous && <span className="ml-1 text-xs" title="Kênh ẩn danh">🎭</span>}
-        </button>
-      );
-    });
-  };
+  const { channels, groups } = channelsData;
+  const visibleChannels = channels.filter(c => !hiddenChannels.includes(c._id));
+  const currentChannelsCount = channels.length + groups.length;
+  const isUniversity = !!activeUniversityId;
+  const currentWorkspace = isUniversity ? universities?.find(u => u._id === activeUniversityId) : myServers?.find(s => s._id === activeServerId);
+  const isOwner = activeServerId && currentWorkspace && ('creatorId' in currentWorkspace) && currentWorkspace.creatorId === currentUser?._id;
 
-  if (channelsData === undefined) {
-    return (
-      <div className="w-60 bg-[#f9fcfb] flex flex-col h-screen border-r border-green-100 shrink-0 animate-pulse">
-        <div className="h-14 border-b border-green-100 bg-green-50/50" />
-        <div className="p-4 space-y-3"><div className="h-4 bg-green-100 rounded w-2/3" /><div className="h-4 bg-green-100 rounded w-1/2" /><div className="h-4 bg-green-100 rounded w-3/4" /></div>
-      </div>
-    );
+  const stones = currentWorkspace?.totalStones || 0;
+  let serverLevel = 0;
+  for (let i = LEVEL_REQUIREMENTS.length - 1; i >= 0; i--) {
+    if (stones >= LEVEL_REQUIREMENTS[i].totalStones) {
+      serverLevel = LEVEL_REQUIREMENTS[i].level;
+      break;
+    }
   }
 
+  const isPinned = pinnedServers?.includes(activeServerId);
+
+  const toggleGroup = (groupId: string) => setCollapsedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+
+  const handleLeaveServer = async () => {
+    if (isOwner) return alert(t('alerts.owner_cant_leave'));
+    if (window.confirm(t('alerts.leave_server_desc', { name: currentWorkspace?.name }))) {
+      try {
+        await leaveServer({ serverId: activeServerId as Id<"servers"> });
+        window.location.reload();
+      } catch (e: any) { alert(t('common.error') + ": " + e.message); }
+    }
+  };
+
+  const handleOpenCreateCategory = () => { setCreateType('category'); setCreateParentId(undefined); setIsCreateModalOpen(true); };
+  const handleOpenCreateChannel = (categoryId: string) => { setCreateType('channel'); setCreateParentId(categoryId); setIsCreateModalOpen(true); };
+
+  const handleDeleteChannel = async (id: string, isCategory: boolean, name: string) => {
+    const typeStr = isCategory ? t('common.category') : t('common.channel');
+    const msg = `${t('alerts.option_title', { type: typeStr })}\n${t('alerts.option_desc', { name })}`;
+    if (window.confirm(msg)) {
+      try {
+        await deleteChannel({ channelId: id as Id<"channels"> });
+        if (activeChannelId === id || isCategory) { setActiveChannelId(''); setActiveChannelName(''); }
+      } catch (e: any) { alert(t('common.error') + ": " + e.message); }
+    }
+  };
+
   return (
-    <div className="w-60 bg-[#f9fcfb] flex flex-col h-screen border-r border-green-100 shrink-0 relative">
-      <div className="h-14 border-b border-green-100 flex items-center px-4 font-bold text-gray-800 text-[16px] shadow-sm bg-white/50 shrink-0">
-        <span className="truncate">{currentWorkspaceName}</span>
-      </div>
+    <aside className="w-60 bg-[#f2f3f5] flex flex-col border-r border-gray-200 shadow-[-4px_0_15px_rgba(0,0,0,0.02)_inset] relative z-20">
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-4">
-        {orphanChannels.length > 0 && <div className="space-y-[2px]">{renderChannels(orphanChannels)}</div>}
-        {groups.map((group) => {
-          const isCollapsed = collapsedGroups[group._id];
-          const childChannels = channels.filter(c => c.parentId === group._id);
-          if (childChannels.length === 0) return null;
-          return (
-            <div key={group._id} className="mt-4">
-              <button onClick={() => toggleGroup(group._id)} className="flex items-center w-full px-1 mb-1 text-xs font-bold text-gray-400 uppercase tracking-wide hover:text-gray-600 transition-colors">
-                <svg className={`w-3 h-3 mr-1 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : 'rotate-0'}`} fill="currentColor" viewBox="0 0 24 24"><path d="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z" /></svg>{group.name}
-              </button>
-              {!isCollapsed && <div className="space-y-[2px]">{renderChannels(childChannels)}</div>}
-            </div>
-          );
-        })}
-      </div>
+      <div className="relative flex items-center justify-between h-14 px-3 border-b border-gray-200 shadow-sm bg-white">
 
-      <div className="h-16 bg-[#f1f8f2] border-t border-green-100 flex items-center px-3 shrink-0 relative">
-        {isLoggedIn ? (
-          <div className="flex items-center gap-2 flex-1">
-            
-            {/* ẤN VÀO KHU VỰC AVATAR/TÊN -> MỞ HỒ SƠ */}
-            <div className="flex items-center gap-2 hover:bg-green-100/60 p-1.5 rounded-lg flex-1 transition-colors cursor-pointer" onClick={() => setShowProfile(true)}>
-              <div className="relative shrink-0">
-                {/* ƯU TIÊN USER CỦA CLERK TRƯỚC ĐỂ LUÔN UPDATE TỨC THÌ */}
-                <img src={user?.imageUrl || currentUser?.imageUrl || "https://ui-avatars.com/api/?name=User"} alt="Avatar" className="w-9 h-9 rounded-full object-cover border border-green-200" />
-                <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#f1f8f2]" />
-              </div>
-              <div className="flex flex-col flex-1 min-w-0">
-                <span className="font-bold text-sm text-gray-800 truncate">{user?.fullName || currentUser?.first_name || currentUser?.username || "Đang tải..."}</span>
-                <span className="text-[11px] text-gray-500 truncate">@{user?.username || currentUser?.username || "..."}</span>
-              </div>
-            </div>
-
-            {/* ẤN VÀO RĂNG CƯA -> MỞ CÀI ĐẶT */}
-            <button onClick={() => setShowSettings(true)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-green-200/50 rounded-md transition-colors" title="Cài đặt người dùng">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-            </button>
+        {isUniversity ? (
+          <div className="flex items-center gap-1.5 flex-1 min-w-0 font-bold text-[15px] py-1.5 px-2 text-left text-gray-800 cursor-default">
+            <span className="truncate">{currentWorkspace?.name || t('server.choose_workspace')}</span>
           </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center w-full px-1">
-             <button onClick={() => setShowAuthModal(true)} className="w-full bg-[#00BA7C] hover:bg-[#009665] text-white font-bold py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 active:scale-95 group">
-               <svg className="w-5 h-5 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-               <span className="text-[15px]">Đăng nhập ngay</span>
-             </button>
+          <button onClick={() => setShowServerMenu(!showServerMenu)} className="flex items-center gap-1.5 flex-1 min-w-0 font-bold text-[15px] hover:bg-gray-50 py-1.5 px-2 rounded-md transition-colors text-left">
+            <span className="truncate">{currentWorkspace?.name || t('server.choose_workspace')}</span>
+            <ChevronDown className={`w-4 h-4 shrink-0 text-gray-500 transition-transform ${showServerMenu ? 'rotate-180' : ''}`} />
+          </button>
+        )}
+
+        {isOwner && (
+          <div className="flex items-center shrink-0 ml-1">
+            <button onClick={handleOpenCreateCategory} className="text-gray-500 hover:text-gray-900 transition-colors p-1.5 rounded-md hover:bg-gray-100" title={t('channel.create_title', { type: t('common.category') })}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
+            </button>
+            <button onClick={() => setShowServerSettings(true)} className="text-gray-500 hover:text-gray-900 transition-colors p-1.5 rounded-md hover:bg-gray-100" title={t('server.settings')}>
+              <Settings className="w-5 h-5" />
+            </button>
           </div>
+        )}
+
+        {showServerMenu && !isUniversity && (
+          <>
+            <div className="fixed inset-0 z-[40]" onClick={() => setShowServerMenu(false)}></div>
+            <div className="absolute top-14 left-2 w-64 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-2xl border border-gray-100 z-[50] py-2 animate-in fade-in slide-in-from-top-2">
+
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden shrink-0 border border-gray-100 flex items-center justify-center">
+                  {currentWorkspace?.icon ? (
+                    <img src={currentWorkspace.icon} alt="icon" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="font-bold text-gray-500 text-lg">{currentWorkspace?.name?.charAt(0)}</span>
+                  )}
+                </div>
+                <span className="font-bold text-[15px] text-gray-900 truncate flex-1">{currentWorkspace?.name}</span>
+              </div>
+
+              <div className="h-px bg-gray-100 my-1"></div>
+
+              <div className="px-4 py-2 text-[14px] font-bold text-gray-800">
+                {t('menu.reached_level', { level: serverLevel })}
+              </div>
+
+              <button onClick={() => { setShowServerMenu(false); setShowUpgradeModal(true); }} className="w-full flex items-center px-4 py-3 text-[14px] font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                <TrendingUp className="w-5 h-5 mr-3 text-pink-500" /> {t('menu.upgrade_server')}
+              </button>
+
+              <button onClick={() => { setShowServerMenu(false); togglePinServer(activeServerId); }} className="w-full flex items-center px-4 py-3 text-[14px] font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                <Pin className={`w-5 h-5 mr-3 ${isPinned ? 'text-blue-500' : 'text-gray-500'}`} /> {isPinned ? t('alerts.unpin') : t('menu.pin_server')}
+              </button>
+
+              <button onClick={() => { setShowServerMenu(false); setShowBrowseModal(true); }} className="w-full flex items-center px-4 py-3 text-[14px] font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                <List className="w-5 h-5 mr-3 text-gray-500" /> {t('menu.browse_channels')}
+              </button>
+
+              <div className="h-px bg-gray-100 my-1"></div>
+
+              <button onClick={() => { setShowServerMenu(false); setShowModeration(true); }} className="w-full flex items-center px-4 py-3 text-[14px] font-medium text-red-600 hover:bg-red-50 transition-colors">
+                <Flag className="w-5 h-5 mr-3 text-red-500" /> {t('menu.report_server')}
+              </button>
+
+              <div className="h-px bg-gray-100 my-1"></div>
+
+              <button onClick={() => { setShowServerMenu(false); handleLeaveServer(); }} className="w-full flex items-center px-4 py-3 text-[14px] font-bold text-red-600 hover:bg-red-50 transition-colors">
+                <LogOut className="w-5 h-5 mr-3 text-red-500" /> {t('menu.leave_server')}
+              </button>
+            </div>
+          </>
         )}
       </div>
 
-      {showSettings && isLoggedIn && <SettingsModal onClose={() => setShowSettings(false)} />}
-      {showProfile && isLoggedIn && <UserProfileModal onClose={() => setShowProfile(false)} targetUserId={currentUser?._id} />}
-    </div>
+      <div className="flex-1 overflow-y-auto hidden-scrollbar py-3 px-2 space-y-[2px]">
+        {visibleChannels.filter((c: any) => !c.parentId).map((channel: any) => {
+          const isActive = activeChannelId === channel._id;
+          return (
+            <div key={channel._id} className={`w-full flex items-center justify-between px-2 py-[6px] rounded-md transition-colors group/channel ${isActive ? 'bg-[#e3e5e8] text-gray-900' : 'hover:bg-[#e3e5e8]/50'}`}>
+              <button onClick={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} className={`flex items-center flex-1 text-left min-w-0 ${isActive ? 'font-semibold' : 'text-gray-600 hover:text-gray-800'}`}>
+                <svg className="w-5 h-5 opacity-60 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
+                <span className="text-[15px] truncate flex-1">{channel.name}</span>
+                {(channel as any).isAnonymous && <span className="ml-1 text-xs shrink-0" title={t('common.anonymous')}>🎭</span>}
+              </button>
+
+              {/* 👇 ĐÃ BỎ GỠ "chung" RA KHỎI ĐIỀU KIỆN XÓA 👇 */}
+              {isOwner && channel.name !== 'đại-sảnh' && (
+                <button onClick={(e) => { e.stopPropagation(); handleDeleteChannel(channel._id, false, channel.name); }} className="opacity-0 group-hover/channel:opacity-100 text-gray-400 hover:text-red-500 transition-opacity p-1 shrink-0" title={t('common.delete')}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+              )}
+            </div>
+          )
+        })}
+
+        {groups.map(group => {
+          const isCollapsed = collapsedGroups[group._id];
+          const childChannels = visibleChannels.filter((c: any) => c.parentId === group._id);
+          if (childChannels.length === 0) return null;
+
+          return (
+            <div key={group._id} className="pt-3">
+              <div className="flex items-center justify-between px-1 mb-1 group/category">
+                <button onClick={() => toggleGroup(group._id)} className="flex items-center gap-1 text-xs font-bold text-gray-500 uppercase tracking-wider hover:text-gray-800 transition-colors flex-1 text-left min-w-0">
+                  <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                  <span className="truncate">{group.name}</span>
+                </button>
+
+                {isOwner && (
+                  <div className="opacity-0 group-hover/category:opacity-100 flex items-center transition-opacity shrink-0">
+                    <button onClick={() => handleOpenCreateChannel(group._id)} className="text-gray-400 hover:text-gray-900 p-0.5" title={t('common.add')}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDeleteChannel(group._id, true, group.name); }} className="text-gray-400 hover:text-red-500 p-0.5 ml-1" title={t('common.delete')}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {!isCollapsed && (
+                <div className="space-y-[2px]">
+                  {childChannels.map((channel: any) => {
+                    const isActive = activeChannelId === channel._id;
+                    return (
+                      <div key={channel._id} className={`w-full flex items-center justify-between px-2 py-[6px] rounded-md transition-colors group/channel ${isActive ? 'bg-[#e3e5e8] text-gray-900' : 'hover:bg-[#e3e5e8]/50'}`}>
+                        <button onClick={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} className={`flex items-center flex-1 text-left min-w-0 ${isActive ? 'font-semibold' : 'text-gray-600 hover:text-gray-800'}`}>
+                          <svg className="w-5 h-5 opacity-60 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
+                          <span className="text-[15px] truncate flex-1">{channel.name}</span>
+                          {(channel as any).isAnonymous && <span className="ml-1 text-xs shrink-0" title={t('common.anonymous')}>🎭</span>}
+                        </button>
+
+                        {isOwner && (
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteChannel(channel._id, false, channel.name); }} className="opacity-0 group-hover/channel:opacity-100 text-gray-400 hover:text-red-500 transition-opacity p-1 shrink-0" title={t('common.delete')}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {isLoggedIn && (
+        <div className="h-[60px] bg-[#ebecee] flex items-center justify-between px-2 py-1 shrink-0 border-t border-gray-200">
+          <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 flex-1 hover:bg-gray-300/50 p-1.5 rounded-md transition-colors min-w-0 text-left">
+            <div className="relative shrink-0">
+              <img src={user?.imageUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-gray-300" />
+              <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#ebecee]"></div>
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[13px] font-bold text-gray-900 truncate">{currentUser?.first_name || user?.username || t('settings.default_user')}</span>
+              <span className="text-[11px] text-gray-500 truncate">@{user?.username}</span>
+            </div>
+          </button>
+
+          <button onClick={() => setShowSettings(true)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-300/50 hover:text-gray-900 rounded-md transition-colors shrink-0 ml-1" title={t('settings.title')}>
+            <Settings className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
+      {/* MODALS */}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showProfile && currentUser && <UserProfileModal onClose={() => setShowProfile(false)} targetUserId={currentUser._id} />}
+      {showServerSettings && currentWorkspace && <ServerSettingsModal onClose={() => setShowServerSettings(false)} workspace={currentWorkspace} />}
+      {showModeration && currentWorkspace && <ModerationModal serverId={currentWorkspace._id} onClose={() => setShowModeration(false)} />}
+      {activeServerId && <CreateChannelModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} serverId={activeServerId} type={createType} parentId={createParentId} />}
+      {showUpgradeModal && currentWorkspace && <UpgradeServerModal channelCount={currentChannelsCount} workspace={currentWorkspace} onClose={() => setShowUpgradeModal(false)} />}
+
+      {showBrowseModal && currentWorkspace && (
+        <BrowseChannelsModal
+          serverId={currentWorkspace._id}
+          channels={channels}
+          groups={groups}
+          onClose={() => setShowBrowseModal(false)}
+        />
+      )}
+    </aside>
   );
 }

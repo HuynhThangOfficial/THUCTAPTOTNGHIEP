@@ -1,84 +1,185 @@
 "use client";
 
-import { usePaginatedQuery } from "convex/react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { usePaginatedQuery, useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
 import { useApp } from "@/context/AppContext";
 import Thread from "./Thread";
 import { useUser } from "@clerk/nextjs";
-import { useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { useRouter } from "next/navigation";
+import { Bell, BellOff, Search, ChevronRight, X, User, Server, Hash, MessageSquare } from "lucide-react";
 
 export default function Feed() {
+  const { t } = useTranslation();
+  const router = useRouter();
   const { user } = useUser();
-  const { activeChannelId, activeChannelName, setShowComposeModal, setShowAuthModal } = useApp() as any;
   const isLoggedIn = user !== null;
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const { activeServerId, activeUniversityId, activeChannelId, activeChannelName, setShowComposeModal, setShowAuthModal } = useApp() as any;
+
+  // --- STATE THÔNG BÁO ---
+  const [showNotifMenu, setShowNotifMenu] = useState(false);
+  const [showCustomNotifModal, setShowCustomNotifModal] = useState(false);
+
+  // --- STATE TÌM KIẾM ---
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchTab, setSearchTab] = useState<'users' | 'servers' | 'channel' | 'server'>('users');
+
+  // ==========================================
+  // LOGIC BẢNG TIN CHÍNH
+  // ==========================================
   const { results, status, loadMore } = usePaginatedQuery(
     api.messages.getThreads,
     { channelId: activeChannelId || undefined, sortBy: 'newest' },
     { initialNumItems: 10 }
   );
 
-  // Hàm xử lý Infinite Scroll
   const handleScroll = useCallback(() => {
     if (!scrollRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-    
-    // Nếu cuộn gần chạm đáy (cách đáy 100px) và đang có thể tải thêm
     if (scrollHeight - scrollTop - clientHeight < 100 && status === "CanLoadMore") {
       loadMore(5);
     }
   }, [status, loadMore]);
 
+  // ==========================================
+  // LOGIC THÔNG BÁO
+  // ==========================================
+  const targetWorkspaceId = activeServerId || activeUniversityId;
+
+  // 👇 ĐÃ GỠ BỎ KÊNH "chung", CHỈ GIỮ LẠI "đại-sảnh" LÀ LOBBY 👇
+  const isLobby = activeChannelName === 'đại-sảnh';
+
+  const subStatus = useQuery(api.messages.getSubscriptionStatus, {
+    channelId: activeChannelId ? (activeChannelId as Id<"channels">) : undefined,
+    serverId: activeServerId ? (activeServerId as Id<"servers">) : undefined,
+    universityId: activeUniversityId ? (activeUniversityId as Id<"universities">) : undefined,
+  });
+
+  const customChannels = useQuery(api.messages.getServerChannelsWithSubStatus, targetWorkspaceId ? {
+    serverId: activeServerId ? (activeServerId as Id<"servers">) : undefined,
+    universityId: activeUniversityId ? (activeUniversityId as Id<"universities">) : undefined,
+  } : "skip");
+
+  const toggleServerSub = useMutation(api.messages.toggleServerSubscription);
+  const toggleChannelSub = useMutation(api.messages.toggleChannelSubscription);
+
+  const handleToggleServer = async (action: 'on' | 'off') => {
+    try {
+      await toggleServerSub({
+        serverId: activeServerId ? (activeServerId as Id<"servers">) : undefined,
+        universityId: activeUniversityId ? (activeUniversityId as Id<"universities">) : undefined,
+        action
+      });
+      setShowNotifMenu(false);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleToggleCurrentChannel = async () => {
+    if (!activeChannelId) return;
+    try { await toggleChannelSub({ channelId: activeChannelId as Id<"channels"> }); }
+    catch (e) { console.error(e); }
+  };
+
+  const handleToggleSpecificChannel = async (channelId: string) => {
+    try { await toggleChannelSub({ channelId: channelId as Id<"channels"> }); }
+    catch (e) { console.error(e); }
+  };
+
+  // ==========================================
+  // LOGIC TÌM KIẾM
+  // ==========================================
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedSearch(searchQuery), 500);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  const searchUsersResult = useQuery(api.users.searchUsers, searchTab === 'users' && debouncedSearch ? { search: debouncedSearch } : "skip");
+  const searchServersResult = useQuery((api as any).university.searchServers, searchTab === 'servers' && debouncedSearch ? { search: debouncedSearch } : "skip");
+  const searchChannelPosts = useQuery(api.messages.searchMessages, searchTab === 'channel' && debouncedSearch ? { search: debouncedSearch, channelId: activeChannelId as Id<"channels"> } : "skip");
+  const searchServerPosts = useQuery(api.messages.searchMessages, searchTab === 'server' && debouncedSearch && activeServerId ? { search: debouncedSearch, serverId: activeServerId as Id<"servers"> } : "skip");
+
   return (
-    <div className="flex-1 flex flex-col h-full">
-      {/* Header Discord */}
+    <div className="flex-1 flex flex-col h-full relative">
+
       <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shrink-0 z-10 shadow-sm sticky top-0">
-         {/* ... Giữ nguyên phần Header cũ ... */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <span className="text-gray-400 text-2xl font-light">#</span>
-          <span className="font-bold text-gray-800 text-[16px]">{activeChannelName || "đại-sảnh"}</span>
+          <span className="font-bold text-gray-800 text-[16px] truncate">{activeChannelName || t('common.lobby', { defaultValue: 'đại-sảnh' })}</span>
         </div>
-        <div className="flex items-center gap-4">
-           {/* ... Các icon Search, Bell, Pin ... */}
-           <div className="hidden md:flex items-center bg-[#f2f3f5] px-2.5 py-1.5 rounded-md border border-transparent focus-within:border-gray-300 transition-colors">
-            <input type="text" placeholder="Tìm kiếm..." className="bg-transparent text-sm outline-none w-40 focus:w-56 transition-all text-gray-700 placeholder-gray-500" />
-            <svg className="w-4 h-4 text-gray-500 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+
+        <div className="flex items-center gap-4 relative shrink-0 ml-2">
+          <div onClick={() => setShowSearchModal(true)} className="hidden md:flex items-center bg-[#f2f3f5] px-2.5 py-1.5 rounded-md border border-transparent hover:border-gray-300 cursor-pointer transition-colors">
+            <span className="w-40 text-sm text-gray-500 truncate select-none">{t('follow_list.search_placeholder')}</span>
+            <Search className="w-4 h-4 text-gray-500 ml-1" />
           </div>
-          <button className="text-gray-500 hover:text-gray-800 transition-colors" title="Thông báo">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-          </button>
+
+          <div className="relative flex items-center justify-center">
+            <button onClick={() => setShowNotifMenu(!showNotifMenu)} className="p-1.5 text-gray-500 hover:text-gray-800 transition-colors rounded-full hover:bg-gray-100" title={t('common.notification')}>
+              {subStatus?.channelSubbed ? <Bell className="w-5 h-5 text-[#007AFF]" fill="currentColor" /> : <BellOff className="w-5 h-5 text-gray-400" />}
+            </button>
+
+            {showNotifMenu && (
+              <>
+                <div className="fixed inset-0 z-[40]" onClick={() => setShowNotifMenu(false)}></div>
+                <div className="absolute right-0 top-10 w-72 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-xl border border-gray-100 z-[50] py-2 animate-in fade-in slide-in-from-top-2">
+                  <div className="px-4 py-2 font-extrabold text-[15px] text-center text-gray-800 border-b border-gray-100 mb-1 pb-3">
+                    {t('feed.notification_settings')}
+                  </div>
+
+                  {!isLobby && (
+                    <div className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer" onClick={handleToggleCurrentChannel}>
+                      <span className="text-[14px] text-gray-700">{t('feed.notify_this_channel')}</span>
+                      <div className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${subStatus?.channelSubbed ? 'bg-[#007AFF]' : 'bg-gray-200'}`}>
+                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${subStatus?.channelSubbed ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                      </div>
+                    </div>
+                  )}
+
+                  <button onClick={() => handleToggleServer('on')} className="w-full flex items-center justify-between px-4 py-3 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors">
+                    <span>{t('feed.turn_on_all_server')}</span>
+                    <Bell className="w-4 h-4 text-gray-500" />
+                  </button>
+
+                  <button onClick={() => handleToggleServer('off')} className="w-full flex items-center justify-between px-4 py-3 text-[14px] text-red-500 hover:bg-red-50 transition-colors">
+                    <span>{t('feed.turn_off_all_server')}</span>
+                    <BellOff className="w-4 h-4 text-red-500" />
+                  </button>
+
+                  <div className="h-px bg-gray-100 my-1"></div>
+
+                  <button onClick={() => { setShowNotifMenu(false); setShowCustomNotifModal(true); }} className="w-full flex items-center justify-between px-4 py-3 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors">
+                    <span>{t('feed.custom_per_channel')}</span>
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Vùng cuộn bài viết - Thêm onScroll và ref */}
-      <div 
-        id="main-scroll-area" 
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto hidden-scrollbar p-4 pb-20"
-      >
+      <div id="main-scroll-area" ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto hidden-scrollbar p-4 pb-20">
         <div className="flex flex-col bg-white border border-gray-200 rounded-2xl overflow-hidden mb-10 shadow-sm">
-            {activeChannelName !== 'đại-sảnh' && (
-              <div 
-                // SỬA ONCLICK Ở ĐÂY:
-                onClick={() => isLoggedIn ? setShowComposeModal(true) : setShowAuthModal(true)}
-                className="p-4 border-b border-gray-200 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors"
-              >
+            {!isLobby && (
+              <div onClick={() => isLoggedIn ? setShowComposeModal(true) : setShowAuthModal(true)} className="p-4 border-b border-gray-200 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors">
                 <img src={user?.imageUrl || "https://ui-avatars.com/api/?name=Guest&background=E5E7EB&color=9CA3AF"} alt="My Avatar" className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-200" />
-                <span className="text-gray-400 text-[15px] font-medium flex-1 pt-0.5">Có gì mới?</span>
-                <button className="px-5 py-1.5 bg-gray-900 text-white font-semibold rounded-full text-sm">Đăng</button>
+                <span className="text-gray-400 text-[15px] font-medium flex-1 pt-0.5">{t('composer.whats_on_your_mind')}</span>
+                <button className="px-5 py-1.5 bg-gray-900 text-white font-semibold rounded-full text-sm">{t('composer.post')}</button>
               </div>
             )}
 
-            {/* Danh sách bài đăng */}
             <div className="flex flex-col">
               {results.map((thread) => (
                 <Thread key={thread._id} thread={thread as any} />
               ))}
             </div>
 
-            {/* Trạng thái đang tải lần đầu HOẶC đang tự động tải thêm */}
             {(status === "LoadingFirstPage" || status === "LoadingMore") && (
                 <div className="flex justify-center items-center p-8">
                     <div className="animate-spin h-6 w-6 border-2 border-gray-400 border-t-transparent rounded-full"></div>
@@ -86,18 +187,135 @@ export default function Feed() {
             )}
 
             {status === "Exhausted" && results.length > 0 && (
-                <p className="text-center text-gray-400 text-sm py-6 border-t border-gray-100">Bạn đã xem hết bảng tin.</p>
+                <p className="text-center text-gray-400 text-sm py-6 border-t border-gray-100">
+                  {t('profile_tabs.no_posts')}
+                </p>
             )}
 
             {!results.length && status !== "LoadingFirstPage" && (
                 <div className="text-center text-gray-500 py-20 flex flex-col items-center">
                   <svg className="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                  <p>Chào mừng đến với #{activeChannelName || "đại-sảnh"}!</p>
-                  <p className="text-sm mt-1">Hãy là người đầu tiên đăng bài ở đây.</p>
+                  <p className="font-bold mb-1">{t('channel_details.default_desc')}</p>
+                  <p className="text-sm">{t('comments.no_comments')}</p>
                 </div>
             )}
         </div>
       </div>
+
+      {showCustomNotifModal && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShowCustomNotifModal(false)}>
+          <div className="bg-[#f2f3f5] w-full max-w-[400px] max-h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-gray-200 bg-white flex justify-between items-center shrink-0">
+              <h2 className="text-[18px] font-extrabold text-gray-900">{t('feed.custom_per_channel')}</h2>
+              <button onClick={() => setShowCustomNotifModal(false)} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-full transition-colors"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-white hidden-scrollbar">
+              {customChannels?.map((channel: any) => {
+                // 👇 ĐÃ GỠ BỎ KÊNH "chung" 👇
+                const isDefault = channel.name === 'đại-sảnh';
+                return (
+                  <div key={channel._id} className="flex items-center justify-between p-3 border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                    <span className="text-[15px] font-medium text-gray-800 flex items-center gap-2">
+                      <Hash className="w-4 h-4 text-gray-400"/> {channel.name}
+                    </span>
+                    <button
+                       onClick={() => handleToggleSpecificChannel(channel._id)}
+                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${channel.isSubscribed ? 'bg-[#007AFF]' : 'bg-gray-200'}`}
+                     >
+                       <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${channel.isSubscribed ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                     </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSearchModal && (
+        <div className="fixed inset-0 z-[99999] flex items-start justify-center bg-black/60 backdrop-blur-sm pt-[10vh] animate-in fade-in" onClick={() => setShowSearchModal(false)}>
+          <div className="bg-white w-full max-w-[800px] h-[75vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-gray-100 shrink-0">
+              <div className="bg-gray-100 rounded-xl flex items-center px-4 py-3">
+                <Search className="w-5 h-5 text-gray-400 mr-3" />
+                <input
+                  type="text" autoFocus
+                  placeholder={t('follow_list.search_placeholder')}
+                  value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                  className="bg-transparent border-none outline-none flex-1 text-[16px] text-gray-800"
+                />
+                {searchQuery && <button onClick={() => setSearchQuery('')} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>}
+              </div>
+            </div>
+
+            <div className="w-full overflow-x-auto hidden-scrollbar border-b border-gray-100 shrink-0">
+              <div className="flex px-2 w-max min-w-full">
+                <button onClick={() => setSearchTab('users')} className={`px-4 py-3 text-[14px] font-bold whitespace-nowrap shrink-0 border-b-2 transition-colors flex items-center gap-2 ${searchTab === 'users' ? 'border-[#007AFF] text-[#007AFF]' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>
+                  <User className="w-4 h-4 shrink-0"/> {t('search.tab_users')}
+                </button>
+                <button onClick={() => setSearchTab('servers')} className={`px-4 py-3 text-[14px] font-bold whitespace-nowrap shrink-0 border-b-2 transition-colors flex items-center gap-2 ${searchTab === 'servers' ? 'border-[#007AFF] text-[#007AFF]' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>
+                  <Server className="w-4 h-4 shrink-0"/> {t('search.tab_servers')}
+                </button>
+                <button onClick={() => setSearchTab('channel')} className={`px-4 py-3 text-[14px] font-bold whitespace-nowrap shrink-0 border-b-2 transition-colors flex items-center gap-2 ${searchTab === 'channel' ? 'border-[#007AFF] text-[#007AFF]' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>
+                  <Hash className="w-4 h-4 shrink-0"/> {t('search.tab_channel_posts')}
+                </button>
+                {activeServerId && (
+                  <button onClick={() => setSearchTab('server')} className={`px-4 py-3 text-[14px] font-bold whitespace-nowrap shrink-0 border-b-2 transition-colors flex items-center gap-2 ${searchTab === 'server' ? 'border-[#007AFF] text-[#007AFF]' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}>
+                    <MessageSquare className="w-4 h-4 shrink-0"/> {t('search.tab_server_posts')}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto bg-[#f2f3f5] p-4 hidden-scrollbar">
+              {!debouncedSearch ? (
+                <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                  <Search className="w-12 h-12 mb-3 opacity-20" />
+                  <p>{t('follow_list.search_placeholder')}</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {searchTab === 'users' && searchUsersResult?.map((u: any) => (
+                    <div key={u._id} onClick={() => { setShowSearchModal(false); router.push(`/profile/${u._id}`); }} className="bg-white p-3 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-blue-50 transition-colors border border-gray-100 shadow-sm">
+                      <img src={u.imageUrl || "https://ui-avatars.com/api/?name=U"} className="w-10 h-10 rounded-full object-cover"/>
+                      <div>
+                        <div className="font-bold text-gray-900 text-[15px]">{u.first_name || u.username}</div>
+                        <div className="text-[13px] text-gray-500">@{u.username}</div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {searchTab === 'servers' && searchServersResult?.map((s: any) => (
+                    <div key={s._id} className="bg-white p-3 rounded-xl flex items-center gap-3 border border-gray-100 shadow-sm">
+                      <img src={s.icon || "https://ui-avatars.com/api/?name=S"} className="w-12 h-12 rounded-xl object-cover border border-gray-200"/>
+                      <div className="flex-1">
+                        <div className="font-bold text-gray-900 text-[15px]">{s.name}</div>
+                        <div className="text-[13px] text-gray-500">{s.memberIds?.length || 0} {t('common.member')}</div>
+                      </div>
+                      <button className={`px-4 py-1.5 rounded-full text-sm font-bold ${s.isJoined ? 'bg-gray-100 text-gray-600' : 'bg-[#007AFF] hover:bg-blue-600 text-white'} transition-colors`}>
+                        {s.isJoined ? t('search.joined') : t('search.join')}
+                      </button>
+                    </div>
+                  ))}
+
+                  {(searchTab === 'channel' || searchTab === 'server') && (() => {
+                    const results = searchTab === 'channel' ? searchChannelPosts : searchServerPosts;
+
+                    if (results === undefined) return <div className="text-center py-10"><span className="animate-spin w-6 h-6 border-2 border-[#007AFF] border-t-transparent rounded-full inline-block"></span></div>;
+                    if (results.length === 0) return <div className="text-center text-gray-400 py-10">{t('search.no_results')}</div>;
+
+                    return results.map((thread: any) => (
+                      <div key={thread._id} className="rounded-xl overflow-hidden shadow-sm border border-gray-200" onClick={() => setShowSearchModal(false)}>
+                        <Thread thread={thread} />
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

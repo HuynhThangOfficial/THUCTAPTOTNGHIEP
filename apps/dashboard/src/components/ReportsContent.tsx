@@ -72,7 +72,6 @@ const ReportsContent = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {/* 👇 ĐÃ GỘP 4 CỘT THÀNH 1 CỘT BÀI ĐĂNG 👇 */}
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600 w-2/5">Bài đăng bị báo cáo</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600 w-1/4">Người báo cáo & Lý do</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-600">Chi tiết</th>
@@ -89,59 +88,71 @@ const ReportsContent = () => {
                 reports.map((report) => (
                   <tr key={report._id} className="hover:bg-gray-50 transition-colors">
 
-                    {/* CỘT 1: GIAO DIỆN BÀI ĐĂNG THU NHỎ (GIỐNG ẢNH MẪU) */}
+                    {/* CỘT 1: GIAO DIỆN BÀI ĐĂNG (ĐÃ FIX LỖI TÁC GIẢ TỰ XÓA BÀI) */}
                     <td className="px-6 py-4 align-top">
                       <div className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-shadow min-w-[300px]">
-                        {/* Header Bài đăng: Avatar + Tên + Vị trí */}
-                        <div className="flex items-center gap-3 mb-3">
-                          <img
-                            src={report.author?.imageUrl || 'https://via.placeholder.com/40'}
-                            className="w-10 h-10 rounded-full bg-gray-100 object-cover border border-gray-200"
-                            alt="avatar"
-                          />
-                          <div className="flex flex-col">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-gray-900 text-sm">
-                                {report.message?.isAnonymous ? 'Thành viên ẩn danh' : (report.author?.first_name || 'User')}
+                        {!report.message ? (
+                          // NẾU BÀI VIẾT ĐÃ BỊ TÁC GIẢ XÓA
+                          <div className="flex flex-col items-center justify-center py-6 text-gray-400">
+                            <Trash2 className="w-8 h-8 mb-2 opacity-50" />
+                            <span className="font-medium text-sm text-gray-500">Bài đăng này đã bị tác giả tự xóa.</span>
+                            <span className="text-xs mt-1">Hệ thống vẫn giữ lại báo cáo để Admin xác nhận.</span>
+                          </div>
+                        ) : (
+                          // NẾU BÀI VIẾT VẪN TỒN TẠI
+                          <>
+                            {/* Header Bài đăng: Avatar + Tên + Vị trí */}
+                            <div className="flex items-center gap-3 mb-3">
+                              <img
+                                src={report.author?.imageUrl || 'https://via.placeholder.com/40'}
+                                className="w-10 h-10 rounded-full bg-gray-100 object-cover border border-gray-200"
+                                alt="avatar"
+                              />
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-gray-900 text-sm">
+                                    {report.message?.isAnonymous ? 'Thành viên ẩn danh' : (report.author?.first_name || 'User')}
+                                  </span>
+                                  {!report.message?.isAnonymous && (
+                                    <span className="text-gray-500 text-xs">@{report.author?.username}</span>
+                                  )}
+                                </div>
+                                <div className="text-[13px] text-gray-500 mt-0.5">
+                                  Đăng tại: <span className="font-medium text-gray-700">{report.targetType} {report.targetName}</span>
+                                  {report.channel && <span className="text-blue-500 font-semibold ml-1">#{report.channel.name}</span>}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Đường kẻ ngang */}
+                            <div className="h-px bg-gray-100 w-full mb-3"></div>
+
+                            {/* Nội dung bài đăng */}
+                            <div className="text-sm text-gray-800 whitespace-pre-wrap line-clamp-3">
+                              {report.message?.content || <span className="italic text-gray-400">Không có nội dung chữ...</span>}
+                            </div>
+
+                            {/* Chỉ báo hình ảnh */}
+                            {report.message?.mediaFiles && report.message.mediaFiles.length > 0 && (
+                              <div className="mt-3 flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 px-2.5 py-1.5 rounded-lg w-fit font-medium border border-blue-100">
+                                <ImageIcon className="w-3.5 h-3.5"/> Có {report.message.mediaFiles.length} hình ảnh
+                              </div>
+                            )}
+
+                            {/* Footer: Thông số tương tác & Thời gian */}
+                            <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-50 text-gray-400 text-xs">
+                              <div className="flex items-center gap-4">
+                                <span className="flex items-center gap-1.5" title="Lượt thích"><Heart className="w-3.5 h-3.5"/> {report.message?.likeCount || 0}</span>
+                                <span className="flex items-center gap-1.5" title="Bình luận"><MessageCircle className="w-3.5 h-3.5"/> {report.message?.commentCount || 0}</span>
+                                <span className="flex items-center gap-1.5" title="Đăng lại"><Repeat className="w-3.5 h-3.5"/> {report.message?.retweetCount || 0}</span>
+                                <span className="flex items-center gap-1.5" title="Chia sẻ"><Send className="w-3.5 h-3.5"/> {report.message?.shareCount || 0}</span>
+                              </div>
+                              <span>
+                                {new Date(report.message?._creationTime || report.createdAt).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                               </span>
-                              {!report.message?.isAnonymous && (
-                                <span className="text-gray-500 text-xs">@{report.author?.username}</span>
-                              )}
                             </div>
-                            <div className="text-[13px] text-gray-500 mt-0.5">
-                              Đăng tại: <span className="font-medium text-gray-700">{report.targetType} {report.targetName}</span>
-                              {report.channel && <span className="text-blue-500 font-semibold ml-1">#{report.channel.name}</span>}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Đường kẻ ngang */}
-                        <div className="h-px bg-gray-100 w-full mb-3"></div>
-
-                        {/* Nội dung bài đăng */}
-                        <div className="text-sm text-gray-800 whitespace-pre-wrap line-clamp-3">
-                          {report.message?.content || <span className="italic text-gray-400">Không có nội dung chữ...</span>}
-                        </div>
-
-                        {/* Chỉ báo hình ảnh */}
-                        {report.message?.mediaFiles && report.message.mediaFiles.length > 0 && (
-                          <div className="mt-3 flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 px-2.5 py-1.5 rounded-lg w-fit font-medium border border-blue-100">
-                            <ImageIcon className="w-3.5 h-3.5"/> Có {report.message.mediaFiles.length} hình ảnh
-                          </div>
+                          </>
                         )}
-
-                        {/* Footer: Thông số tương tác & Thời gian */}
-                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-50 text-gray-400 text-xs">
-                          <div className="flex items-center gap-4">
-                            <span className="flex items-center gap-1.5" title="Lượt thích"><Heart className="w-3.5 h-3.5"/> {report.message?.likeCount || 0}</span>
-                            <span className="flex items-center gap-1.5" title="Bình luận"><MessageCircle className="w-3.5 h-3.5"/> {report.message?.commentCount || 0}</span>
-                            <span className="flex items-center gap-1.5" title="Đăng lại"><Repeat className="w-3.5 h-3.5"/> {report.message?.retweetCount || 0}</span>
-                            <span className="flex items-center gap-1.5" title="Chia sẻ"><Send className="w-3.5 h-3.5"/> {report.message?.shareCount || 0}</span>
-                          </div>
-                          <span>
-                            {new Date(report.message?._creationTime || report.createdAt).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
                       </div>
                     </td>
 
@@ -151,7 +162,7 @@ const ReportsContent = () => {
                         <span className="inline-flex items-center justify-center px-2.5 py-1 bg-red-100 text-red-700 font-bold text-xs rounded-md w-max border border-red-200">
                           {report.reportCount} lượt báo cáo
                         </span>
-                        <div className="flex flex-col max-h-32 overflow-y-auto pr-2 space-y-2 mt-1">
+                        <div className="flex flex-col max-h-40 overflow-y-auto pr-2 space-y-2 mt-1">
                           {report.reporters?.map((rep: any, idx: number) => (
                             <div key={idx} className="text-[13px] leading-tight border-l-2 border-red-200 pl-2">
                               <span className="font-semibold text-gray-800">{rep?.first_name || 'User'}</span>
@@ -239,6 +250,7 @@ const ReportsContent = () => {
 
             <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
 
+              {/* DANH SÁCH NGƯỜI BÁO CÁO TRONG MODAL */}
               <div className="bg-red-50 border border-red-100 rounded-xl p-4">
                 <p className="text-xs font-bold text-red-800 uppercase tracking-wider mb-3">
                   Danh sách báo cáo ({selectedReport.reportCount})
@@ -257,28 +269,36 @@ const ReportsContent = () => {
                 </div>
               </div>
 
+              {/* NỘI DUNG BÀI ĐĂNG TRONG MODAL */}
               <div className="border border-gray-200 rounded-xl p-4 shadow-sm bg-white">
-                <div className="flex items-center gap-3 mb-3 pb-3 border-b border-gray-100">
-                  <img
-                    src={selectedReport.author?.imageUrl || 'https://via.placeholder.com/40'}
-                    className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 object-cover"
-                    alt="avatar"
-                  />
-                  <div>
-                    <p className="font-bold text-sm text-gray-900">
-                      {selectedReport.message?.isAnonymous ? 'Thành viên ẩn danh' : (
-                        <>{selectedReport.author?.first_name || 'User'} <span className="font-normal text-gray-500">@{selectedReport.author?.username}</span></>
-                      )}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Đăng tại: <span className="font-medium text-gray-700">{selectedReport.targetType} {selectedReport.targetName}</span>
-                      {selectedReport.channel && <span className="text-blue-600 font-medium"> #{selectedReport.channel.name}</span>}
-                    </p>
+                {!selectedReport.message ? (
+                  // NẾU BÀI VIẾT ĐÃ BỊ TÁC GIẢ XÓA
+                  <div className="flex flex-col items-center justify-center py-6 text-gray-400">
+                    <Trash2 className="w-10 h-10 mb-3 opacity-50 text-red-400" />
+                    <span className="font-semibold text-gray-600">Nội dung bài viết không còn tồn tại hoặc đã bị xóa.</span>
                   </div>
-                </div>
-
-                {selectedReport.message ? (
+                ) : (
+                  // NẾU BÀI VIẾT VẪN CÒN
                   <>
+                    <div className="flex items-center gap-3 mb-3 pb-3 border-b border-gray-100">
+                      <img
+                        src={selectedReport.author?.imageUrl || 'https://via.placeholder.com/40'}
+                        className="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 object-cover"
+                        alt="avatar"
+                      />
+                      <div>
+                        <p className="font-bold text-sm text-gray-900">
+                          {selectedReport.message?.isAnonymous ? 'Thành viên ẩn danh' : (
+                            <>{selectedReport.author?.first_name || 'User'} <span className="font-normal text-gray-500">@{selectedReport.author?.username}</span></>
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Đăng tại: <span className="font-medium text-gray-700">{selectedReport.targetType} {selectedReport.targetName}</span>
+                          {selectedReport.channel && <span className="text-blue-600 font-medium"> #{selectedReport.channel.name}</span>}
+                        </p>
+                      </div>
+                    </div>
+
                     <p className="text-gray-800 text-[15px] whitespace-pre-wrap leading-relaxed">
                       {selectedReport.message.content}
                     </p>
@@ -292,10 +312,9 @@ const ReportsContent = () => {
                       </div>
                     )}
                   </>
-                ) : (
-                  <p className="text-gray-500 italic">Nội dung bài viết không còn tồn tại hoặc đã bị xóa.</p>
                 )}
               </div>
+
             </div>
           </div>
         </div>

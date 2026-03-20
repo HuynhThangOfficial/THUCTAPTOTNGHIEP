@@ -68,41 +68,54 @@ export default function ModerationScreen() {
                   <Text style={styles.badgeText}>{item.reportCount} Báo cáo</Text>
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  {item.reporters.map((rep: any, idx: number) => (
+                  {item.reporters?.map((rep: any, idx: number) => (
                     <Text key={idx} style={{ fontSize: 13, marginBottom: 4, color: '#333' }}>
-                      <Text style={{fontWeight: 'bold'}}>• {rep.first_name}</Text>: {renderReason(rep.reason)}
+                      <Text style={{fontWeight: 'bold'}}>• {rep?.first_name || 'User'} (@{rep?.username})</Text>: {renderReason(rep?.reason)}
                     </Text>
                   ))}
                 </View>
               </View>
 
-              {/* PHẦN 2: THÔNG TIN BÀI VIẾT */}
+              {/* PHẦN 2: THÔNG TIN BÀI VIẾT (ĐÃ XỬ LÝ TRƯỜNG HỢP TỰ XÓA) */}
               <View style={styles.contentBox}>
-                <View style={styles.postHeader}>
-                  <Image source={{ uri: item.author?.imageUrl || 'https://via.placeholder.com/30' }} style={styles.authorAvatar} />
-                  <View>
-                    <Text style={styles.authorName}>
-                      {item.message?.isAnonymous ? t('thread.anonymous_member') : (item.author?.first_name || 'User')}
+                {!item.message ? (
+                  // Hiển thị giao diện "Đã xóa" nếu bài không tồn tại
+                  <View style={{ alignItems: 'center', paddingVertical: 15, opacity: 0.6 }}>
+                    <Ionicons name="trash-bin-outline" size={28} color="gray" />
+                    <Text style={{ color: 'gray', marginTop: 8, fontStyle: 'italic', fontSize: 13 }}>
+                      Bài viết này đã bị tác giả tự xóa.
                     </Text>
-                    {item.channel && (
-                      <Text style={styles.channelInfo}>
-                        {t('common.channel')}: <Text style={{fontWeight: 'bold'}}>#{item.channel.name}</Text>
-                      </Text>
+                  </View>
+                ) : (
+                  // Nếu bài vẫn còn thì hiển thị bình thường
+                  <>
+                    <View style={styles.postHeader}>
+                      <Image source={{ uri: item.author?.imageUrl || 'https://via.placeholder.com/30' }} style={styles.authorAvatar} />
+                      <View>
+                        <Text style={styles.authorName}>
+                          {item.message.isAnonymous ? t('thread.anonymous_member') : (item.author?.first_name || 'User')}
+                        </Text>
+                        {item.channel && (
+                          <Text style={styles.channelInfo}>
+                            {t('common.channel')}: <Text style={{fontWeight: 'bold'}}>#{item.channel.name}</Text>
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+
+                    <Text numberOfLines={4} style={styles.messageText}>
+                      {item.message.content || t('chat.post_not_exist')}
+                    </Text>
+
+                    {item.message.mediaFiles && item.message.mediaFiles.length > 0 && (
+                      <View style={styles.imageIndicator}>
+                        <Ionicons name="image-outline" size={14} color="gray" />
+                        <Text style={{ fontSize: 12, color: 'gray', marginLeft: 4 }}>
+                          {item.message.mediaFiles.length} {t('chat.image_bracket')}
+                        </Text>
+                      </View>
                     )}
-                  </View>
-                </View>
-
-                <Text numberOfLines={4} style={styles.messageText}>
-                  {item.message?.content || t('chat.post_not_exist')}
-                </Text>
-
-                {item.message?.mediaFiles && item.message.mediaFiles.length > 0 && (
-                  <View style={styles.imageIndicator}>
-                    <Ionicons name="image-outline" size={14} color="gray" />
-                    <Text style={{ fontSize: 12, color: 'gray', marginLeft: 4 }}>
-                      {item.message.mediaFiles.length} {t('chat.image_bracket')}
-                    </Text>
-                  </View>
+                  </>
                 )}
               </View>
 

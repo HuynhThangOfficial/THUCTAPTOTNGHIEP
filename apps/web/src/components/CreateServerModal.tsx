@@ -3,27 +3,38 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
-import { Id } from '../../../../convex/_generated/dataModel';
 import { useApp } from '../context/AppContext';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   onClose: () => void;
 }
 
 export default function CreateServerModal({ onClose }: Props) {
-  const { setActiveServerId } = useApp();
-  
+  const { t } = useTranslation();
+  // 👇 ĐÃ THÊM ĐẦY ĐỦ CÁC HÀM TỪ CONTEXT 👇
+  const { setActiveServerId, setActiveUniversityId, setActiveChannelId } = useApp() as any;
+
   const currentUser = useQuery(api.users.current);
   const createServer = useMutation(api.university.createServer);
-  const generateUploadUrl = useMutation(api.users.generateUploadUrl); // Lấy hàm generate URL
+  const generateUploadUrl = useMutation(api.users.generateUploadUrl);
 
   const [name, setName] = useState('');
-  const [template, setTemplate] = useState('Bạn bè');
+  const [template, setTemplate] = useState('Friends');
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const TEMPLATES = [
+    { id: 'Friends', label: t('templates.Friends'), icon: '💗' },
+    { id: 'Gaming', label: t('templates.Gaming'), icon: '🎮' },
+    { id: 'Study', label: t('templates.Study'), icon: '📚' },
+    { id: 'School', label: t('templates.School'), icon: '🏫' },
+    { id: 'Creators', label: t('templates.Creators'), icon: '🎨' },
+    { id: 'Custom', label: t('server.create_custom'), icon: '🌍' }
+  ];
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -35,125 +46,82 @@ export default function CreateServerModal({ onClose }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !currentUser) return;
+    if (!name.trim()) return;
 
     setIsSubmitting(true);
     try {
-      let uploadedStorageId: string | undefined = undefined;
-
-      // 1. Upload hình ảnh (nếu có)
+      let storageId = undefined;
       if (selectedImage) {
         const postUrl = await generateUploadUrl();
         const result = await fetch(postUrl, {
-          method: "POST",
-          headers: { "Content-Type": selectedImage.type },
+          method: 'POST',
+          headers: { 'Content-Type': selectedImage.type },
           body: selectedImage,
         });
-        const { storageId } = await result.json();
-        uploadedStorageId = storageId;
+        const { storageId: uploadedStorageId } = await result.json();
+        storageId = uploadedStorageId;
       }
 
-      // 2. Tạo máy chủ
       const result = await createServer({
         name: name.trim(),
         template: template,
-        iconStorageId: uploadedStorageId ? (uploadedStorageId as Id<"_storage">) : undefined,
+        iconStorageId: storageId,
       });
 
       if (result.success && result.serverId) {
-        setActiveServerId(result.serverId); // Tự động chọn server mới tạo
+        // 👇 RESET ĐÚNG LOGIC ĐỂ TRÁNH LỖI 👇
+        setActiveUniversityId('');
+        setActiveChannelId('');
+        setActiveServerId(result.serverId);
         onClose();
       } else {
-        alert(result.message || "Không thể tạo Server. Vui lòng kiểm tra lại giới hạn!");
+        alert(t('common.error') + ": " + result.message);
       }
     } catch (error: any) {
-      console.error("Lỗi tạo Server:", error);
-      alert(error.message || "Có lỗi xảy ra!");
+      alert(t('common.error') + ": " + error.message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white border border-green-100 rounded-3xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-        
-        <div className="flex items-center justify-between px-6 py-5 border-b border-green-100 bg-gradient-to-r from-green-50 to-emerald-50">
-          <h2 className="text-slate-800 font-bold text-xl">Tạo Máy Chủ Mới</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-white text-slate-500 transition-colors flex items-center justify-center">
-            ✕
-          </button>
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden">
+        <div className="text-center pt-8 px-6 pb-4">
+          <h2 className="text-2xl font-extrabold text-slate-800 mb-2">{t('server.create_title')}</h2>
+          <p className="text-slate-500 text-[15px]">{t('server.create_desc')}</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Avatar Của Server */}
-          <div className="flex flex-col items-center">
-            <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageSelect} />
-            <button 
-              type="button" 
-              onClick={() => fileInputRef.current?.click()}
-              className="w-24 h-24 rounded-full border-2 border-dashed border-green-300 flex items-center justify-center bg-green-50 hover:bg-green-100 overflow-hidden relative group transition-colors"
-            >
+        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-5">
+          <div className="flex flex-col items-center justify-center">
+            <div onClick={() => fileInputRef.current?.click()} className="relative w-20 h-20 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors group overflow-hidden">
               {imagePreview ? (
                 <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-3xl text-green-500">📸</span>
+                <div className="flex flex-col items-center text-gray-400 group-hover:text-[#5865F2]">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                </div>
               )}
-              <div className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center text-white text-xs font-bold">
-                Tải ảnh
-              </div>
-            </button>
-            <p className="text-xs text-gray-500 mt-2">Ảnh đại diện máy chủ</p>
+            </div>
+            <input type="file" ref={fileInputRef} onChange={handleImageSelect} accept="image/*" className="hidden" />
           </div>
 
-          {/* Tên Server */}
           <div>
-            <label className="text-slate-600 text-sm font-bold mb-2 block uppercase tracking-wider">
-              Tên Máy Chủ
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="VD: Hội anh em đam mê Code"
-              className="w-full bg-[#f2f3f5] border border-transparent rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-green-400 focus:bg-white transition-all text-sm"
-              required
-            />
+            <label className="block text-xs font-extrabold text-slate-500 uppercase mb-2">{t('server.server_name_label')}</label>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('server.default_name', { name: currentUser?.first_name || currentUser?.username || t('common.me') })} className="w-full bg-[#f2f3f5] border border-transparent rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-[#5865F2] focus:bg-white transition-all font-medium" autoFocus />
           </div>
 
-          {/* Chọn Template */}
           <div>
-            <label className="text-slate-600 text-sm font-bold mb-2 block uppercase tracking-wider">
-              Mẫu Cộng Đồng
-            </label>
-            <select
-              value={template}
-              onChange={(e) => setTemplate(e.target.value)}
-              className="w-full bg-[#f2f3f5] border border-transparent rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-green-400 focus:bg-white transition-all text-sm"
-            >
-              <option value="Bạn bè">💗 Dành cho bạn bè</option>
-              <option value="Gaming">🎮 Câu lạc bộ Gaming</option>
-              <option value="Nhóm Học Tập">📚 Nhóm Học Tập</option>
-              <option value="Custom">🌍 Cộng đồng khác</option>
+            <label className="block text-xs font-extrabold text-slate-500 uppercase mb-2">{t('server.start_from_template')}</label>
+            <select value={template} onChange={(e) => setTemplate(e.target.value)} className="w-full bg-[#f2f3f5] border border-transparent rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-[#5865F2] focus:bg-white transition-all text-sm font-medium">
+              {TEMPLATES.map(tmp => <option key={tmp.id} value={tmp.id}>{tmp.icon} {tmp.label}</option>)}
             </select>
-            <p className="text-xs text-gray-500 mt-2">Mẫu này sẽ tạo sẵn các danh mục và kênh phù hợp.</p>
           </div>
 
-          {/* Nút Hành Động */}
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-3 rounded-xl border border-gray-200 text-slate-600 hover:bg-gray-50 transition-colors text-sm font-bold"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={!name.trim() || isSubmitting}
-              className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-500 disabled:bg-green-300 text-white font-bold transition-colors text-sm shadow-sm"
-            >
-              {isSubmitting ? "Đang tạo..." : "Tạo Máy Chủ"}
+          <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl hover:underline text-slate-600 transition-colors text-sm font-bold">{t('common.cancel')}</button>
+            <button type="submit" disabled={!name.trim() || isSubmitting} className="flex-1 py-3 rounded-xl bg-[#5865F2] hover:bg-[#4752C4] disabled:bg-indigo-300 text-white transition-colors text-sm font-bold shadow-sm">
+              {isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto"></div> : t('server.create_btn')}
             </button>
           </div>
         </form>
