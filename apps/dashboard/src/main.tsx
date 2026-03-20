@@ -16,11 +16,13 @@ if (!PUBLISHABLE_KEY) {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ClerkProvider 
-      publishableKey={PUBLISHABLE_KEY}
-      domain="newyas.com" 
-      isSatellite={false}
-      signInUrl="https://dashboard.newyas.com/sign-in"
-    >
+  publishableKey={PUBLISHABLE_KEY}
+  // 🚨 Đổi thành false vì bây giờ nó đã chung một nhà (origin) với KonKet rồi
+  isSatellite={false} 
+  // 🚨 Bắt buộc phải có cái này nếu bạn dùng Custom Domain cho Clerk
+  domain="newyas.com"
+  signInUrl="https://konket.newyas.com"
+>
       <ConvexProvider client={convex}>
         <App />
       </ConvexProvider>
