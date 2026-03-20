@@ -20,7 +20,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+    <ClerkProvider 
+      publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      domain="newyas.com"
+      isSatellite={true}
+      // Vì bạn dùng Modal đăng nhập (AuthModal) ngay trên trang, 
+      // nên signInUrl cứ trỏ thẳng về trang chủ của web là an toàn nhất với TypeScript
+      signInUrl="https://konket.newyas.com" 
+    >
       <html lang="vi">
         <body className={inter.className}>
           <ConvexClientProvider>
