@@ -18,6 +18,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     {/* Cập nhật ClerkProvider với domain chính của bạn */}
     <ClerkProvider 
       publishableKey={PUBLISHABLE_KEY}
+      domain="newyas.com"
+      isSatellite={true}
     >
       <ConvexProvider client={convex}>
         <App />
