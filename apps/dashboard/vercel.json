@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/dashboard/:path*",
+      "destination": "https://dashboard-cua-ban.vercel.app/:path*"
+    }
+  ]
+}
