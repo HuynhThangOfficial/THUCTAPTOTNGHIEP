@@ -40,8 +40,7 @@ export default function Thread({ thread }: Props) {
 
   // PHÂN QUYỀN
   const isOwner = currentUser?._id === thread.userId;
-  const amIAdmin = currentServer && (currentServer.creatorId === currentUser?._id || currentServer.adminIds?.includes(currentUser?._id));
-
+  const amIAdmin = currentServer && currentUser?._id && (currentServer.creatorId === currentUser._id || currentServer.adminIds?.includes(currentUser._id));
   const likeThread = useMutation(api.messages.likeThread);
   const addThread = useMutation(api.messages.addThread);
   const toggleRepost = useMutation(api.messages.toggleRepost);
