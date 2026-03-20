@@ -58,6 +58,7 @@ export const createUser = internalMutation({
   },
 });
 
+// 1. HÀM DÀNH CHO CLIENT (Giữ nguyên của bạn để không lỗi Edit Profile)
 export const updateUser = mutation({
   args: {
     _id: v.id('users'),
@@ -70,9 +71,40 @@ export const updateUser = mutation({
     pushToken: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await getCurrentUserOrThrow(ctx);
+    await getCurrentUserOrThrow(ctx); // Check quyền người dùng
     const { _id, ...rest } = args;
     return await ctx.db.patch(_id, rest);
+  },
+});
+
+// 2. HÀM MỚI DÀNH RIÊNG CHO WEBHOOK (Để đồng bộ dữ liệu ngầm từ Clerk)
+export const updateUserFromClerk = internalMutation({
+  args: {
+    clerkId: v.string(),
+    first_name: v.optional(v.string()),
+    last_name: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
+    username: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Webhook chỉ có clerkId, nên phải tìm user theo clerkId
+    const user = await ctx.db
+      .query("users")
+      .withIndex("byClerkId", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
+
+    if (!user) {
+      console.error("Không tìm thấy user để update:", args.clerkId);
+      return;
+    }
+
+    // Cập nhật thông tin mới nhất từ Clerk vào Database
+    await ctx.db.patch(user._id, {
+      first_name: args.first_name,
+      last_name: args.last_name,
+      imageUrl: args.imageUrl,
+      username: args.username,
+    });
   },
 });
 

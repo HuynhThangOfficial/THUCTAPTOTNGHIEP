@@ -10,8 +10,8 @@ import { ClerkProvider } from '@clerk/nextjs';
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Mạng Xã Hội",
-  description: "Mạng xã hội học đường",
+  title: "KonKet",
+  description: "Mạng xã hội đa kênh",
 };
 
 export default function RootLayout({

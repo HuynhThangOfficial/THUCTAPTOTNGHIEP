@@ -538,7 +538,8 @@ export const deleteServer = mutation({
 
 export const createChannel = mutation({
   args: {
-    serverId: v.id('servers'),
+    serverId: v.optional(v.id('servers')),       // Cho phép trống nếu tạo trong University
+    universityId: v.optional(v.id('universities')), // Hỗ trợ thêm ID Trường học
     name: v.string(),
     type: v.string(),
     parentId: v.optional(v.id('channels')),
@@ -550,15 +551,33 @@ export const createChannel = mutation({
     const user = await ctx.db.query("users").withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject)).unique();
     if (!user) throw new Error("USER_NOT_FOUND");
 
-    const server = await ctx.db.get(args.serverId);
-    if (!server || server.creatorId !== user._id) {
-      throw new Error("ONLY_OWNER_CAN_CREATE_CHANNEL");
+    // LẤY ID CỦA KHÔNG GIAN HIỆN TẠI (Server hoặc University)
+    const targetId = args.serverId || args.universityId;
+    if (!targetId) throw new Error("MISSING_WORKSPACE_ID");
+
+    // KIỂM TRA QUYỀN TRUY CẬP (Nếu là Server thì phải là Owner mới được tạo)
+    if (args.serverId) {
+      const server = await ctx.db.get(args.serverId);
+      if (!server || server.creatorId !== user._id) {
+        throw new Error("ONLY_OWNER_CAN_CREATE_CHANNEL");
+      }
+    } 
+    // (Bổ sung thêm: Nếu có logic check Admin của University thì viết ở đây)
+    // else if (args.universityId) { ... }
+
+    // TÌM CÁC KÊNH ĐANG TỒN TẠI TRONG KHÔNG GIAN NÀY
+    let existing: any[] = [];
+    if (args.serverId) {
+      existing = await ctx.db.query('channels')
+        .withIndex('by_server', q => q.eq('serverId', args.serverId as Id<"servers">))
+        .collect();
+    } else if (args.universityId) {
+      existing = await ctx.db.query('channels')
+        .withIndex('by_university', q => q.eq('universityId', args.universityId as Id<"universities">))
+        .collect();
     }
 
-    const existing = await ctx.db.query('channels')
-      .withIndex('by_server', q => q.eq('serverId', args.serverId))
-      .collect();
-
+    // TÍNH TOÁN THỨ TỰ SẮP XẾP (SORT ORDER)
     let newOrder = 0;
     if (args.type === 'category') {
         const categories = existing.filter(c => c.type === 'category');
@@ -568,14 +587,17 @@ export const createChannel = mutation({
         newOrder = siblings.length > 0 ? Math.max(...siblings.map(c => c.sortOrder)) + 1 : 0;
     }
 
+    // CHUẨN HÓA TÊN (Kênh thì in thường có gạch nối, Danh mục thì in hoa)
     const formattedName = args.type === 'channel'
       ? args.name.toLowerCase().replace(/ /g, '-')
       : args.name.toUpperCase();
 
+    // INSERT VÀO DATABASE
     const newChannelId = await ctx.db.insert('channels', {
       name: formattedName,
       type: args.type,
       serverId: args.serverId,
+      universityId: args.universityId, // Lưu id trường học (nếu có)
       parentId: args.parentId,
       sortOrder: newOrder,
       isAnonymous: args.isAnonymous || false

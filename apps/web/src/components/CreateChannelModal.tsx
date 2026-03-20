@@ -6,17 +6,22 @@ import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { useTranslation } from 'react-i18next';
 import { X, Hash, FolderPlus } from 'lucide-react';
+import { useApp } from '../context/AppContext'; // Nhúng AppContext vào để lấy vị trí hiện tại
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  serverId: string;
+  serverId?: string; // Chuyển thành tùy chọn để tương thích ngược
   type: 'channel' | 'category';
   parentId?: string;
 }
 
-export default function CreateChannelModal({ isOpen, onClose, serverId, type, parentId }: Props) {
+export default function CreateChannelModal({ isOpen, onClose, type, parentId }: Props) {
   const { t } = useTranslation();
+  
+  // LẤY VỊ TRÍ ĐỘNG TỪ BỘ NÃO (APP CONTEXT)
+  const { activeServerId, activeUniversityId } = useApp() as any;
+
   const [name, setName] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,13 +48,22 @@ export default function CreateChannelModal({ isOpen, onClose, serverId, type, pa
          finalName = finalName.toLowerCase().replace(/\s+/g, '-');
       }
 
-      // 👇 FIX LỖI: Tạo Payload động để loại bỏ hoàn toàn các trường undefined
-      // Điều này giúp Convex Web không bị báo lỗi "dư trường dữ liệu" khi tạo Category
+      // TẠO PAYLOAD LINH HOẠT
       const payload: any = {
-        serverId: serverId as Id<"servers">,
         name: finalName,
         type: type,
       };
+
+      // Tự động nhận diện: Đang ở Trường học hay Máy chủ cá nhân để gắn đúng ID
+      if (activeUniversityId) {
+        payload.universityId = activeUniversityId as Id<"universities">;
+      } else if (activeServerId) {
+        payload.serverId = activeServerId as Id<"servers">;
+      } else {
+        alert("Lỗi: Không xác định được không gian làm việc hiện tại!");
+        setIsSubmitting(false);
+        return;
+      }
 
       // Chỉ gửi parentId nếu thực sự có
       if (parentId) {
@@ -62,7 +76,7 @@ export default function CreateChannelModal({ isOpen, onClose, serverId, type, pa
       }
 
       await createChannel(payload);
-      onClose();
+      onClose(); // Thành công thì đóng Modal
     } catch (error: any) {
       console.error(error);
       alert(t('common.error') + ": " + error.message);
@@ -72,8 +86,8 @@ export default function CreateChannelModal({ isOpen, onClose, serverId, type, pa
   };
 
   const title = type === 'category'
-    ? t('channel.create_title', { type: t('common.category') })
-    : t('channel.create_title', { type: t('common.channel') });
+    ? t('channel.create_title', { type: t('common.category'), defaultValue: 'Tạo danh mục mới' })
+    : t('channel.create_title', { type: t('common.channel'), defaultValue: 'Tạo kênh mới' });
 
   const placeholder = type === 'category'
     ? t('channel.placeholder_category', { defaultValue: 'Tên danh mục mới' })
@@ -98,7 +112,7 @@ export default function CreateChannelModal({ isOpen, onClose, serverId, type, pa
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
           <div>
             <label className="block text-[12px] font-extrabold text-gray-500 uppercase tracking-wider mb-2">
-              {type === 'category' ? t('common.category') : t('common.channel')} TÊN
+              {type === 'category' ? t('common.category', {defaultValue: 'Danh mục'}) : t('common.channel', {defaultValue: 'Kênh'})} TÊN
             </label>
             <div className="relative">
               {type === 'channel' && <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />}
@@ -117,8 +131,8 @@ export default function CreateChannelModal({ isOpen, onClose, serverId, type, pa
           {type === 'channel' && (
             <div className="flex items-center justify-between bg-gray-50 p-3.5 rounded-xl border border-gray-100">
               <div>
-                <div className="font-bold text-[14px] text-gray-800">{t('channel.confession_title')}</div>
-                <div className="text-[12px] text-gray-500 mt-0.5">{t('channel.confession_desc')}</div>
+                <div className="font-bold text-[14px] text-gray-800">{t('channel.confession_title', {defaultValue: 'Kênh ẩn danh'})}</div>
+                <div className="text-[12px] text-gray-500 mt-0.5">{t('channel.confession_desc', {defaultValue: 'Bất kỳ ai cũng có thể đăng ẩn danh'})}</div>
               </div>
               <button
                 type="button"
@@ -133,10 +147,10 @@ export default function CreateChannelModal({ isOpen, onClose, serverId, type, pa
           {/* FOOTER BUTTONS */}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl hover:bg-gray-100 text-gray-600 transition-colors text-[14px] font-bold">
-              {t('common.cancel')}
+              {t('common.cancel', {defaultValue: 'Hủy'})}
             </button>
             <button type="submit" disabled={!name.trim() || isSubmitting} className="flex-1 py-2.5 rounded-xl bg-[#5865F2] hover:bg-[#4752C4] disabled:bg-indigo-300 text-white transition-colors text-[14px] font-bold shadow-sm">
-              {isSubmitting ? '...' : t('channel.create_btn')}
+              {isSubmitting ? '...' : t('channel.create_btn', {defaultValue: 'Tạo'})}
             </button>
           </div>
         </form>

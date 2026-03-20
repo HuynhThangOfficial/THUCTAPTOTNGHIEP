@@ -1,5 +1,5 @@
 "use client";
-
+import { useUser } from '@clerk/nextjs';
 import { useState, useEffect } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
@@ -20,7 +20,10 @@ const WorkspaceIcon = ({ icon, name }: { icon?: string; name: string }) => {
 };
 
 export default function ServerSidebar() {
-  // GIẢ ĐỊNH: Context của bạn đã được cập nhật thêm activeUniversityId
+  // 1. LẤY TRẠNG THÁI ĐĂNG NHẬP TỪ CLERK
+  const { isLoaded, isSignedIn } = useUser();
+
+  // 2. LẤY CÁC HÀM TỪ CONTEXT (Đã bổ sung setShowAuthModal)
   const { 
     activeServerId, 
     setActiveServerId, 
@@ -28,23 +31,24 @@ export default function ServerSidebar() {
     setActiveUniversityId, 
     setActiveChannelId,
     pinnedServers,
-    togglePinServer
-  } = useApp();
+    togglePinServer,
+    setShowAuthModal // 👈 Bổ sung hàm này
+  } = useApp() as any;
 
   const [showCreate, setShowCreate] = useState(false);
 
-  // 1. FETCH DỮ LIỆU TỪ CONVEX
+  // 3. FETCH DỮ LIỆU TỪ CONVEX
   const universities = useQuery(api.university.getUniversities);
   const myServers = useQuery(api.university.getMyServers);
 
-  // 2. LOGIC TỰ ĐỘNG CHỌN WORKSPACE MẶC ĐỊNH
+  // 4. LOGIC TỰ ĐỘNG CHỌN WORKSPACE MẶC ĐỊNH
   useEffect(() => {
     if (universities && universities.length > 0 && !activeUniversityId && !activeServerId) {
        setActiveUniversityId(universities[0]._id);
     }
   }, [universities, activeUniversityId, activeServerId, setActiveUniversityId]);
 
-  // 3. LOGIC CHUYỂN ĐỔI WORKSPACE
+  // 5. LOGIC CHUYỂN ĐỔI WORKSPACE
   const switchToUniversity = (id: string) => {
     if (id === activeUniversityId) return;
     setActiveServerId('');
@@ -59,13 +63,13 @@ export default function ServerSidebar() {
     setActiveChannelId('');
   };
 
-  // 4. LOGIC GHIM SERVER (Click chuột phải)
+  // 6. LOGIC GHIM SERVER (Click chuột phải)
   const handleContextMenu = (e: React.MouseEvent, serverId: string) => {
       e.preventDefault();
       togglePinServer(serverId);
   };
 
-  // 5. SẮP XẾP SERVER (Ghim lên đầu)
+  // 7. SẮP XẾP SERVER (Ghim lên đầu)
   const sortedServers = myServers ? [...myServers].sort((a, b) => {
     const aPinned = pinnedServers.includes(a._id);
     const bPinned = pinnedServers.includes(b._id);
@@ -168,7 +172,17 @@ export default function ServerSidebar() {
 
         {/* NÚT TẠO SERVER MỚI */}
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={() => {
+            // 👇 CHẶN NẾU CHƯA ĐĂNG NHẬP 👇
+            if (isLoaded && !isSignedIn) {
+              if (typeof setShowAuthModal === 'function') {
+                setShowAuthModal(true);
+              }
+            } else {
+              // Nếu đã đăng nhập thì cho phép tạo server
+              setShowCreate(true);
+            }
+          }}
           className="w-12 h-12 rounded-[24px] bg-white border border-dashed border-green-400 hover:border-green-600 hover:bg-green-50 text-green-600 text-2xl flex items-center justify-center shadow-sm transition-all hover:rounded-[16px]"
           title="Thêm server"
         >

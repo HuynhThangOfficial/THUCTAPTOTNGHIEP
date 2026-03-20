@@ -172,9 +172,14 @@ export default function AuthModal() {
           </button>
 
           <div className="text-center mb-6">
-            <h1 className="text-[22px] font-black tracking-widest text-slate-800 mb-4">H O Y O V E R S E</h1>
-            <h2 className="text-xl font-bold text-gray-900">{mode === 'login' ? t('login.login_button') : t('login.register_now')}</h2>
-          </div>
+  {/* Đã thay bằng Logo KonKet */}
+  <img 
+    src="/konket-logo-green.png" 
+    alt="KonKet Logo" 
+    className="h-15 mx-auto mb-0 object-contain" 
+  />
+  <h2 className="text-xl font-bold text-gray-900">{mode === 'login' ? t('login.login_button') : t('login.register_now')}</h2>
+</div>
 
           {errorMsg && <div className="text-red-500 text-[13px] text-center mb-4 font-medium px-2">{errorMsg}</div>}
 

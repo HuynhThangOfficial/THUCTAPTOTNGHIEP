@@ -2,7 +2,8 @@
 
 import ServerSidebar from "@/components/ServerSidebar";
 import ChannelSidebar from "@/components/ChannelSidebar";
-import MembersSidebar from "@/components/MembersSidebar";
+// Đã thay thế MembersSidebar bằng NavigationDrawer mới
+import NavigationDrawer from "@/components/NavigationDrawer"; 
 import { AppProvider } from "@/context/AppContext";
 
 // 1. IMPORT ĐẦY ĐỦ CÁC THÀNH PHẦN MODAL VÀ NÚT
@@ -35,8 +36,8 @@ export default function MainLayout({
           {children}
         </main>
 
-        {/* Cột 4: Danh sách thành viên (Phải cùng) */}
-        <MembersSidebar />
+        {/* Cột 4: THANH DRAWER MỚI (Phải cùng) - Sẽ xổ panel ra khi bấm */}
+        <NavigationDrawer />
 
         {/* =========================================
             CÁC LỚP PHỦ TOÀN CỤC (MODALS & BUTTONS)
