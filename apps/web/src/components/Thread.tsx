@@ -44,7 +44,7 @@ export default function Thread({ thread }: Props) {
   const likeThread = useMutation(api.messages.likeThread);
   const addThread = useMutation(api.messages.addThread);
   const toggleRepost = useMutation(api.messages.toggleRepost);
-  const deleteMessage = useMutation((api as any).messages.deleteMessage);
+  const deleteMessage = useMutation((api as any).messages.deleteThread);
   const createReport = useMutation((api as any).messages.createReport);
   const updateThread = useMutation((api as any).messages.updateThread);
 

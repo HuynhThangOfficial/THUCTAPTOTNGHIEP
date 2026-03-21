@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, ScrollView, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { api } from '@/convex/_generated/api';
 import { useQuery, useMutation } from 'convex/react';
@@ -8,23 +8,32 @@ import { Colors } from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useChannel } from '@/context/ChannelContext';
 import Thread from '@/components/Thread';
-import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
+import { useTranslation } from 'react-i18next';
 
 export default function SearchScreen() {
-  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
+  const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('users');
   const router = useRouter();
 
-  const { activeChannelId, activeServerId, setActiveServerId, setActiveUniversityId, setActiveChannelId } = useChannel();
+  const { activeChannelId, activeServerId, activeUniversityId, setActiveServerId, setActiveUniversityId, setActiveChannelId } = useChannel();
   const joinServerMutation = useMutation(api.university.joinServer);
 
+  // Lấy dữ liệu API (Thêm || [] ở hàm getListData để không bị crash khi data undefined)
   const userList = useQuery(api.users.searchUsers, search === '' ? 'skip' : { search });
   const serverList = useQuery(api.university.searchServers, search === '' ? 'skip' : { search });
   const channelPostList = useQuery(api.messages.searchMessages, (search === '' || !activeChannelId) ? 'skip' : { search, channelId: activeChannelId });
-  const serverPostList = useQuery(api.messages.searchMessages, (search === '' || !activeServerId) ? 'skip' : { search, serverId: activeServerId });
 
-  // Định nghĩa mảng TABS bên trong component để lấy được hàm t()
+  // Tích hợp cho cả Server và University (Cộng đồng)
+  const targetWorkspaceId = activeServerId || activeUniversityId;
+  const serverPostList = useQuery(
+    api.messages.searchMessages,
+    (search === '' || !targetWorkspaceId) ? 'skip' : {
+      search,
+      ...(activeServerId ? { serverId: activeServerId } : { universityId: activeUniversityId })
+    }
+  );
+
   const SEARCH_TABS = [
     { id: 'users', label: t('search.tab_users') },
     { id: 'servers', label: t('search.tab_servers') },
@@ -32,52 +41,51 @@ export default function SearchScreen() {
     { id: 'server_posts', label: t('search.tab_server_posts') },
   ];
 
-  // 1. Hàm Xử lý khi nhấn nút TẠO THÀNH VIÊN MỚI (THAM GIA)
+  // 1. Hàm Xử lý khi nhấn nút THAM GIA
   const handleJoinServer = async (server: any) => {
-      try {
-        await joinServerMutation({ serverId: server._id });
-        router.back();
+    try {
+      await joinServerMutation({ serverId: server._id });
 
-        setTimeout(() => {
-          setActiveServerId(server._id);
-          setActiveUniversityId(null as any);
-          setActiveChannelId(null as any);
-        }, 100);
-
-      } catch (error: any) {
-        Alert.alert(t('search.error', 'Lỗi'), error.message);
+      // Auto chuyển vào Server sau khi tham gia thành công
+      setActiveUniversityId(null as any);
+      setActiveServerId(server._id);
+      setActiveChannelId(null as any); // Để Auto-focus đại sảnh
+      router.back();
+    } catch (error: any) {
+      if (error.message.includes("SERVER_LIMIT_REACHED")) {
+        Alert.alert(t('common.error'), t('server_errors.server_limit_reached'));
+      } else {
+        Alert.alert(t('common.error'), error.message);
       }
-    };
+    }
+  };
 
-  // 2. Hàm Xử lý khi nhấn vào tên Server ĐÃ THAM GIA RỒI
+  // 2. Hàm Xử lý khi nhấn vào Server ĐÃ THAM GIA RỒI
   const handleGoToServer = (server: any) => {
-    setActiveServerId(server._id);
     setActiveUniversityId(null as any);
+    setActiveServerId(server._id);
     setActiveChannelId(null as any);
     router.back();
   };
 
   const renderServerItem = ({ item }: { item: any }) => (
     <View style={styles.resultItem}>
-
-      {/* PHẦN BÊN TRÁI: ẢNH VÀ TÊN */}
       <TouchableOpacity
         style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
         activeOpacity={item.isJoined ? 0.2 : 1}
         onPress={() => {
           if (item.isJoined) {
-            handleGoToServer(item); 
+            handleGoToServer(item);
           }
         }}
       >
-        <Image source={{ uri: item.icon || 'https://via.placeholder.com/50' }} style={styles.serverAvatar} />
+        <Image source={{ uri: item.icon || 'https://ui-avatars.com/api/?name=S' }} style={styles.serverAvatar} />
         <View style={{ flex: 1 }}>
           <Text style={styles.resultName}>{item.name}</Text>
-          <Text style={styles.resultSub}>{t('search.server')}</Text>
+          <Text style={styles.resultSub}>{item.memberIds?.length || 0} {t('common.member')}</Text>
         </View>
       </TouchableOpacity>
 
-      {/* PHẦN BÊN PHẢI: NÚT HOẶC TRẠNG THÁI */}
       {item.isJoined ? (
          <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 10 }}>
             <Ionicons name="checkmark-circle" size={16} color="#2e8b57" />
@@ -96,15 +104,21 @@ export default function SearchScreen() {
 
   const getListData = () => {
     switch (activeTab) {
-      case 'users': return userList;
-      case 'servers': return serverList;
-      case 'channel_posts': return channelPostList;
-      case 'server_posts': return serverPostList;
+      case 'users': return userList || [];
+      case 'servers': return serverList || [];
+      case 'channel_posts': return channelPostList || [];
+      case 'server_posts': return serverPostList || [];
       default: return [];
     }
   };
 
-  const currentTabLabel = SEARCH_TABS.find(t => t.id === activeTab)?.label.toLowerCase() || '';
+  // Kiểm tra trạng thái đang tải dữ liệu để show Indicator cho đẹp
+  const isLoading = search !== '' && (
+    (activeTab === 'users' && userList === undefined) ||
+    (activeTab === 'servers' && serverList === undefined) ||
+    (activeTab === 'channel_posts' && channelPostList === undefined && activeChannelId) ||
+    (activeTab === 'server_posts' && serverPostList === undefined && targetWorkspaceId)
+  );
 
   return (
     <View style={styles.container}>
@@ -115,8 +129,8 @@ export default function SearchScreen() {
               <View style={styles.searchBarContainer}>
                 <TextInput
                   style={styles.searchInput}
-                  // Truyền biến label vào thay vì dùng replace() cứng ngắc như cũ
-                  placeholder={t('search.search_placeholder', { label: currentTabLabel.replace(t('search.tab_users').split(' ')[0].toLowerCase(), '').trim() })}
+                  // Dùng từ khóa chung có sẵn trong file JSON của bạn
+                  placeholder={t('follow_list.search_placeholder')}
                   value={search}
                   onChangeText={setSearch}
                   autoFocus={true}
@@ -151,26 +165,37 @@ export default function SearchScreen() {
         </ScrollView>
       </View>
 
-      <FlatList
-        data={getListData()}
-        keyExtractor={(item: any) => item._id}
-        ItemSeparatorComponent={() => <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: Colors.border }} />}
-        ListEmptyComponent={() => {
-          if (activeTab === 'channel_posts' && !activeChannelId) return <Text style={styles.emptyText}>{t('search.empty_channel_posts')}</Text>;
-          if (activeTab === 'server_posts' && !activeServerId) return <Text style={styles.emptyText}>{t('search.empty_server_posts')}</Text>;
-          return (
-            <Text style={styles.emptyText}>
-              {search === '' ? t('search.empty_prompt', { label: currentTabLabel }) : t('search.no_results')}
-            </Text>
-          );
-        }}
-        renderItem={(props) => {
-          if (activeTab === 'users') return <ProfileSearchResult key={props.item._id} user={props.item} />;
-          if (activeTab === 'servers') return renderServerItem(props);
-          if (activeTab === 'channel_posts' || activeTab === 'server_posts') return <Thread thread={props.item} />;
-          return null;
-        }}
-      />
+      {isLoading ? (
+         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#5865F2" />
+         </View>
+      ) : (
+        <FlatList
+          data={getListData()}
+          keyExtractor={(item: any) => item._id}
+          ItemSeparatorComponent={() => <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: Colors.border }} />}
+          ListEmptyComponent={() => {
+            // Khi chưa nhập gì thì hiển thị Icon kính lúp nhắc nhở
+            if (search === '') {
+               return (
+                 <View style={{ alignItems: 'center', marginTop: 50 }}>
+                   <Ionicons name="search" size={48} color="#d1d5db" style={{ marginBottom: 10 }} />
+                   <Text style={styles.emptyText}>{t('follow_list.search_placeholder')}</Text>
+                 </View>
+               );
+            }
+            if (activeTab === 'channel_posts' && !activeChannelId) return <Text style={styles.emptyText}>{t('search.empty_channel_posts')}</Text>;
+            if (activeTab === 'server_posts' && !targetWorkspaceId) return <Text style={styles.emptyText}>{t('search.empty_server_posts')}</Text>;
+            return <Text style={styles.emptyText}>{t('search.no_results')}</Text>;
+          }}
+          renderItem={(props) => {
+            if (activeTab === 'users') return <ProfileSearchResult key={props.item._id} user={props.item} />;
+            if (activeTab === 'servers') return renderServerItem(props);
+            if (activeTab === 'channel_posts' || activeTab === 'server_posts') return <Thread thread={props.item} />;
+            return null;
+          }}
+        />
+      )}
     </View>
   );
 }

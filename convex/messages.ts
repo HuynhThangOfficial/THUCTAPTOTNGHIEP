@@ -740,7 +740,8 @@ export const searchMessages = query({
   args: {
     search: v.string(),
     channelId: v.optional(v.id("channels")),
-    serverId: v.optional(v.id("servers"))
+    serverId: v.optional(v.id("servers")),
+    universityId: v.optional(v.id("universities")) // 👇 Thêm trường này
   },
   handler: async (ctx, args) => {
     let messages: Doc<"messages">[] = [];
@@ -748,14 +749,21 @@ export const searchMessages = query({
 
     if (args.channelId) {
       messages = await ctx.db.query("messages")
-        .withIndex("by_channel", q => q.eq("channelId", args.channelId))
+        .withIndex("by_channel", q => q.eq("channelId", args.channelId!))
         .collect();
     } else if (args.serverId) {
       const channels = await ctx.db.query("channels")
-        .withIndex("by_server", q => q.eq("serverId", args.serverId))
+        .withIndex("by_server", q => q.eq("serverId", args.serverId!))
         .collect();
       const channelIds = channels.map(c => c._id);
-
+      const allMessages = await ctx.db.query("messages").collect();
+      messages = allMessages.filter(m => channelIds.includes(m.channelId as Id<"channels">));
+    } else if (args.universityId) {
+      // 👇 THÊM LOGIC LẤY BÀI ĐĂNG TỪ CỘNG ĐỒNG/TRƯỜNG HỌC 👇
+      const channels = await ctx.db.query("channels")
+        .withIndex("by_university", q => q.eq("universityId", args.universityId!))
+        .collect();
+      const channelIds = channels.map(c => c._id);
       const allMessages = await ctx.db.query("messages").collect();
       messages = allMessages.filter(m => channelIds.includes(m.channelId as Id<"channels">));
     }
