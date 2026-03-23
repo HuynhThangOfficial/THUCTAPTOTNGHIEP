@@ -1,18 +1,16 @@
-import { v, ConvexError } from 'convex/values'; // 👈 THÊM ConvexError VÀO ĐÂY
+import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { internal } from './_generated/api';
-import { isHttpUrl } from './utils';
+import { isHttpUrl } from './utils'; // 👇 IMPORT HÀM BEST PRACTICE VÀO ĐÂY
 
 // 1. Tạo hoặc lấy cuộc trò chuyện giữa 2 người
 export const getOrCreateConversation = mutation({
   args: { otherUserId: v.id('users') },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    // 👇 THAY BẰNG ConvexError ĐỂ KHÔNG BỊ SỤP WEB 👇
-    if (!identity) throw new ConvexError("UNAUTHORIZED"); 
-    
+    if (!identity) throw new Error("UNAUTHORIZED");
     const currentUser = await ctx.db.query("users").withIndex("byClerkId", q => q.eq("clerkId", identity.subject)).unique();
-    if (!currentUser) throw new ConvexError("USER_NOT_FOUND");
+    if (!currentUser) throw new Error("USER_NOT_FOUND");
 
     const allConversations = await ctx.db.query('conversations').collect();
     const existing = allConversations.find(c =>
@@ -40,7 +38,7 @@ export const sendMessage = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new ConvexError("UNAUTHORIZED");
+    if (!identity) throw new Error("UNAUTHORIZED");
     const currentUser = await ctx.db.query("users").withIndex("byClerkId", q => q.eq("clerkId", identity.subject)).unique();
 
     const messageId = await ctx.db.insert('direct_messages', {
@@ -78,7 +76,7 @@ export const toggleReaction = mutation({
   args: { messageId: v.id('direct_messages'), emoji: v.string() },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new ConvexError("UNAUTHORIZED");
+    if (!identity) throw new Error("UNAUTHORIZED");
     const currentUser = await ctx.db.query("users").withIndex("byClerkId", q => q.eq("clerkId", identity.subject)).unique();
     const msg = await ctx.db.get(args.messageId);
     if (!msg) return;
@@ -94,7 +92,7 @@ export const unsendMessage = mutation({
   args: { messageId: v.id('direct_messages') },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new ConvexError("UNAUTHORIZED");
+    if (!identity) throw new Error("UNAUTHORIZED");
     // Xóa trắng text thay vì gán text tiếng Việt cứng vào DB
     await ctx.db.patch(args.messageId, { content: "", isDeleted: true });
   }
@@ -195,6 +193,7 @@ export const togglePinMessage = mutation({
     const newPinStatus = !msg.isPinned;
     await ctx.db.patch(args.messageId, { isPinned: newPinStatus });
     
+    // 👇 LƯU MÃ HỆ THỐNG THAY VÌ TIẾNG VIỆT CỨNG
     await ctx.db.insert('direct_messages', {
       conversationId: args.conversationId, senderId: user._id, status: 'read', isSystem: true,
       content: newPinStatus ? `SYS_PINNED|${user.first_name}` : `SYS_UNPINNED|${user.first_name}`,
