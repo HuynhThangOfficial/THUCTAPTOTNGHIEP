@@ -126,6 +126,7 @@ export const deleteThread = mutation({
   handler: async (ctx, args) => {
     const userId = await getCurrentUserId(ctx);
     if (!userId) throw new Error("Unauthorized");
+
     const message = await ctx.db.get(args.messageId);
     if (!message) throw new Error("Message not found");
 
@@ -140,6 +141,18 @@ export const deleteThread = mutation({
     // 👇 ĐỔI SANG MÃ LỖI CHUẨN
     if (!canDelete) throw new Error("FORBIDDEN_DELETE");
 
+    // 👇 LOGIC TRỪ COMMENT COUNT CHO BÀI GỐC KHI XÓA BÌNH LUẬN 👇
+    if (message.threadId) {
+      const parentThread = await ctx.db.get(message.threadId);
+      if (parentThread) {
+        await ctx.db.patch(parentThread._id, {
+          // Trừ đi 1, nhưng đảm bảo không bao giờ bị âm (Math.max với 0)
+          commentCount: Math.max(0, (parentThread.commentCount || 1) - 1)
+        });
+      }
+    }
+
+    // Tiến hành xóa
     await ctx.db.delete(args.messageId);
 
     const relatedLikes = await ctx.db.query('likes')

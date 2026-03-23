@@ -6,20 +6,18 @@ import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { useTranslation } from 'react-i18next';
 import { X, Hash, FolderPlus } from 'lucide-react';
-import { useApp } from '../context/AppContext'; // Nhúng AppContext vào để lấy vị trí hiện tại
+import { useApp } from '../context/AppContext';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  serverId?: string; // Chuyển thành tùy chọn để tương thích ngược
+  serverId?: string;
   type: 'channel' | 'category';
   parentId?: string;
 }
 
 export default function CreateChannelModal({ isOpen, onClose, type, parentId }: Props) {
   const { t } = useTranslation();
-  
-  // LẤY VỊ TRÍ ĐỘNG TỪ BỘ NÃO (APP CONTEXT)
   const { activeServerId, activeUniversityId } = useApp() as any;
 
   const [name, setName] = useState('');
@@ -48,35 +46,32 @@ export default function CreateChannelModal({ isOpen, onClose, type, parentId }: 
          finalName = finalName.toLowerCase().replace(/\s+/g, '-');
       }
 
-      // TẠO PAYLOAD LINH HOẠT
       const payload: any = {
         name: finalName,
         type: type,
       };
 
-      // Tự động nhận diện: Đang ở Trường học hay Máy chủ cá nhân để gắn đúng ID
       if (activeUniversityId) {
         payload.universityId = activeUniversityId as Id<"universities">;
       } else if (activeServerId) {
         payload.serverId = activeServerId as Id<"servers">;
       } else {
-        alert("Lỗi: Không xác định được không gian làm việc hiện tại!");
+        // 👇 Tận dụng key lỗi có sẵn trong JSON 👇
+        alert(t('common.error') + ": " + t('server_errors.server_not_found'));
         setIsSubmitting(false);
         return;
       }
 
-      // Chỉ gửi parentId nếu thực sự có
       if (parentId) {
         payload.parentId = parentId as Id<"channels">;
       }
 
-      // Chỉ gửi isAnonymous nếu đang tạo Kênh (Channel)
       if (type === 'channel') {
         payload.isAnonymous = isAnonymous;
       }
 
       await createChannel(payload);
-      onClose(); // Thành công thì đóng Modal
+      onClose();
     } catch (error: any) {
       console.error(error);
       alert(t('common.error') + ": " + error.message);
@@ -86,18 +81,17 @@ export default function CreateChannelModal({ isOpen, onClose, type, parentId }: 
   };
 
   const title = type === 'category'
-    ? t('channel.create_title', { type: t('common.category'), defaultValue: 'Tạo danh mục mới' })
-    : t('channel.create_title', { type: t('common.channel'), defaultValue: 'Tạo kênh mới' });
+    ? t('channel.create_title', { type: t('common.category') })
+    : t('channel.create_title', { type: t('common.channel') });
 
   const placeholder = type === 'category'
-    ? t('channel.placeholder_category', { defaultValue: 'Tên danh mục mới' })
-    : t('channel.placeholder_channel', { defaultValue: 'tên-kênh-mới' });
+    ? t('channel.placeholder_category')
+    : t('channel.placeholder_channel');
 
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={onClose}>
       <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
 
-        {/* HEADER */}
         <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white">
           <h2 className="text-[18px] font-extrabold text-gray-900 flex items-center gap-2">
             {type === 'category' ? <FolderPlus className="w-5 h-5 text-gray-500" /> : <Hash className="w-5 h-5 text-gray-500" />}
@@ -108,11 +102,11 @@ export default function CreateChannelModal({ isOpen, onClose, type, parentId }: 
           </button>
         </div>
 
-        {/* BODY FORM */}
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
           <div>
+            {/* 👇 Dùng thẳng tên Kênh/Danh mục, vừa gọn vừa chuẩn ngữ pháp đa ngôn ngữ 👇 */}
             <label className="block text-[12px] font-extrabold text-gray-500 uppercase tracking-wider mb-2">
-              {type === 'category' ? t('common.category', {defaultValue: 'Danh mục'}) : t('common.channel', {defaultValue: 'Kênh'})} TÊN
+              {type === 'category' ? t('common.category') : t('common.channel')}
             </label>
             <div className="relative">
               {type === 'channel' && <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />}
@@ -127,12 +121,11 @@ export default function CreateChannelModal({ isOpen, onClose, type, parentId }: 
             </div>
           </div>
 
-          {/* Công tắc Ẩn danh (Chỉ hiển thị khi tạo Kênh) */}
           {type === 'channel' && (
             <div className="flex items-center justify-between bg-gray-50 p-3.5 rounded-xl border border-gray-100">
               <div>
-                <div className="font-bold text-[14px] text-gray-800">{t('channel.confession_title', {defaultValue: 'Kênh ẩn danh'})}</div>
-                <div className="text-[12px] text-gray-500 mt-0.5">{t('channel.confession_desc', {defaultValue: 'Bất kỳ ai cũng có thể đăng ẩn danh'})}</div>
+                <div className="font-bold text-[14px] text-gray-800">{t('channel.confession_title')}</div>
+                <div className="text-[12px] text-gray-500 mt-0.5">{t('channel.confession_desc')}</div>
               </div>
               <button
                 type="button"
@@ -144,13 +137,12 @@ export default function CreateChannelModal({ isOpen, onClose, type, parentId }: 
             </div>
           )}
 
-          {/* FOOTER BUTTONS */}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl hover:bg-gray-100 text-gray-600 transition-colors text-[14px] font-bold">
-              {t('common.cancel', {defaultValue: 'Hủy'})}
+              {t('common.cancel')}
             </button>
             <button type="submit" disabled={!name.trim() || isSubmitting} className="flex-1 py-2.5 rounded-xl bg-[#5865F2] hover:bg-[#4752C4] disabled:bg-indigo-300 text-white transition-colors text-[14px] font-bold shadow-sm">
-              {isSubmitting ? '...' : t('channel.create_btn', {defaultValue: 'Tạo'})}
+              {isSubmitting ? '...' : t('channel.create_btn')}
             </button>
           </div>
         </form>
