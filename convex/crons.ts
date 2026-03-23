@@ -4,23 +4,20 @@ import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
-// ==========================================
-// 1. LỊCH ĐĂNG BÀI (AI BOT)
-// ==========================================
-// ☀️ Ban ngày: Ép xuống 6 phút/lần. (Kết hợp 25% tỷ lệ lười -> trung bình 1 tiếng sẽ có khoảng 6-7 bài mới).
+// ☀️ Ban ngày: Cứ mỗi 7 phút, Cron sẽ đẩy 1 yêu cầu đăng bài vào Hàng chờ (Queue).
+// Khi vào hàng chờ, nó sẽ bị delay ngẫu nhiên từ 30s đến 15 phút mới được hiện lên Web.
 crons.cron(
   "Post_BanNgay",
-  "*/6 0-16 * * *", 
-  (internal as any).ai_bot.generateRoleplayPost
+  "*/7 0-16 * * *", 
+  (internal as any).ai_bot.scheduleRoleplayPost // <--- SỬA THÀNH SCHEDULE
 );
 
-// 🌙 Cú đêm: 23 phút/lần. Khuya rồi nhưng lâu lâu vẫn có đứa trồi lên đăng confession xàm xí.
+// 🌙 Cú đêm: Mỗi 23 phút mới đẩy 1 yêu cầu vào hàng chờ.
 crons.cron(
   "Post_BanDem",
-  "*/21 17-23 * * *", 
-  (internal as any).ai_bot.generateRoleplayPost
+  "*/23 17-23 * * *", 
+  (internal as any).ai_bot.scheduleRoleplayPost // <--- SỬA THÀNH SCHEDULE
 );
-
 
 // ==========================================
 // 2. LỊCH BÌNH LUẬN DẠO (ENGAGEMENT BOT)

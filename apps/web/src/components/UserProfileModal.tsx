@@ -60,6 +60,7 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
   const followUser = useMutation(api.users.followUser);
   const unfollowUser = useMutation(api.users.unfollowUser);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
+  const getOrCreateConversation = useMutation(api.chat.getOrCreateConversation);
 
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'reposts' | 'likes'>('posts');
 
@@ -124,9 +125,29 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
     }
   };
 
-  const handleMessageClick = () => {
-    if (!isLoggedIn) return setShowAuthModal(true);
-    alert(t('composer.feature_in_development'));
+  const handleMessageClick = async () => {
+    // Kiểm tra đăng nhập ở client
+    if (!isLoggedIn || !user) {
+      onClose(); 
+      return setShowAuthModal(true);
+    }
+    if (!targetUserId) return;
+    
+    try {
+      // Gọi API Backend
+      const convId = await getOrCreateConversation({ otherUserId: targetUserId });
+      onClose();
+      router.push(`/chat/${convId}`);
+    } catch (error: any) {
+      console.error("Lỗi tạo cuộc trò chuyện:", error);
+      
+      // Bắt chính xác lỗi ConvexError có data là "UNAUTHORIZED"
+      if (error.data === "UNAUTHORIZED" || error.message?.includes("UNAUTHORIZED")) {
+        alert("Phiên đăng nhập đã hết hạn hoặc chưa đồng bộ. Vui lòng F5 lại trang!");
+      } else {
+        alert("Có lỗi xảy ra: " + (error.data || error.message));
+      }
+    }
   };
 
   // =======================================================

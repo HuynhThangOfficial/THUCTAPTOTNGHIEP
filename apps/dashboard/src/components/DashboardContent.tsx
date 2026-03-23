@@ -1,3 +1,9 @@
+"use client";
+
+import { useQuery } from "convex/react";
+// Đảm bảo đường dẫn import api chính xác với cấu trúc dự án của bạn
+import { api } from "../../../../convex/_generated/api";
+
 import {
   AlertTriangle,
   CheckCircle,
@@ -13,25 +19,92 @@ import {
 } from 'lucide-react';
 
 const DashboardContent = () => {
+  // GỌI DỮ LIỆU TỪ CONVEX SỬ DỤNG HÀM TỪ FILE admin.ts
+  // Truyền timeRange: 7 (7 ngày) làm ví dụ để lấy phân tích
+  const analyticsData = useQuery(api.admin.adminGetAnalytics, { timeRange: 7 });
+
+  // HIỆU ỨNG LOADING (SKELETON) TRONG LÚC CHỜ DỮ LIỆU
+  if (analyticsData === undefined) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 h-32">
+              <div className="w-12 h-12 bg-gray-200 rounded-xl mb-4" />
+              <div className="w-24 h-6 bg-gray-200 rounded-md mb-2" />
+              <div className="w-16 h-4 bg-gray-200 rounded-md" />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 h-96" />
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 h-96" />
+        </div>
+      </div>
+    );
+  }
+
+  // SAU KHI CÓ DỮ LIỆU: Ráp các con số từ Backend vào Cấu hình UI của Frontend
   const stats = [
-    { title: 'Tổng người dùng', value: '12,847', change: '+12.5%', trend: 'up', icon: Users, color: 'emerald' },
-    { title: 'Kênh đang hoạt động', value: '1,284', change: '+8.2%', trend: 'up', icon: Hash, color: 'blue' },
-    { title: 'Nội dung hôm nay', value: '342', change: '+24.3%', trend: 'up', icon: FileText, color: 'purple' },
-    { title: 'Báo cáo chờ xử lý', value: '23', change: '-5.1%', trend: 'down', icon: Shield, color: 'orange' },
+    { 
+      title: 'Tổng người dùng', 
+      value: analyticsData.totalUsers.toLocaleString(), 
+      change: `+${analyticsData.newUsers}`, 
+      trend: 'up', 
+      icon: Users, 
+      color: 'emerald' 
+    },
+    { 
+      title: 'Tổng Máy chủ/Trường', 
+      value: analyticsData.totalWorkspaces.toLocaleString(), 
+      change: `+${analyticsData.newWorkspaces}`, 
+      trend: 'up', 
+      icon: Hash, 
+      color: 'blue' 
+    },
+    { 
+      title: 'Tổng bài đăng gốc', 
+      value: analyticsData.totalPosts.toLocaleString(), 
+      change: `+${analyticsData.newPosts}`, 
+      trend: 'up', 
+      icon: FileText, 
+      color: 'purple' 
+    },
+    { 
+      title: 'Tỷ lệ giữ chân', 
+      value: `${analyticsData.retentionRate}%`, 
+      change: '---', 
+      trend: 'up', 
+      icon: Shield, 
+      color: 'orange' 
+    },
   ];
 
-  const chartData = [
-    { name: 'T2', users: 400, content: 240 },
-    { name: 'T3', users: 300, content: 139 },
-    { name: 'T4', users: 200, content: 980 },
-    { name: 'T5', users: 278, content: 390 },
-    { name: 'T6', users: 189, content: 480 },
-    { name: 'T7', users: 239, content: 380 },
-    { name: 'CN', users: 349, content: 430 },
+  const chartData = analyticsData.hourlyActivity.map((value: number, index: number) => ({
+      name: `${index}h`,
+      content: value,
+      users: Math.round(value * 0.8)
+  }));
+  
+  // Rút gọn chart data
+  const condensedChartData = chartData.filter((_: any, i: number) => i % 3 === 0);
+
+  // Hoạt động gần đây (Tạm thời giữ dữ liệu tĩnh, hoặc bạn có thể gọi thêm api.admin.adminGetAuditLogs nếu muốn)
+  const recentActivities = [
+    { id: 1, user: 'Hệ thống', action: 'đang hiển thị', target: 'Dữ liệu thời gian thực', time: 'Vừa xong', type: 'create' },
+    { id: 2, user: 'Admin', action: 'phân tích', target: 'Tỷ lệ giữ chân', time: 'Vừa xong', type: 'approve' },
   ];
+
+  // Map loại hành động từ DB sang Icon và Màu sắc tương ứng
+  const activityUIConfig: Record<string, { icon: any; color: string }> = {
+    create: { icon: Plus, color: 'emerald' },
+    approve: { icon: CheckCircle, color: 'blue' },
+    warn: { icon: AlertTriangle, color: 'orange' },
+    delete: { icon: Trash2, color: 'red' },
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
@@ -64,18 +137,18 @@ const DashboardContent = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Hoạt động người dùng</h3>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Hoạt động đăng bài theo giờ</h3>
           <div className="h-64 flex items-end justify-around gap-2">
-            {chartData.map((data, index) => (
+            {condensedChartData.map((data: any, index: number) => (
               <div key={index} className="flex flex-col items-center gap-2 flex-1">
                 <div className="w-full flex flex-col items-center gap-1">
                   <div
                     className="w-full max-w-8 bg-gradient-to-t from-emerald-500 to-emerald-300 rounded-t-lg transition-all duration-500 hover:from-emerald-600 hover:to-emerald-400"
-                    style={{ height: `${data.users / 4}%` }}
+                    style={{ height: `${data.users}%` }}
                   />
                   <div
                     className="w-full max-w-8 bg-gradient-to-t from-green-400 to-green-200 rounded-t-lg transition-all duration-500 hover:from-green-500 hover:to-green-300"
-                    style={{ height: `${data.content / 4}%` }}
+                    style={{ height: `${data.content}%` }}
                   />
                 </div>
                 <span className="text-xs text-gray-500">{data.name}</span>
@@ -85,11 +158,11 @@ const DashboardContent = () => {
           <div className="flex items-center justify-center gap-6 mt-4">
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-emerald-500 rounded-full" />
-              <span className="text-sm text-gray-600">Người dùng</span>
+              <span className="text-sm text-gray-600">Lượt truy cập (ước tính)</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-green-400 rounded-full" />
-              <span className="text-sm text-gray-600">Nội dung</span>
+              <span className="text-sm text-gray-600">Bài đăng gốc</span>
             </div>
           </div>
         </div>
@@ -97,22 +170,19 @@ const DashboardContent = () => {
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Hoạt động gần đây</h3>
           <div className="space-y-4">
-            {[
-              { user: 'Nguyễn Văn A', action: 'đã tạo kênh mới', target: 'Cộng đồng Gaming', time: '5 phút trước', icon: Plus, color: 'emerald' },
-              { user: 'Trần Thị B', action: 'đã duyệt bài viết', target: 'Hướng dẫn Discord', time: '15 phút trước', icon: CheckCircle, color: 'blue' },
-              { user: 'Lê Văn C', action: 'đã cảnh báo người dùng', target: 'User_1234', time: '1 giờ trước', icon: AlertTriangle, color: 'orange' },
-              { user: 'Phạm Thị D', action: 'đã xóa nội dung', target: 'Bài viết spam', time: '2 giờ trước', icon: Trash2, color: 'red' },
-            ].map((activity, index) => {
-              const Icon = activity.icon;
+            {recentActivities.map((activity: any) => {
+              const ui = activityUIConfig[activity.type] || activityUIConfig['create'];
+              const Icon = ui.icon;
               const colorClasses: Record<string, string> = {
                 emerald: 'bg-emerald-100 text-emerald-600',
                 blue: 'bg-blue-100 text-blue-600',
                 orange: 'bg-orange-100 text-orange-600',
                 red: 'bg-red-100 text-red-600',
               };
+              
               return (
-                <div key={index} className="flex items-start gap-4 p-3 hover:bg-gray-50 rounded-xl transition-colors">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${colorClasses[activity.color]}`}>
+                <div key={activity.id} className="flex items-start gap-4 p-3 hover:bg-gray-50 rounded-xl transition-colors">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${colorClasses[ui.color]}`}>
                     <Icon className="w-5 h-5" />
                   </div>
                   <div className="flex-1 min-w-0">
