@@ -79,11 +79,9 @@ export default function DirectMessagesList() {
             {filteredConversations?.map((conv: any) => {
               const otherUser = conv.otherUser;
               
-              // 👇 LOGIC FIX LỖI TIN NHẮN CUỐI CÙNG NẰM Ở ĐÂY 👇
-              const lastMsg = conv.lastMessage;
+              // 👇 LOGIC FIX LỖI TIN NHẮN CUỐI CÙNG ĐÃ ĐƯỢC BỌC KỸ TRONG JAVASCRIPT 👇
               let snippet = t('chat.no_messages', {defaultValue: 'Chưa có tin nhắn'});
               
-              // Ưu tiên dùng object lastMessage nếu backend chạy thành công
               if (conv.lastMessage) {
                 if (conv.lastMessage.isDeleted) {
                   snippet = t('chat.msg_recalled', {defaultValue: 'Tin nhắn đã thu hồi'});
@@ -92,11 +90,9 @@ export default function DirectMessagesList() {
                 } else {
                   snippet = conv.lastMessage.content;
                 }
-              } 
-              // Dùng backup lastMessageText có sẵn từ DB (ĂN CHẮC 100%)
-              else if (conv.lastMessageText) {
+              } else if (conv.lastMessageText) {
+                // Backup nếu chưa tải được object lastMessage nhưng DB đã có text
                 snippet = conv.lastMessageText;
-              }
               }
 
               return (
