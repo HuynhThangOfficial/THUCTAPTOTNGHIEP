@@ -11,6 +11,8 @@
     "convex:dev": "npx convex dev"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@mendable/firecrawl-js": "^4.16.0",
     "convex": "^1.33.1",
     "expo-localization": "~15.0.3"
   }

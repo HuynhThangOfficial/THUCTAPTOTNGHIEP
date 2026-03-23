@@ -1,9 +1,9 @@
 export default {
   providers: [
     {
-      // Dùng biến môi trường thay vì hardcode link
-      domain: process.env.CLERK_ISSUER_URL, 
+      // 🚨 PHẢI đổi thành domain mới của bạn
+      domain: "https://clerk.newyas.com", 
       applicationID: "convex",
     },
-  ]
+  ],
 };
