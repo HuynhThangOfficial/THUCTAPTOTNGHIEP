@@ -1001,10 +1001,11 @@ export const deleteAllNotifications = mutation({
 // ==========================================
 
 // 1. Gửi báo cáo bài viết
-export const reportMessage = mutation({
+export const createReport = mutation({
   args: {
     messageId: v.id("messages"),
     reason: v.string(),
+    serverId: v.optional(v.id("servers")), // Thêm serverId để Frontend truyền xuống
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -1022,16 +1023,17 @@ export const reportMessage = mutation({
       .first();
 
     if (existingReport) {
-      throw new Error("ALREADY_REPORTED");
+      throw new Error("ALREADY_REPORTED"); // Lỗi này Frontend sẽ bắt được để báo "Đã báo cáo rồi"
     }
 
     await ctx.db.insert("reports", {
       userId: user._id,
       messageId: args.messageId,
-      serverId: message.serverId,
+      serverId: args.serverId || message.serverId,
       universityId: message.universityId,
       reason: args.reason,
       status: "pending", // Đang chờ duyệt
+      type: "message"    // 👇 RẤT QUAN TRỌNG: Để Admin phân biệt với báo cáo Server
     });
 
     return { success: true };

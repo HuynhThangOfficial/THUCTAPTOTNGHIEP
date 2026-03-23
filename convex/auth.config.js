@@ -1,9 +1,8 @@
 export default {
   providers: [
     {
-      // 🚨 PHẢI đổi thành domain mới của bạn
-      domain: "https://clerk.newyas.com", 
-      applicationID: "convex",
+      domain: "https://related-falcon-36.clerk.accounts.dev",
+      applicationID: 'convex',
     },
   ],
 };
