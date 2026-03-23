@@ -83,14 +83,20 @@ export default function DirectMessagesList() {
               const lastMsg = conv.lastMessage;
               let snippet = t('chat.no_messages', {defaultValue: 'Chưa có tin nhắn'});
               
-              if (lastMsg) {
-                if (lastMsg.isDeleted) {
+              // Ưu tiên dùng object lastMessage nếu backend chạy thành công
+              if (conv.lastMessage) {
+                if (conv.lastMessage.isDeleted) {
                   snippet = t('chat.msg_recalled', {defaultValue: 'Tin nhắn đã thu hồi'});
-                } else if (lastMsg.imageId || lastMsg.imageUrl) {
+                } else if (conv.lastMessage.imageId || conv.lastMessage.imageUrl) {
                   snippet = t('chat.image_bracket', {defaultValue: '[Hình ảnh]'});
                 } else {
-                  snippet = lastMsg.content;
+                  snippet = conv.lastMessage.content;
                 }
+              } 
+              // Dùng backup lastMessageText có sẵn từ DB (ĂN CHẮC 100%)
+              else if (conv.lastMessageText) {
+                snippet = conv.lastMessageText;
+              }
               }
 
               return (
