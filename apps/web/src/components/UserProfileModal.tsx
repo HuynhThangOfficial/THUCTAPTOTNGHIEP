@@ -60,6 +60,7 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
   const followUser = useMutation(api.users.followUser);
   const unfollowUser = useMutation(api.users.unfollowUser);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
+  const getOrCreateConversation = useMutation(api.chat.getOrCreateConversation);
 
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'reposts' | 'likes'>('posts');
 
@@ -124,10 +125,24 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
     }
   };
 
-  const handleMessageClick = () => {
-    if (!isLoggedIn) return setShowAuthModal(true);
-    alert(t('composer.feature_in_development'));
-  };
+  const handleMessageClick = async () => {
+  if (!isLoggedIn) return setShowAuthModal(true);
+  if (!targetUserId) return;
+  
+  try {
+    // Gọi API để tạo hoặc lấy ID phòng chat đã có sẵn giữa 2 người
+    const convId = await getOrCreateConversation({ otherUserId: targetUserId });
+    
+    // Đóng Modal Profile lại
+    onClose();
+    
+    // Chuyển hướng thẳng vào phòng chat
+    router.push(`/chat/${convId}`);
+  } catch (error) {
+    console.error("Lỗi tạo cuộc trò chuyện:", error);
+    alert(t('common.error'));
+  }
+};
 
   // =======================================================
   // HIỂN THỊ MÀN HÌNH DANH SÁCH FOLLOW NẾU ĐƯỢC KÍCH HOẠT
