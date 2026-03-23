@@ -126,27 +126,26 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
   };
 
   const handleMessageClick = async () => {
-    // 👇 KIỂM TRA ĐĂNG NHẬP TRƯỚC TIÊN 👇
+    // Kiểm tra đăng nhập ở client
     if (!isLoggedIn || !user) {
-      onClose(); // Đóng profile modal
-      return setShowAuthModal(true); // Mở popup bắt đăng nhập
+      onClose(); 
+      return setShowAuthModal(true);
     }
-
     if (!targetUserId) return;
     
     try {
-      // Vì đã qua bước if ở trên, nên lúc gọi API này chắc chắn đã có Token hợp lệ
+      // Gọi API Backend
       const convId = await getOrCreateConversation({ otherUserId: targetUserId });
       onClose();
       router.push(`/chat/${convId}`);
     } catch (error: any) {
       console.error("Lỗi tạo cuộc trò chuyện:", error);
-      // Nếu vẫn lỗi, hiện thông báo tiếng Việt cho thân thiện
-      if (error.message.includes("UNAUTHORIZED")) {
-        alert("Vui lòng đăng nhập lại để nhắn tin!");
-        setShowAuthModal(true);
+      
+      // Bắt chính xác lỗi ConvexError có data là "UNAUTHORIZED"
+      if (error.data === "UNAUTHORIZED" || error.message?.includes("UNAUTHORIZED")) {
+        alert("Phiên đăng nhập đã hết hạn hoặc chưa đồng bộ. Vui lòng F5 lại trang!");
       } else {
-        alert(t('common.error'));
+        alert("Có lỗi xảy ra: " + (error.data || error.message));
       }
     }
   };
