@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { CheckCircle, Eye, Trash2, XCircle, X, Heart, MessageCircle, Repeat, Send, ImageIcon } from 'lucide-react';
+import { CheckCircle, Eye, Trash2, XCircle, X, Heart, MessageCircle, Repeat, Send, ImageIcon, ShieldAlert } from 'lucide-react';
 import { useQuery, useMutation } from 'convex/react';
 // 👇 Nhớ kiểm tra đường dẫn import này cho khớp với dự án Web của bạn
 import { api } from '../../../../convex/_generated/api';
-import { Id } from '../../../../convex/_generated/dataModel';
 
+// 👇 HÀM DỊCH MÃ LÝ DO SANG TIẾNG VIỆT (Cố định cho Admin) 👇
 const translateReason = (reasonStr: string) => {
   const reasonMap: Record<string, string> = {
     'reason_spam': 'Spam hoặc quảng cáo',
@@ -13,8 +13,21 @@ const translateReason = (reasonStr: string) => {
     'reason_wrong_channel': 'Đăng không đúng kênh hoặc máy chủ',
     'reason_minors': 'Vấn đề liên quan đến người dưới 18 tuổi',
     'reason_adult': 'Nội dung người lớn',
+    'reason_other': 'Lý do khác'
   };
-  return reasonMap[reasonStr] || reasonStr;
+  return reasonMap[reasonStr] || reasonStr; // Nếu gõ lý do tùy chỉnh thì hiện nguyên văn
+};
+
+// 👇 HÀM DỊCH MỤC TIÊU BÁO CÁO MÁY CHỦ SANG TIẾNG VIỆT 👇
+const translateTargets = (targets: string[]) => {
+  const map: Record<string, string> = {
+    'target_avatar': 'Ảnh đại diện máy chủ',
+    'target_name': 'Tên máy chủ',
+    'target_channels': 'Tên các kênh',
+    'target_purpose': 'Mục đích hoạt động'
+  };
+  if (!targets || targets.length === 0) return 'Không rõ';
+  return targets.map(t => map[t] || t).join(', ');
 };
 
 const ReportsContent = () => {
@@ -24,21 +37,24 @@ const ReportsContent = () => {
   const [selectedReport, setSelectedReport] = useState<any>(null);
 
   if (reports === undefined) {
-    return <div className="p-10 text-center text-gray-500 font-medium animate-pulse">Đang tải dữ liệu báo cáo...</div>;
+    return <div className="p-10 text-center text-gray-500 font-medium animate-pulse">Đang tải dữ liệu kiểm duyệt...</div>;
   }
 
-  const pendingCount = reports.filter(r => r.status === 'pending').length;
-  const resolvedCount = reports.filter(r => r.status === 'resolved').length;
-  const dismissedCount = reports.filter(r => r.status === 'dismissed').length;
+  const pendingCount = reports.filter((r: any) => r.status === 'pending').length;
+  const resolvedCount = reports.filter((r: any) => r.status === 'resolved').length;
+  const dismissedCount = reports.filter((r: any) => r.status === 'dismissed').length;
 
-  const handleAction = async (reportIds: Id<"reports">[], action: 'delete' | 'dismiss') => {
+  const handleAction = async (report: any, action: 'delete' | 'dismiss') => {
+    const isServer = report.type === 'server';
     const confirmMsg = action === 'delete'
-      ? 'Bạn có chắc chắn muốn XÓA bài viết vi phạm này?'
-      : 'Bạn muốn BỎ QUA báo cáo này (Bài viết không vi phạm)?';
+      ? (isServer ? 'Đánh dấu báo cáo máy chủ này là ĐÃ XỬ LÝ (Admin tự quyết định hình phạt)?' : 'Bạn có chắc chắn muốn XÓA bài viết vi phạm này?')
+      : 'Bạn muốn BỎ QUA báo cáo này (Không vi phạm)?';
 
     if (window.confirm(confirmMsg)) {
-      await resolveReport({ reportIds, action });
-      setSelectedReport(null);
+      await resolveReport({ reportIds: report.reportIds, action });
+      if (selectedReport && selectedReport._id === report._id) {
+         setSelectedReport(null);
+      }
     }
   };
 
@@ -48,7 +64,7 @@ const ReportsContent = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
           { label: 'Chờ xử lý', count: pendingCount, color: 'orange' },
-          { label: 'Đã xóa bài (Giải quyết)', count: resolvedCount, color: 'emerald' },
+          { label: 'Đã xử lý / Xóa bài', count: resolvedCount, color: 'emerald' },
           { label: 'Đã bỏ qua', count: dismissedCount, color: 'blue' },
         ].map((stat, index) => {
           const colorClasses: Record<string, { wrapper: string; label: string; value: string }> = {
@@ -72,7 +88,7 @@ const ReportsContent = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600 w-2/5">Bài đăng bị báo cáo</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600 w-2/5">Nội dung bị báo cáo</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600 w-1/4">Người báo cáo & Lý do</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-600">Chi tiết</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-600">Trạng thái</th>
@@ -85,23 +101,30 @@ const ReportsContent = () => {
                   <td colSpan={5} className="px-6 py-8 text-center text-gray-500">Chưa có báo cáo nào trong hệ thống.</td>
                 </tr>
               ) : (
-                reports.map((report) => (
+                reports.map((report: any) => (
                   <tr key={report._id} className="hover:bg-gray-50 transition-colors">
 
-                    {/* CỘT 1: GIAO DIỆN BÀI ĐĂNG (ĐÃ FIX LỖI TÁC GIẢ TỰ XÓA BÀI) */}
+                    {/* CỘT 1: GIAO DIỆN BÀI ĐĂNG HOẶC MÁY CHỦ */}
                     <td className="px-6 py-4 align-top">
                       <div className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-shadow min-w-[300px]">
-                        {!report.message ? (
-                          // NẾU BÀI VIẾT ĐÃ BỊ TÁC GIẢ XÓA
+
+                        {report.type === 'server' ? (
+                           <div className="flex flex-col py-2 px-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                             <div className="flex items-center gap-2 mb-2">
+                                <ShieldAlert className="w-5 h-5 text-indigo-600" />
+                                <span className="font-bold text-indigo-900 text-[15px]">{report.server?.name || report.targetName || 'Máy chủ'}</span>
+                             </div>
+                             <span className="text-xs text-indigo-700 font-medium">Mục bị khiếu nại:</span>
+                             <span className="text-sm font-bold text-indigo-800 mt-0.5">{translateTargets(report.targets)}</span>
+                           </div>
+                        ) : !report.message ? (
                           <div className="flex flex-col items-center justify-center py-6 text-gray-400">
                             <Trash2 className="w-8 h-8 mb-2 opacity-50" />
                             <span className="font-medium text-sm text-gray-500">Bài đăng này đã bị tác giả tự xóa.</span>
                             <span className="text-xs mt-1">Hệ thống vẫn giữ lại báo cáo để Admin xác nhận.</span>
                           </div>
                         ) : (
-                          // NẾU BÀI VIẾT VẪN TỒN TẠI
                           <>
-                            {/* Header Bài đăng: Avatar + Tên + Vị trí */}
                             <div className="flex items-center gap-3 mb-3">
                               <img
                                 src={report.author?.imageUrl || 'https://via.placeholder.com/40'}
@@ -124,22 +147,18 @@ const ReportsContent = () => {
                               </div>
                             </div>
 
-                            {/* Đường kẻ ngang */}
                             <div className="h-px bg-gray-100 w-full mb-3"></div>
 
-                            {/* Nội dung bài đăng */}
                             <div className="text-sm text-gray-800 whitespace-pre-wrap line-clamp-3">
                               {report.message?.content || <span className="italic text-gray-400">Không có nội dung chữ...</span>}
                             </div>
 
-                            {/* Chỉ báo hình ảnh */}
                             {report.message?.mediaFiles && report.message.mediaFiles.length > 0 && (
                               <div className="mt-3 flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 px-2.5 py-1.5 rounded-lg w-fit font-medium border border-blue-100">
                                 <ImageIcon className="w-3.5 h-3.5"/> Có {report.message.mediaFiles.length} hình ảnh
                               </div>
                             )}
 
-                            {/* Footer: Thông số tương tác & Thời gian */}
                             <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-50 text-gray-400 text-xs">
                               <div className="flex items-center gap-4">
                                 <span className="flex items-center gap-1.5" title="Lượt thích"><Heart className="w-3.5 h-3.5"/> {report.message?.likeCount || 0}</span>
@@ -194,7 +213,7 @@ const ReportsContent = () => {
                             : report.status === 'dismissed' ? 'bg-gray-50 text-gray-600 border-gray-200'
                             : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         }`}>
-                          {report.status === 'pending' ? 'Chờ xử lý' : report.status === 'dismissed' ? 'Đã bỏ qua' : 'Đã xóa bài'}
+                          {report.status === 'pending' ? 'Chờ xử lý' : report.status === 'dismissed' ? 'Đã bỏ qua' : 'Đã giải quyết'}
                         </span>
                       </div>
                     </td>
@@ -206,18 +225,29 @@ const ReportsContent = () => {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               type="button"
-                              onClick={() => handleAction(report.reportIds, 'dismiss')}
+                              onClick={() => handleAction(report, 'dismiss')}
                               title="Bỏ qua (Không vi phạm)"
                               className="p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-600">
                               <XCircle className="w-5 h-5" />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleAction(report.reportIds, 'delete')}
-                              title="Xóa bài viết vi phạm"
-                              className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600">
-                              <Trash2 className="w-5 h-5" />
-                            </button>
+
+                            {report.type === 'server' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleAction(report, 'delete')}
+                                title="Đánh dấu đã xử lý (Ghi nhận vi phạm)"
+                                className="p-2 hover:bg-emerald-100 rounded-lg transition-colors text-emerald-600">
+                                <CheckCircle className="w-5 h-5" />
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleAction(report, 'delete')}
+                                title="Xóa bài viết vi phạm"
+                                className="p-2 hover:bg-red-100 rounded-lg transition-colors text-red-600">
+                                <Trash2 className="w-5 h-5" />
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <div className="flex items-center justify-end mr-2">
@@ -248,14 +278,13 @@ const ReportsContent = () => {
               </button>
             </div>
 
-            <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+            <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto hidden-scrollbar">
 
-              {/* DANH SÁCH NGƯỜI BÁO CÁO TRONG MODAL */}
               <div className="bg-red-50 border border-red-100 rounded-xl p-4">
                 <p className="text-xs font-bold text-red-800 uppercase tracking-wider mb-3">
                   Danh sách báo cáo ({selectedReport.reportCount})
                 </p>
-                <div className="space-y-3 max-h-40 overflow-y-auto pr-2">
+                <div className="space-y-3 max-h-40 overflow-y-auto pr-2 hidden-scrollbar">
                   {selectedReport.reporters?.map((rep: any, idx: number) => (
                     <div key={idx} className="flex flex-col gap-1 text-sm border-b border-red-100/50 pb-3 last:border-0 last:pb-0">
                       <div className="flex gap-2 items-start">
@@ -269,16 +298,22 @@ const ReportsContent = () => {
                 </div>
               </div>
 
-              {/* NỘI DUNG BÀI ĐĂNG TRONG MODAL */}
               <div className="border border-gray-200 rounded-xl p-4 shadow-sm bg-white">
-                {!selectedReport.message ? (
-                  // NẾU BÀI VIẾT ĐÃ BỊ TÁC GIẢ XÓA
+
+                {selectedReport.type === 'server' ? (
+                   <div className="flex flex-col items-center justify-center py-6 text-indigo-900 bg-indigo-50 rounded-xl border border-indigo-100">
+                     <ShieldAlert className="w-12 h-12 mb-3 text-indigo-500" />
+                     <span className="font-bold text-lg text-indigo-800">{selectedReport.server?.name || selectedReport.targetName || 'Máy chủ'}</span>
+                     <span className="text-sm font-medium mt-2 text-indigo-600 bg-white px-3 py-1.5 rounded-lg shadow-sm border border-indigo-100">
+                       Mục bị báo cáo: {translateTargets(selectedReport.targets)}
+                     </span>
+                   </div>
+                ) : !selectedReport.message ? (
                   <div className="flex flex-col items-center justify-center py-6 text-gray-400">
                     <Trash2 className="w-10 h-10 mb-3 opacity-50 text-red-400" />
                     <span className="font-semibold text-gray-600">Nội dung bài viết không còn tồn tại hoặc đã bị xóa.</span>
                   </div>
                 ) : (
-                  // NẾU BÀI VIẾT VẪN CÒN
                   <>
                     <div className="flex items-center gap-3 mb-3 pb-3 border-b border-gray-100">
                       <img

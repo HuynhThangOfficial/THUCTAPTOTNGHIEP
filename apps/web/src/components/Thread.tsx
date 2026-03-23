@@ -7,6 +7,8 @@ import { useApp } from '../context/AppContext';
 import { useUser } from '@clerk/nextjs';
 import { MoreHorizontal, Edit2, History, Trash2, Flag, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+// 👇 Đã xóa useRouter và thay bằng Import UserProfileModal 👇
+import UserProfileModal from './UserProfileModal';
 
 interface Props {
   thread: any;
@@ -25,7 +27,10 @@ export default function Thread({ thread }: Props) {
   // STATE MENU VÀ MODAL
   const [showOptions, setShowOptions] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false); // 👈 Modal Lịch sử
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  // 👇 STATE ĐỂ MỞ MODAL THÔNG TIN NGƯỜI DÙNG 👇
+  const [showUserProfile, setShowUserProfile] = useState(false);
+
   const [reportReason, setReportReason] = useState('');
   const [customReason, setCustomReason] = useState('');
   const [isReporting, setIsReporting] = useState(false);
@@ -37,6 +42,19 @@ export default function Thread({ thread }: Props) {
 
   const currentUser = useQuery(api.users.current);
   const currentServer = useQuery(api.university.getServerDetails, activeServerId ? { serverId: activeServerId } : "skip");
+
+  // LẤY THÔNG TIN ĐỂ HIỂN THỊ KÊNH / MÁY CHỦ
+  const channelsData = useQuery(api.university.getChannels, {
+    serverId: thread.serverId || undefined,
+    universityId: thread.universityId || undefined
+  });
+  const myServers = useQuery(api.university.getMyServers);
+  const universities = useQuery(api.university.getUniversities);
+
+  const channelName = channelsData?.channels?.find((c: any) => c._id === thread.channelId)?.name;
+  const serverName = thread.serverId
+    ? myServers?.find((s: any) => s._id === thread.serverId)?.name
+    : universities?.find((u: any) => u._id === thread.universityId)?.name;
 
   // PHÂN QUYỀN
   const isOwner = currentUser?._id === thread.userId;
@@ -91,6 +109,14 @@ export default function Thread({ thread }: Props) {
     setIsSavingEdit(false);
   };
 
+  // 👇 HÀM HIỂN THỊ MODAL PROFILE THAY VÌ CHUYỂN TRANG 👇
+  const handleGoToProfile = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!thread.isAnonymous && thread.creator?._id) {
+      setShowUserProfile(true);
+    }
+  };
+
   const timeString = new Date(thread._creationTime).toLocaleString(t('settings.app_language') === 'en' ? 'en-US' : 'vi-VN', {
     hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric'
   });
@@ -101,59 +127,81 @@ export default function Thread({ thread }: Props) {
   const displayAvatar = isAnonymous ? "https://www.gravatar.com/avatar/0?d=mp&f=y" : (isSelf ? user?.imageUrl : (thread.creator?.imageUrl || `https://ui-avatars.com/api/?name=${displayName}&background=random&color=fff`));
 
   return (
-    <div className="bg-white p-4 border-b border-gray-200 hover:bg-gray-50 transition-colors relative">
+    <div className="bg-white p-4 border-b border-gray-200 hover:bg-gray-50 transition-colors relative cursor-default">
 
       {/* 1. HEADER & MENU 3 CHẤM */}
       <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-3">
-          <img src={displayAvatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover border border-gray-100 shrink-0" />
-          <div>
+        <div className="flex items-center gap-3 w-full min-w-0">
+
+          <img
+            src={displayAvatar}
+            alt="Avatar"
+            onClick={handleGoToProfile}
+            className={`w-10 h-10 rounded-full object-cover border border-gray-100 shrink-0 ${!isAnonymous ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+          />
+
+          <div className="flex-1 min-w-0 pr-2">
             <div className="flex items-center gap-2">
-              <h4 className="font-bold text-gray-800 text-[15px]">{displayName}</h4>
-              {isAnonymous && <span className="text-xs" title={t('common.anonymous')}>🎭</span>}
-              {!isAnonymous && thread.isServerAdmin && <span className="bg-red-100 text-red-600 text-[10px] px-1.5 py-0.5 rounded font-bold">{t('thread.admin_badge')}</span>}
+              <h4
+                 onClick={handleGoToProfile}
+                 className={`font-bold text-gray-800 text-[15px] truncate ${!isAnonymous ? 'cursor-pointer hover:underline' : ''}`}
+              >
+                 {displayName}
+              </h4>
+              {isAnonymous && <span className="text-xs shrink-0" title={t('common.anonymous')}>🎭</span>}
+              {!isAnonymous && thread.isServerAdmin && <span className="bg-red-100 text-red-600 text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0">{t('thread.admin_badge')}</span>}
+
+              <div className="flex items-center gap-1 shrink-0">
+                 <span className="text-gray-400 text-[10px]">•</span>
+                 <p className="text-[12px] text-gray-500">{timeString}</p>
+                 {thread.editHistory && thread.editHistory.length > 0 && <span className="text-[11px] text-gray-400 italic">({t('thread.edited').replace(' (', '').replace(')', '')})</span>}
+              </div>
             </div>
-            <div className="flex items-center gap-1">
-               <p className="text-xs text-gray-500">{timeString}</p>
-               {thread.editHistory && thread.editHistory.length > 0 && <span className="text-[11px] text-gray-400 italic">{t('thread.edited')}</span>}
-            </div>
+
+            {(channelName || serverName) && (
+              <div className="flex items-center text-[12px] font-medium text-gray-500 mt-0.5 truncate w-full">
+                {channelName && <span className="text-[#007AFF] hover:underline cursor-pointer truncate">#{channelName}</span>}
+                {channelName && serverName && <span className="mx-1.5 shrink-0">•</span>}
+                {serverName && <span className="truncate">{serverName}</span>}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="relative">
-          <button onClick={() => isLoggedIn ? setShowOptions(!showOptions) : setShowAuthModal(true)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors">
+        <div className="relative shrink-0">
+          <button onClick={(e) => { e.stopPropagation(); isLoggedIn ? setShowOptions(!showOptions) : setShowAuthModal(true); }} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors">
             <MoreHorizontal className="w-5 h-5" />
           </button>
 
           {showOptions && (
             <>
-              <div className="fixed inset-0 z-[40]" onClick={() => setShowOptions(false)}></div>
+              <div className="fixed inset-0 z-[40]" onClick={(e) => { e.stopPropagation(); setShowOptions(false); }}></div>
               <div className="absolute right-0 mt-1 w-56 bg-white rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.1)] border border-gray-100 z-[50] py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                 {isOwner ? (
                   <>
-                    <button onClick={() => { setIsEditing(true); setShowOptions(false); }} className="w-full flex items-center px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors">
+                    <button onClick={(e) => { e.stopPropagation(); setIsEditing(true); setShowOptions(false); }} className="w-full flex items-center px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors">
                       <Edit2 className="w-4 h-4 mr-3 text-gray-400" /> {t('thread.opt_edit')}
                     </button>
-                    <button onClick={() => { setShowHistoryModal(true); setShowOptions(false); }} className="w-full flex items-center px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors">
+                    <button onClick={(e) => { e.stopPropagation(); setShowHistoryModal(true); setShowOptions(false); }} className="w-full flex items-center px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors">
                       <History className="w-4 h-4 mr-3 text-gray-400" /> {t('thread.opt_history')}
                     </button>
                     <div className="h-px bg-gray-100 my-1"></div>
-                    <button onClick={handleDelete} className="w-full flex items-center px-4 py-2.5 text-[14px] text-red-600 hover:bg-red-50 font-medium transition-colors">
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(); }} className="w-full flex items-center px-4 py-2.5 text-[14px] text-red-600 hover:bg-red-50 font-medium transition-colors">
                       <Trash2 className="w-4 h-4 mr-3 text-red-500" /> {t('thread.opt_delete')}
                     </button>
                   </>
                 ) : (
                   <>
-                    <button onClick={() => { setShowReportModal(true); setShowOptions(false); }} className="w-full flex items-center px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors">
+                    <button onClick={(e) => { e.stopPropagation(); setShowReportModal(true); setShowOptions(false); }} className="w-full flex items-center px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors">
                       <Flag className="w-4 h-4 mr-3 text-gray-400" /> {t('thread.opt_report')}
                     </button>
-                    <button onClick={() => { setShowHistoryModal(true); setShowOptions(false); }} className="w-full flex items-center px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors">
+                    <button onClick={(e) => { e.stopPropagation(); setShowHistoryModal(true); setShowOptions(false); }} className="w-full flex items-center px-4 py-2.5 text-[14px] text-gray-700 hover:bg-gray-50 transition-colors">
                       <History className="w-4 h-4 mr-3 text-gray-400" /> {t('thread.opt_history')}
                     </button>
                     {amIAdmin && (
                       <>
                         <div className="h-px bg-gray-100 my-1"></div>
-                        <button onClick={handleDelete} className="w-full flex items-center px-4 py-2.5 text-[14px] text-red-600 hover:bg-red-50 font-medium transition-colors">
+                        <button onClick={(e) => { e.stopPropagation(); handleDelete(); }} className="w-full flex items-center px-4 py-2.5 text-[14px] text-red-600 hover:bg-red-50 font-medium transition-colors">
                           <Trash2 className="w-4 h-4 mr-3 text-red-500" /> {t('thread.opt_delete_admin')}
                         </button>
                       </>
@@ -169,7 +217,7 @@ export default function Thread({ thread }: Props) {
       {/* 2. BODY VÀ INLINE EDIT */}
       <div className="mb-4">
         {isEditing ? (
-          <div className="bg-[#f2f3f5] p-3 rounded-xl border border-gray-200">
+          <div className="bg-[#f2f3f5] p-3 rounded-xl border border-gray-200" onClick={e => e.stopPropagation()}>
             <textarea value={editContent} onChange={e => setEditContent(e.target.value)} className="w-full bg-transparent outline-none text-[15px] resize-none min-h-[80px]" autoFocus />
             <div className="flex justify-end gap-2 mt-2">
               <button onClick={() => { setIsEditing(false); setEditContent(thread.content); }} className="px-4 py-1.5 rounded-lg text-sm font-bold text-gray-600 hover:bg-gray-200">{t('common.cancel')}</button>
@@ -187,25 +235,25 @@ export default function Thread({ thread }: Props) {
         )}
       </div>
 
-      {/* 3. TƯƠNG TÁC (Giữ nguyên) */}
+      {/* 3. TƯƠNG TÁC (Like, Cmt, Share) */}
       <div className="flex items-center gap-6 pt-3 border-t border-gray-100">
-        <button onClick={handleLike} className={`flex items-center gap-1.5 font-medium transition-colors ${thread.isLiked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'}`}>
+        <button onClick={(e) => { e.stopPropagation(); handleLike(); }} className={`flex items-center gap-1.5 font-medium transition-colors ${thread.isLiked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'}`}>
           <svg className="w-5 h-5 transition-transform active:scale-75" fill={thread.isLiked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={thread.isLiked ? 0 : 2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
           <span className="text-sm">{thread.likeCount || 0}</span>
         </button>
-        <button onClick={handleCommentClick} className="flex items-center gap-1.5 text-gray-500 hover:text-green-600 font-medium transition-colors">
+        <button onClick={(e) => { e.stopPropagation(); handleCommentClick(); }} className="flex items-center gap-1.5 text-gray-500 hover:text-green-600 font-medium transition-colors">
           <svg className="w-5 h-5 transition-transform active:scale-75" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
           <span className="text-sm">{thread.commentCount || 0}</span>
         </button>
-        <button onClick={handleRepost} className={`flex items-center gap-1.5 font-medium transition-colors ${thread.isReposted ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}`}>
+        <button onClick={(e) => { e.stopPropagation(); handleRepost(); }} className={`flex items-center gap-1.5 font-medium transition-colors ${thread.isReposted ? 'text-blue-500' : 'text-gray-500 hover:text-blue-500'}`}>
           <svg className="w-5 h-5 transition-transform active:scale-75" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
           <span className="text-sm">{thread.retweetCount || 0}</span>
         </button>
       </div>
 
-      {/* 4. COMMENTS (Bình luận y hệt cũ) */}
+      {/* 4. MỞ KHUNG COMMENT TẠI CHỖ */}
       {showComments && (
-        <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="mt-4 pt-4 border-t border-gray-100 animate-in fade-in slide-in-from-top-2 duration-200" onClick={e => e.stopPropagation()}>
           {thread.allowComments !== false && (
             <form onSubmit={handleCommentSubmit} className="flex gap-3 mb-4">
               <img src={user?.imageUrl || "https://ui-avatars.com/api/?name=Guest"} alt="Avt" className="w-8 h-8 rounded-full object-cover shrink-0 border border-gray-200" />
@@ -244,7 +292,7 @@ export default function Thread({ thread }: Props) {
 
       {/* 5. MODAL LỊCH SỬ CHỈNH SỬA */}
       {showHistoryModal && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShowHistoryModal(false)}>
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={(e) => { e.stopPropagation(); setShowHistoryModal(false); }}>
           <div className="bg-white rounded-2xl w-full max-w-[450px] p-6 shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
                <h2 className="text-[18px] font-extrabold text-gray-900">{t('thread.edit_history')}</h2>
@@ -267,9 +315,9 @@ export default function Thread({ thread }: Props) {
         </div>
       )}
 
-      {/* 6. MODAL BÁO CÁO (Giữ nguyên) */}
+      {/* 6. MODAL BÁO CÁO */}
       {showReportModal && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShowReportModal(false)}>
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={(e) => { e.stopPropagation(); setShowReportModal(false); }}>
           <div className="bg-white rounded-2xl w-full max-w-[450px] p-6 shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <h2 className="text-[20px] font-extrabold text-gray-900 mb-1">{t('report.title')}</h2>
             <p className="text-sm text-gray-500 mb-5 border-b border-gray-100 pb-4">{t('alerts.report_thanks')}</p>
@@ -289,6 +337,15 @@ export default function Thread({ thread }: Props) {
           </div>
         </div>
       )}
+
+      {/* 7. MODAL THÔNG TIN NGƯỜI DÙNG */}
+      {showUserProfile && thread.creator?._id && (
+        <UserProfileModal
+          onClose={() => setShowUserProfile(false)}
+          targetUserId={thread.creator._id}
+        />
+      )}
+
     </div>
   );
 }

@@ -16,7 +16,9 @@
     "confirm": "Xác nhận",
     "category": "Danh mục",
     "channel": "Kênh",
-    "anonymous": "Ẩn danh"
+    "anonymous": "Ẩn danh",
+    "next": "Tiếp tục",
+    "back": "Quay lại"
   },
   "templates": {
     "Gaming": "Gaming",
@@ -536,6 +538,12 @@
     "reason_minors": "Vấn đề liên quan đến người dưới 18 tuổi",
     "reason_adult": "Nội dung người lớn",
     "custom_reason_prompt": "Vui lòng nhập lý do cụ thể của bạn",
-    "custom_reason_placeholder": "Nhập lý do..."
+    "custom_reason_placeholder": "Nhập lý do...",
+    "target_avatar": "Ảnh đại diện máy chủ",
+    "target_name": "Tên máy chủ",
+    "target_channels": "Tên của các kênh",
+    "target_purpose": "Mục đích hoạt động",
+    "step1_title": "Báo cáo máy chủ",
+    "step1_desc": "Vui lòng chọn các mục bạn muốn báo cáo:"
   }
 }

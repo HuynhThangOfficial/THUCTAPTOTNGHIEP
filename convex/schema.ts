@@ -208,13 +208,15 @@ messages: defineTable({
     .index("by_server_user", ["serverId", "userId"]),
 
   reports: defineTable({
-      userId: v.id("users"), // Người gửi báo cáo
-      messageId: v.id("messages"), // Bài viết bị báo cáo
-      serverId: v.optional(v.id("servers")), // Phân loại theo Server
-      universityId: v.optional(v.id("universities")), // Phân loại theo University
-      reason: v.string(), // Lý do báo cáo
-      status: v.string(), // Trạng thái: 'pending', 'resolved', 'dismissed'
-    })
+    userId: v.id("users"),
+    messageId: v.optional(v.id("messages")), // 👈 Thêm v.optional
+    serverId: v.optional(v.id("servers")),
+    universityId: v.optional(v.id("universities")),
+    reason: v.string(),
+    status: v.string(),
+    type: v.optional(v.string()), // 👈 Thêm: 'message' hoặc 'server'
+    targets: v.optional(v.array(v.string())), // 👈 Thêm: Các mục bị báo cáo (avatar, name,...)
+  })
       .index("by_server", ["serverId"])
       .index("by_message", ["messageId"])
       .index("by_user", ["userId"]),

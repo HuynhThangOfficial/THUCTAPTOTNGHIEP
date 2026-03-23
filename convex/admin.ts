@@ -394,43 +394,49 @@ export const adminGetAdminUsers = query({
 // 7. BÁO CÁO VÀ KIỂM DUYỆT
 // =========================================================
 
-// Lấy tất cả báo cáo cho Web Admin (Bao gồm cả Server và University)
+// Lấy tất cả báo cáo cho Web Admin (Phân loại rõ Báo cáo Bài viết và Báo cáo Máy chủ)
 export const adminGetReports = query({
   handler: async (ctx) => {
     const reports = await ctx.db.query("reports").order("desc").collect();
 
-    // Nhóm theo messageId (Ép kiểu Map rõ ràng)
+    // 1. GOM NHÓM (GROUP) BÁO CÁO CỰC KỲ QUAN TRỌNG
+    // Đã phân loại: Nếu là Server thì nhóm theo serverId, nếu là Bài viết thì nhóm theo messageId
     const grouped = new Map<string, any[]>();
     for (const r of reports) {
-        if (!grouped.has(r.messageId)) grouped.set(r.messageId, []);
-        grouped.get(r.messageId)!.push(r);
+        const key = r.type === 'server' ? `server_${r.serverId}` : `msg_${r.messageId}`;
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key)!.push(r);
     }
 
     const result = [];
-    for (const [msgId, groupReports] of grouped.entries()) {
-      // 👇 ÉP KIỂU ID CHUẨN XÁC CHO MESSAGES
-      const message = await ctx.db.get(msgId as Id<"messages">);
-      const author = message ? await ctx.db.get(message.userId) : null;
-      const channel = message?.channelId ? await ctx.db.get(message.channelId) : null;
-
+    for (const [key, groupReports] of grouped.entries()) {
       const firstReport = groupReports[0];
-      let targetName = "Không xác định";
-      let targetType = "Unknown";
+      const isServerReport = firstReport.type === 'server';
 
-      if (firstReport.serverId) {
-        // 👇 ÉP KIỂU ID CHUẨN XÁC CHO SERVERS
-        const server = await ctx.db.get(firstReport.serverId as Id<"servers">);
-        targetName = server?.name || "Server đã xóa";
-        targetType = "Server";
-      } else if (firstReport.universityId) {
-        // 👇 ÉP KIỂU ID CHUẨN XÁC CHO UNIVERSITIES
-        const uni = await ctx.db.get(firstReport.universityId as Id<"universities">);
-        targetName = uni?.name || "University đã xóa";
-        targetType = "University";
+      let message = null;
+      let author = null;
+      let channel = null;
+      let serverInfo = null;
+
+      // 2. LẤY DỮ LIỆU TƯƠNG ỨNG VỚI LOẠI BÁO CÁO
+      if (isServerReport) {
+         if (firstReport.serverId) {
+            serverInfo = await ctx.db.get(firstReport.serverId as Id<"servers">);
+         } else if (firstReport.universityId) {
+            serverInfo = await ctx.db.get(firstReport.universityId as Id<"universities">);
+         }
+      } else {
+         if (firstReport.messageId) {
+           message = await ctx.db.get(firstReport.messageId as Id<"messages">);
+           if (message) {
+             author = await ctx.db.get(message.userId);
+             if (message.channelId) channel = await ctx.db.get(message.channelId);
+           }
+         }
       }
 
+      // 3. LẤY THÔNG TIN NHỮNG NGƯỜI ĐÃ GỬI BÁO CÁO
       const reporters = await Promise.all(groupReports.map(async r => {
-          // 👇 ÉP KIỂU ID CHUẨN XÁC CHO USERS
           const user = await ctx.db.get(r.userId as Id<"users">);
           return { ...user, reason: r.reason, status: r.status };
       }));
@@ -439,16 +445,18 @@ export const adminGetReports = query({
 
       result.push({
         _id: firstReport._id,
-        reportIds: groupReports.map(r => r._id),
-        messageId: msgId,
+        reportIds: groupReports.map(r => r._id), // Mảng chứa ID để xóa/duyệt 1 lần
+        messageId: firstReport.messageId,
+        serverId: firstReport.serverId,
+        type: firstReport.type || 'message', // Phân loại: 'server' hoặc 'message'
+        targets: firstReport.targets || [],  // Các mục bị báo cáo (Avatar, Name...)
         reportCount: groupReports.length,
         status: overallStatus,
         reporters,
         message,
         author,
         channel,
-        targetName,
-        targetType,
+        server: serverInfo, // Thông tin máy chủ bị report
         createdAt: firstReport._creationTime
       });
     }

@@ -16,7 +16,9 @@
     "confirm": "确认",
     "category": "类别",
     "channel": "频道",
-    "anonymous": "匿名"
+    "anonymous": "匿名",
+    "next": "下一步",
+    "back": "返回"
   },
   "templates": {
     "Gaming": "游戏",
@@ -536,6 +538,12 @@
     "reason_minors": "涉及未成年人的问题",
     "reason_adult": "成人内容",
     "custom_reason_prompt": "请输入您的具体原因",
-    "custom_reason_placeholder": "输入原因..."
+    "custom_reason_placeholder": "输入原因...",
+    "target_avatar": "服务器头像",
+    "target_name": "服务器名称",
+    "target_channels": "频道名称",
+    "target_purpose": "服务器目的",
+    "step1_title": "举报服务器",
+    "step1_desc": "请选择您要举报的项目："
   }
 }

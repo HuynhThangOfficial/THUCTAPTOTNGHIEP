@@ -7,7 +7,7 @@ import { Id } from '../../../../convex/_generated/dataModel';
 import { useApp } from '../context/AppContext';
 import { useUser } from '@clerk/nextjs';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, Settings, LogOut, TrendingUp, Pin, Flag, List, Globe } from 'lucide-react';
+import { ChevronDown, Settings, LogOut, TrendingUp, Pin, Flag, List, X, AlertCircle } from 'lucide-react';
 
 import SettingsModal from './SettingsModal';
 import UserProfileModal from './UserProfileModal';
@@ -25,19 +25,14 @@ const LEVEL_REQUIREMENTS = [
 ];
 
 export default function ChannelSidebar() {
-  const { t, i18n } = useTranslation();
-  // Lấy thêm hàm setAuthModalOpen từ AppContext (Hoặc đổi tên cho khớp với context của bạn)
-  const { 
-    activeServerId, activeUniversityId, activeChannelId, 
-    setActiveChannelId, setActiveChannelName, 
-    pinnedServers, togglePinServer,
-    setShowAuthModal 
-  } = useApp() as any;
+  const { t } = useTranslation();
+  const { activeServerId, activeUniversityId, activeChannelId, setActiveChannelId, setActiveChannelName, pinnedServers, togglePinServer } = useApp() as any;
 
   const { user, isLoaded } = useUser();
   const isLoggedIn = isLoaded && user;
 
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
   const [showServerMenu, setShowServerMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -48,13 +43,23 @@ export default function ChannelSidebar() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createType, setCreateType] = useState<'channel' | 'category'>('channel');
   const [createParentId, setCreateParentId] = useState<string | undefined>(undefined);
-  const [showLangMenu, setShowLangMenu] = useState(false);
+
+  // 👇 STATE BÁO CÁO MÁY CHỦ 👇
+  const [showReportServerModal, setShowReportServerModal] = useState(false);
+  const [reportStep, setReportStep] = useState(1);
+  const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
+  const [reportReason, setReportReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
+  const [isReporting, setIsReporting] = useState(false);
 
   const universities = useQuery(api.university.getUniversities);
   const myServers = useQuery(api.university.getMyServers);
   const currentUser = useQuery(api.users.current);
   const leaveServer = useMutation(api.university.leaveServer);
   const deleteChannel = useMutation(api.university.deleteChannel);
+
+  // API Gửi báo cáo Server
+  const reportServerToAdmin = useMutation((api as any).messages.reportServerToAdmin);
 
   const channelsData = useQuery(api.university.getChannels, {
     universityId: activeUniversityId ? (activeUniversityId as Id<"universities">) : undefined,
@@ -65,9 +70,9 @@ export default function ChannelSidebar() {
 
   useEffect(() => {
     if (channelsData?.channels && channelsData.channels.length > 0) {
-      const isChannelValid = channelsData.channels.some((c: any) => c._id === activeChannelId);
+      const isChannelValid = channelsData.channels.some(c => c._id === activeChannelId);
       if (!activeChannelId || !isChannelValid) {
-        const generalChannel = channelsData.channels.find((c: any) => c.name === 'đại-sảnh');
+        const generalChannel = channelsData.channels.find(c => c.name === 'đại-sảnh');
         if (generalChannel) {
           setActiveChannelId(generalChannel._id);
           setActiveChannelName(generalChannel.name);
@@ -80,26 +85,19 @@ export default function ChannelSidebar() {
   }, [channelsData?.channels, activeServerId, activeUniversityId]);
 
   if (!activeUniversityId && !activeServerId) return null;
-  if (!channelsData) return (
-    <aside className="w-60 bg-[#f2f3f5] flex flex-col border-r border-gray-200">
-      <div className="flex-1 flex items-center justify-center"><div className="animate-spin w-6 h-6 border-2 border-gray-400 border-t-transparent rounded-full"></div></div>
-    </aside>
-  );
+  if (!channelsData) return <aside className="w-60 bg-[#f2f3f5] flex flex-col border-r border-gray-200"><div className="flex-1 flex items-center justify-center"><div className="animate-spin w-6 h-6 border-2 border-gray-400 border-t-transparent rounded-full"></div></div></aside>;
 
   const { channels, groups } = channelsData;
-  const visibleChannels = channels.filter((c: any) => !hiddenChannels.includes(c._id));
+  const visibleChannels = channels.filter(c => !hiddenChannels.includes(c._id));
   const currentChannelsCount = channels.length + groups.length;
   const isUniversity = !!activeUniversityId;
-  const currentWorkspace = isUniversity ? universities?.find((u: any) => u._id === activeUniversityId) : myServers?.find((s: any) => s._id === activeServerId);
+  const currentWorkspace = isUniversity ? universities?.find(u => u._id === activeUniversityId) : myServers?.find(s => s._id === activeServerId);
   const isOwner = activeServerId && currentWorkspace && ('creatorId' in currentWorkspace) && currentWorkspace.creatorId === currentUser?._id;
 
-  const stones = (currentWorkspace as any)?.totalStones || 0;
+  const stones = currentWorkspace?.totalStones || 0;
   let serverLevel = 0;
   for (let i = LEVEL_REQUIREMENTS.length - 1; i >= 0; i--) {
-    if (stones >= LEVEL_REQUIREMENTS[i].totalStones) {
-      serverLevel = LEVEL_REQUIREMENTS[i].level;
-      break;
-    }
+    if (stones >= LEVEL_REQUIREMENTS[i].totalStones) { serverLevel = LEVEL_REQUIREMENTS[i].level; break; }
   }
 
   const isPinned = pinnedServers?.includes(activeServerId);
@@ -129,9 +127,35 @@ export default function ChannelSidebar() {
     }
   };
 
+  const handleSubmitServerReport = async () => {
+    if (!activeServerId) return;
+    setIsReporting(true);
+    try {
+      await reportServerToAdmin({
+        serverId: activeServerId,
+        targets: selectedTargets,
+        reason: reportReason,
+        customReason: customReason
+      });
+      alert(t('report.success'));
+      setShowReportServerModal(false);
+      setReportStep(1);
+      setSelectedTargets([]);
+      setReportReason('');
+      setCustomReason('');
+    } catch (error: any) {
+      alert(t('common.error') + ": " + error.message);
+    } finally {
+      setIsReporting(false);
+    }
+  };
+
+  const TARGET_OPTIONS = ['target_avatar', 'target_name', 'target_channels', 'target_purpose'];
+  const REASON_OPTIONS = ['reason_spam', 'reason_harassment', 'reason_inappropriate', 'reason_adult', 'reason_other'];
+
   return (
     <aside className="w-60 bg-[#f2f3f5] flex flex-col border-r border-gray-200 shadow-[-4px_0_15px_rgba(0,0,0,0.02)_inset] relative z-20">
-      {/* HEADER SERVER */}
+
       <div className="relative flex items-center justify-between h-14 px-3 border-b border-gray-200 shadow-sm bg-white">
         {isUniversity ? (
           <div className="flex items-center gap-1.5 flex-1 min-w-0 font-bold text-[15px] py-1.5 px-2 text-left text-gray-800 cursor-default">
@@ -155,40 +179,41 @@ export default function ChannelSidebar() {
           </div>
         )}
 
-        {/* MENU SERVER (Xổ xuống) */}
         {showServerMenu && !isUniversity && (
           <>
             <div className="fixed inset-0 z-[40]" onClick={() => setShowServerMenu(false)}></div>
             <div className="absolute top-14 left-2 w-64 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-2xl border border-gray-100 z-[50] py-2 animate-in fade-in slide-in-from-top-2">
+
               <div className="px-4 py-3 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden shrink-0 border border-gray-100 flex items-center justify-center">
-                  {currentWorkspace?.icon ? (
-                    <img src={currentWorkspace.icon} alt="icon" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="font-bold text-gray-500 text-lg">{currentWorkspace?.name?.charAt(0)}</span>
-                  )}
+                  {currentWorkspace?.icon ? <img src={currentWorkspace.icon} alt="icon" className="w-full h-full object-cover" /> : <span className="font-bold text-gray-500 text-lg">{currentWorkspace?.name?.charAt(0)}</span>}
                 </div>
                 <span className="font-bold text-[15px] text-gray-900 truncate flex-1">{currentWorkspace?.name}</span>
               </div>
               <div className="h-px bg-gray-100 my-1"></div>
+
               <div className="px-4 py-2 text-[14px] font-bold text-gray-800">{t('menu.reached_level', { level: serverLevel })}</div>
-              
+
               <button onClick={() => { setShowServerMenu(false); setShowUpgradeModal(true); }} className="w-full flex items-center px-4 py-3 text-[14px] font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                 <TrendingUp className="w-5 h-5 mr-3 text-pink-500" /> {t('menu.upgrade_server')}
               </button>
+
               <button onClick={() => { setShowServerMenu(false); togglePinServer(activeServerId); }} className="w-full flex items-center px-4 py-3 text-[14px] font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                 <Pin className={`w-5 h-5 mr-3 ${isPinned ? 'text-blue-500' : 'text-gray-500'}`} /> {isPinned ? t('alerts.unpin') : t('menu.pin_server')}
               </button>
+
               <button onClick={() => { setShowServerMenu(false); setShowBrowseModal(true); }} className="w-full flex items-center px-4 py-3 text-[14px] font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                 <List className="w-5 h-5 mr-3 text-gray-500" /> {t('menu.browse_channels')}
               </button>
-              
+
               <div className="h-px bg-gray-100 my-1"></div>
-              <button onClick={() => { setShowServerMenu(false); setShowModeration(true); }} className="w-full flex items-center px-4 py-3 text-[14px] font-medium text-red-600 hover:bg-red-50 transition-colors">
+
+              <button onClick={() => { setShowServerMenu(false); setShowReportServerModal(true); }} className="w-full flex items-center px-4 py-3 text-[14px] font-medium text-red-600 hover:bg-red-50 transition-colors">
                 <Flag className="w-5 h-5 mr-3 text-red-500" /> {t('menu.report_server')}
               </button>
-              
+
               <div className="h-px bg-gray-100 my-1"></div>
+
               <button onClick={() => { setShowServerMenu(false); handleLeaveServer(); }} className="w-full flex items-center px-4 py-3 text-[14px] font-bold text-red-600 hover:bg-red-50 transition-colors">
                 <LogOut className="w-5 h-5 mr-3 text-red-500" /> {t('menu.leave_server')}
               </button>
@@ -197,7 +222,6 @@ export default function ChannelSidebar() {
         )}
       </div>
 
-      {/* DANH SÁCH KÊNH */}
       <div className="flex-1 overflow-y-auto hidden-scrollbar py-3 px-2 space-y-[2px]">
         {visibleChannels.filter((c: any) => !c.parentId).map((channel: any) => {
           const isActive = activeChannelId === channel._id;
@@ -217,10 +241,11 @@ export default function ChannelSidebar() {
           )
         })}
 
-        {groups.map((group: any) => {
+        {groups.map(group => {
           const isCollapsed = collapsedGroups[group._id];
           const childChannels = visibleChannels.filter((c: any) => c.parentId === group._id);
-          
+          if (childChannels.length === 0) return null;
+
           return (
             <div key={group._id} className="pt-3">
               <div className="flex items-center justify-between px-1 mb-1 group/category">
@@ -230,12 +255,8 @@ export default function ChannelSidebar() {
                 </button>
                 {isOwner && (
                   <div className="opacity-0 group-hover/category:opacity-100 flex items-center transition-opacity shrink-0">
-                    <button onClick={() => handleOpenCreateChannel(group._id)} className="text-gray-400 hover:text-gray-900 p-0.5" title={t('common.add')}>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDeleteChannel(group._id, true, group.name); }} className="text-gray-400 hover:text-red-500 p-0.5 ml-1" title={t('common.delete')}>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    </button>
+                    <button onClick={() => handleOpenCreateChannel(group._id)} className="text-gray-400 hover:text-gray-900 p-0.5" title={t('common.add')}><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg></button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDeleteChannel(group._id, true, group.name); }} className="text-gray-400 hover:text-red-500 p-0.5 ml-1" title={t('common.delete')}><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                   </div>
                 )}
               </div>
@@ -251,9 +272,7 @@ export default function ChannelSidebar() {
                           {(channel as any).isAnonymous && <span className="ml-1 text-xs shrink-0" title={t('common.anonymous')}>🎭</span>}
                         </button>
                         {isOwner && (
-                          <button onClick={(e) => { e.stopPropagation(); handleDeleteChannel(channel._id, false, channel.name); }} className="opacity-0 group-hover/channel:opacity-100 text-gray-400 hover:text-red-500 transition-opacity p-1 shrink-0" title={t('common.delete')}>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteChannel(channel._id, false, channel.name); }} className="opacity-0 group-hover/channel:opacity-100 text-gray-400 hover:text-red-500 transition-opacity p-1 shrink-0" title={t('common.delete')}><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                         )}
                       </div>
                     )
@@ -265,8 +284,7 @@ export default function ChannelSidebar() {
         })}
       </div>
 
-     {/* TÙY CHỈNH CHÂN TRANG THEO TRẠNG THÁI ĐĂNG NHẬP */}
-      {isLoggedIn ? (
+      {isLoggedIn && (
         <div className="h-[60px] bg-[#ebecee] flex items-center justify-between px-2 py-1 shrink-0 border-t border-gray-200">
           <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 flex-1 hover:bg-gray-300/50 p-1.5 rounded-md transition-colors min-w-0 text-left">
             <div className="relative shrink-0">
@@ -283,60 +301,6 @@ export default function ChannelSidebar() {
             <Settings className="w-5 h-5" />
           </button>
         </div>
-      ) : (
-        <div className="h-[60px] bg-[#ebecee] flex items-center justify-between px-3 py-2 shrink-0 border-t border-gray-200 relative">
-          <button 
-            onClick={() => {
-              if (typeof setShowAuthModal === 'function') {
-                setShowAuthModal(true);
-              }
-            }} 
-            className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded-md transition-colors text-center text-[13px] shadow-sm mr-2"
-          >
-            {t('common.login') !== 'common.login' ? t('common.login') : 'Đăng nhập'}
-          </button>
-          
-          {/* Nút Đổi Ngôn Ngữ (Globe Icon) */}
-          <div className="relative">
-            <button 
-              onClick={() => setShowLangMenu(!showLangMenu)} 
-              className="p-2 text-gray-500 hover:text-green-600 hover:bg-white rounded-md transition-colors border border-transparent hover:border-gray-200 shadow-sm"
-              title="Đổi ngôn ngữ / Language"
-            >
-              <Globe className="w-5 h-5" />
-            </button>
-
-            {/* Menu Dropdown Xổ lên */}
-            {showLangMenu && (
-              <>
-                <div className="fixed inset-0 z-[40]" onClick={() => setShowLangMenu(false)}></div>
-                <div className="absolute bottom-12 right-0 w-36 bg-white shadow-lg rounded-xl border border-gray-100 z-[50] py-1.5 overflow-hidden animate-in fade-in slide-in-from-bottom-2">
-                  <button 
-                    onClick={() => { i18n.changeLanguage('vi'); setShowLangMenu(false); }} 
-                    className={`w-full flex items-center px-4 py-2.5 text-[13px] hover:bg-gray-50 transition-colors
-                      ${i18n.language === 'vi' ? 'text-green-600 font-bold bg-green-50/50' : 'text-gray-700'}`}
-                  >
-                    🇻🇳 Tiếng Việt
-                  </button>
-                  <button 
-                    onClick={() => { i18n.changeLanguage('en'); setShowLangMenu(false); }} 
-                    className={`w-full flex items-center px-4 py-2.5 text-[13px] hover:bg-gray-50 transition-colors
-                      ${i18n.language === 'en' ? 'text-green-600 font-bold bg-green-50/50' : 'text-gray-700'}`}
-                  >
-                    🇬🇧 English
-                  </button>
-                  <button 
-                    onClick={() => { i18n.changeLanguage('zh'); setShowLangMenu(false); }} 
-                    className={`w-full flex items-center px-4 py-2.5 text-[13px] hover:bg-gray-50 transition-colors
-                      ${i18n.language === 'zh' ? 'text-green-600 font-bold bg-green-50/50' : 'text-gray-700'}`}
-                  >
-                    🇨🇳 中文
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
       )}
 
       {/* MODALS */}
@@ -346,8 +310,65 @@ export default function ChannelSidebar() {
       {showModeration && currentWorkspace && <ModerationModal serverId={currentWorkspace._id} onClose={() => setShowModeration(false)} />}
       {activeServerId && <CreateChannelModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} serverId={activeServerId} type={createType} parentId={createParentId} />}
       {showUpgradeModal && currentWorkspace && <UpgradeServerModal channelCount={currentChannelsCount} workspace={currentWorkspace} onClose={() => setShowUpgradeModal(false)} />}
-      {showBrowseModal && currentWorkspace && (
-        <BrowseChannelsModal serverId={currentWorkspace._id} channels={channels} groups={groups} onClose={() => setShowBrowseModal(false)} />
+      {showBrowseModal && currentWorkspace && <BrowseChannelsModal serverId={currentWorkspace._id} channels={channels} groups={groups} onClose={() => setShowBrowseModal(false)} />}
+
+      {/* 👇 MODAL 2 BƯỚC BÁO CÁO MÁY CHỦ 👇 */}
+      {showReportServerModal && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => { setShowReportServerModal(false); setReportStep(1); }}>
+          <div className="bg-white rounded-2xl w-full max-w-[450px] p-6 shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+               <h2 className="text-[20px] font-extrabold text-gray-900 flex items-center gap-2">
+                 <AlertCircle className="w-5 h-5 text-red-500" />
+                 {t('report.step1_title')}
+               </h2>
+               <button onClick={() => { setShowReportServerModal(false); setReportStep(1); }} className="text-gray-400 hover:bg-gray-100 p-1.5 rounded-full"><X className="w-5 h-5"/></button>
+            </div>
+
+            {reportStep === 1 ? (
+               <>
+                 <p className="text-sm text-gray-500 mb-4">{t('report.step1_desc')}</p>
+                 <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto hidden-scrollbar">
+                   {TARGET_OPTIONS.map(target => (
+                     <label key={target} className={`flex items-center gap-3 cursor-pointer p-3.5 rounded-xl border transition-colors ${selectedTargets.includes(target) ? 'border-[#5865F2] bg-indigo-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                       <input
+                          type="checkbox"
+                          checked={selectedTargets.includes(target)}
+                          onChange={(e) => {
+                             if (e.target.checked) setSelectedTargets([...selectedTargets, target]);
+                             else setSelectedTargets(selectedTargets.filter(t => t !== target));
+                          }}
+                          className="w-4 h-4 text-[#5865F2] cursor-pointer rounded"
+                       />
+                       <span className="text-[14px] font-medium text-gray-800">{t(`report.${target}`)}</span>
+                     </label>
+                   ))}
+                 </div>
+                 <button onClick={() => setReportStep(2)} disabled={selectedTargets.length === 0} className="w-full py-3 rounded-xl bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold disabled:bg-indigo-300 text-[14px] transition-colors">
+                   {t('common.next')}
+                 </button>
+               </>
+            ) : (
+               <>
+                 <p className="text-sm text-gray-500 mb-4 border-b border-gray-100 pb-3">{t('alerts.report_thanks')}</p>
+                 <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto hidden-scrollbar">
+                   {REASON_OPTIONS.map(r => (
+                     <label key={r} className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                       <input type="radio" name="report_reason" value={r} checked={reportReason === r} onChange={(e) => setReportReason(e.target.value)} className="w-4 h-4 text-[#5865F2] cursor-pointer" />
+                       <span className="text-[14px] font-medium text-gray-800">{t(`report.${r}`)}</span>
+                     </label>
+                   ))}
+                   {reportReason === 'reason_other' && <div className="mt-3"><textarea placeholder={t('report.custom_reason_placeholder')} className="w-full border border-gray-200 bg-gray-50 rounded-xl p-3 text-[14px] outline-none min-h-[80px]" onChange={e => setCustomReason(e.target.value)} autoFocus /></div>}
+                 </div>
+                 <div className="flex gap-3">
+                    <button onClick={() => setReportStep(1)} className="flex-1 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold transition-colors text-[14px]">{t('common.back')}</button>
+                    <button onClick={handleSubmitServerReport} disabled={!reportReason || (reportReason === 'reason_other' && !customReason.trim()) || isReporting} className="flex-1 py-3 rounded-xl bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold disabled:bg-indigo-300 text-[14px] flex justify-center items-center">
+                       {isReporting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : t('common.confirm')}
+                    </button>
+                 </div>
+               </>
+            )}
+          </div>
+        </div>
       )}
     </aside>
   );

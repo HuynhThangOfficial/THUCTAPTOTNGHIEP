@@ -1043,20 +1043,30 @@ export const getServerReports = query({
       .order("desc")
       .collect();
 
-    // Nhóm các báo cáo cùng 1 bài viết lại với nhau
+    // 👇 FIX 1: Chuyển messageId thành String an toàn để làm Key cho Map 👇
     const grouped = new Map<string, any[]>();
     for (const r of reports) {
-        if (!grouped.has(r.messageId)) grouped.set(r.messageId, []);
-        grouped.get(r.messageId)!.push(r);
+        const key = r.type === 'server' ? `server_${r.serverId}` : `msg_${r.messageId}`;
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key)!.push(r);
     }
 
     const result = [];
-    for (const [msgId, groupReports] of grouped.entries()) {
-        const message = await ctx.db.get(msgId as Id<"messages">);
-        const author = message ? await ctx.db.get(message.userId) : null;
-        const channel = message?.channelId ? await ctx.db.get(message.channelId) : null;
+    for (const [key, groupReports] of grouped.entries()) {
+        const firstReport = groupReports[0];
+        const isServerReport = firstReport.type === 'server';
 
-        // Lấy thông tin tất cả những người đã báo cáo bài này
+        let message = null;
+        let author = null;
+        let channel = null;
+
+        // 👇 FIX 2: Bọc điều kiện kiểm tra messageId tồn tại mới lấy bài viết 👇
+        if (!isServerReport && firstReport.messageId) {
+            message = await ctx.db.get(firstReport.messageId as Id<"messages">);
+            author = message ? await ctx.db.get(message.userId) : null;
+            channel = message?.channelId ? await ctx.db.get(message.channelId) : null;
+        }
+
         const reporters = await Promise.all(groupReports.map(async r => {
             const user = await ctx.db.get(r.userId);
             return { ...user, reason: r.reason };
@@ -1064,9 +1074,11 @@ export const getServerReports = query({
 
         result.push({
             _id: groupReports[0]._id,
-            reportIds: groupReports.map(r => r._id), // Mảng chứa ID của các reports để xử lý 1 lần
-            messageId: msgId,
-            reportCount: groupReports.length, // Số lần bị báo cáo
+            reportIds: groupReports.map(r => r._id),
+            messageId: firstReport.messageId,
+            type: firstReport.type || 'message',
+            targets: firstReport.targets || [],
+            reportCount: groupReports.length,
             reporters,
             message,
             author,
@@ -1078,7 +1090,6 @@ export const getServerReports = query({
   }
 });
 
-// 3. Xử lý báo cáo (Xóa bài hoặc Bỏ qua) - XỬ LÝ NHIỀU REPORT CÙNG LÚC
 export const resolveReport = mutation({
   args: { reportIds: v.array(v.id("reports")), action: v.string() },
   handler: async (ctx, args) => {
@@ -1088,18 +1099,47 @@ export const resolveReport = mutation({
     if (!firstReport) return;
 
     if (args.action === 'delete') {
-      const msg = await ctx.db.get(firstReport.messageId);
-      if (msg) await ctx.db.delete(msg._id);
+      // 👇 FIX 3: Ép kiểu as Id<"messages"> và kiểm tra tồn tại trước khi xóa 👇
+      if (firstReport.messageId) {
+         const msg = await ctx.db.get(firstReport.messageId as Id<"messages">);
+         if (msg) await ctx.db.delete(msg._id);
+      }
 
-      // Đổi trạng thái tất cả report của bài này thành resolved
       for (const rId of args.reportIds) {
         await ctx.db.patch(rId, { status: "resolved" });
       }
     } else {
-      // Đổi trạng thái tất cả report của bài này thành dismissed
       for (const rId of args.reportIds) {
         await ctx.db.patch(rId, { status: "dismissed" });
       }
     }
+  }
+});
+
+export const reportServerToAdmin = mutation({
+  args: {
+    serverId: v.id("servers"),
+    targets: v.array(v.string()),
+    reason: v.string(),
+    customReason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Unauthorized");
+    const user = await ctx.db.query("users").withIndex("byClerkId", q => q.eq("clerkId", identity.subject)).unique();
+    if (!user) throw new Error("User not found");
+
+    const finalReason = args.reason === 'reason_other' ? (args.customReason || 'Khác') : args.reason;
+
+    await ctx.db.insert("reports", {
+      userId: user._id,
+      serverId: args.serverId,
+      targets: args.targets,
+      reason: finalReason,
+      status: "pending",
+      type: "server" // Gắn cờ báo cáo này là báo cáo Server
+    });
+
+    return { success: true };
   }
 });

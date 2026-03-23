@@ -13,6 +13,8 @@ import ReportsContent from './components/ReportsContent';
 import AnalyticsContent from './components/AnalyticsContent';
 import PermissionsContent from './components/PermissionsContent';
 import NotificationsContent from './components/NotificationsContent';
+// 👇 1. IMPORT ADMINGUARD VÀO ĐÂY 👇
+import AdminGuard from './components/AdminGuard';
 
 function App() {
   const [activeItem, setActiveItem] = useState('dashboard');
@@ -36,37 +38,40 @@ function App() {
         <LoginPage />
       </SignedOut>
 
-      {/* NẾU ĐÃ ĐĂNG NHẬP THÀNH CÔNG: Clerk sẽ mở khóa toàn bộ Dashboard bên trong */}
+      {/* NẾU ĐÃ ĐĂNG NHẬP THÀNH CÔNG: Clerk sẽ mở khóa thẻ SignedIn */}
       <SignedIn>
-        <div className="min-h-screen bg-gray-50">
-          <Sidebar 
-            activeItem={activeItem} 
-            setActiveItem={setActiveItem}
-            isOpen={sidebarOpen}
-            setIsOpen={setSidebarOpen}
-          />
-          
-          <div className="lg:ml-64 min-h-screen flex flex-col">
-            <Header 
-              title={titles[activeItem] || 'Dashboard'} 
+        {/* 👇 2. BỌC ADMINGUARD BAO LẤY TOÀN BỘ GIAO DIỆN BÊN TRONG 👇 */}
+        <AdminGuard>
+          <div className="min-h-screen bg-gray-50">
+            <Sidebar
               activeItem={activeItem}
-              onOpenSidebar={() => setSidebarOpen(true)}
+              setActiveItem={setActiveItem}
+              isOpen={sidebarOpen}
+              setIsOpen={setSidebarOpen}
             />
-            
-            <main className="flex-1 p-4 lg:p-6">
-              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {activeItem === 'dashboard' && <DashboardContent />}
-                {activeItem === 'channels' && <ChannelsContent />}
-                {activeItem === 'users' && <UsersContent />}
-                {activeItem === 'content' && <ContentContent />}
-                {activeItem === 'reports' && <ReportsContent />}
-                {activeItem === 'analytics' && <AnalyticsContent />}
-                {activeItem === 'permissions' && <PermissionsContent />}
-                {activeItem === 'notifications' && <NotificationsContent />}
-              </div>
-            </main>
+
+            <div className="lg:ml-64 min-h-screen flex flex-col">
+              <Header
+                title={titles[activeItem] || 'Dashboard'}
+                activeItem={activeItem}
+                onOpenSidebar={() => setSidebarOpen(true)}
+              />
+
+              <main className="flex-1 p-4 lg:p-6">
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  {activeItem === 'dashboard' && <DashboardContent />}
+                  {activeItem === 'channels' && <ChannelsContent />}
+                  {activeItem === 'users' && <UsersContent />}
+                  {activeItem === 'content' && <ContentContent />}
+                  {activeItem === 'reports' && <ReportsContent />}
+                  {activeItem === 'analytics' && <AnalyticsContent />}
+                  {activeItem === 'permissions' && <PermissionsContent />}
+                  {activeItem === 'notifications' && <NotificationsContent />}
+                </div>
+              </main>
+            </div>
           </div>
-        </div>
+        </AdminGuard>
       </SignedIn>
     </AuthProvider>
   );
