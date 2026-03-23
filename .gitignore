@@ -6,3 +6,5 @@ dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*git rm -r --cached node_modules
+.idea/
+*.iml
