@@ -94,7 +94,9 @@ export default function ChannelSidebar() {
   const currentWorkspace = isUniversity ? universities?.find(u => u._id === activeUniversityId) : myServers?.find(s => s._id === activeServerId);
   const isOwner = activeServerId && currentWorkspace && ('creatorId' in currentWorkspace) && currentWorkspace.creatorId === currentUser?._id;
 
-  const stones = currentWorkspace?.totalStones || 0;
+  const stones = (currentWorkspace && 'totalStones' in currentWorkspace) 
+  ? (currentWorkspace.totalStones as number) 
+  : 0;
   let serverLevel = 0;
   for (let i = LEVEL_REQUIREMENTS.length - 1; i >= 0; i--) {
     if (stones >= LEVEL_REQUIREMENTS[i].totalStones) { serverLevel = LEVEL_REQUIREMENTS[i].level; break; }
