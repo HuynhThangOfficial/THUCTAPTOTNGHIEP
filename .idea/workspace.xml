@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="NONE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="f23b5e7a-8792-4ede-a253-b988e572dc80" name="Changes" comment="Sửa chat trên web giống mobile" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;drago1000k&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/HuynhThangOfficial/THUCTAPTOTNGHIEP.git&quot;,
+    &quot;accountId&quot;: &quot;83d3900e-4bed-41c4-8404-b776999d4574&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 5
+}</component>
+  <component name="ProjectId" id="3B8qLg6xk5bdwAxjQLOCbBGVMZR" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="1" id="Add" />
+  </component>
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Hao/tttn3/convex&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Project&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;AndroidSdkUpdater&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Hao\tttn3\convex" />
+      <recent name="C:\Hao\tttn3\apps\web\src\locales" />
+      <recent name="C:\Hao\tttn3\apps\web" />
+      <recent name="C:\Hao\tttn3\apps\dashboard" />
+      <recent name="C:\Hao\tttn3\apps\mobile\android" />
+    </key>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="f23b5e7a-8792-4ede-a253-b988e572dc80" name="Changes" comment="" />
+      <created>1773880990554</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1773880990554</updated>
+    </task>
+    <task id="LOCAL-00001" summary="Thêm nút kiểm duyệt (nằm chung mục với nút xoá server)&#10;gửi báo cáo sẽ gửi cho chủ server + gửi lên web admin">
+      <option name="closed" value="true" />
+      <created>1773892349940</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1773892349940</updated>
+    </task>
+    <task id="LOCAL-00002" summary="Full chức năng tab home như mobie cho bản web&#10;Thêm 3 ngôn ngữ">
+      <option name="closed" value="true" />
+      <created>1773995250464</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1773995250464</updated>
+    </task>
+    <task id="LOCAL-00003" summary="sửa:&#10;+xoá bài trong web ko đc&#10;+tham gia máy chủ trong ô tìm kiếm ko đc&#10;+thiếu tính năng tìm kiếm bài đăng trong máy chủ (web lẫn mobile)">
+      <option name="closed" value="true" />
+      <created>1774089438588</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1774089438588</updated>
+    </task>
+    <task id="LOCAL-00004" summary="+làm cho nhấn vào bài đăng đc giống mobile, &#10;+làm cho nhấn vào người dùng sẽ mở ra trang hồ sơ của họ đc &#10;+bài đăng web hiển thị đc #kênh •máy chủ giống bên mobile &#10;+thiếu tính năng filter sắp xếp bài đăng bên mobile sang web&#10;+thêm tính năng báo cáo server (cho web và mobile)&#10;+sửa tính năng báo cáo máy chủ đến trang admin &#10;+sửa trang admin hiện tại người dùng nào cũng đăng nhập được thành chỉ có admin mới có thể đăng nhập">
+      <option name="closed" value="true" />
+      <created>1774230724157</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1774230724157</updated>
+    </task>
+    <task id="LOCAL-00005" summary="Sửa reply và thêm nút chia sẻ">
+      <option name="closed" value="true" />
+      <created>1774233136244</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1774233136244</updated>
+    </task>
+    <task id="LOCAL-00006" summary="Sửa lại comment và reply trong xem chi tiết bài đăng">
+      <option name="closed" value="true" />
+      <created>1774234895555</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1774234895555</updated>
+    </task>
+    <task id="LOCAL-00007" summary="Fix báo cáo bài viết">
+      <option name="closed" value="true" />
+      <created>1774238148898</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1774238148898</updated>
+    </task>
+    <task id="LOCAL-00008" summary="Fix báo cáo bài viết">
+      <option name="closed" value="true" />
+      <created>1774239020315</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1774239020315</updated>
+    </task>
+    <task id="LOCAL-00009" summary="Sửa chat trên web giống mobile">
+      <option name="closed" value="true" />
+      <created>1774263393782</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1774263393782</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
+    <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Thêm nút kiểm duyệt (nằm chung mục với nút xoá server)&#10;gửi báo cáo sẽ gửi cho chủ server + gửi lên web admin" />
+    <MESSAGE value="Full chức năng tab home như mobie cho bản web&#10;Thêm 3 ngôn ngữ" />
+    <MESSAGE value="sửa:&#10;+xoá bài trong web ko đc&#10;+tham gia máy chủ trong ô tìm kiếm ko đc&#10;+thiếu tính năng tìm kiếm bài đăng trong máy chủ (web lẫn mobile)" />
+    <MESSAGE value="+làm cho nhấn vào bài đăng đc giống mobile, &#10;+làm cho nhấn vào người dùng sẽ mở ra trang hồ sơ của họ đc &#10;+bài đăng web hiển thị đc #kênh •máy chủ giống bên mobile &#10;+thiếu tính năng filter sắp xếp bài đăng bên mobile sang web&#10;+thêm tính năng báo cáo server (cho web và mobile)&#10;+sửa tính năng báo cáo máy chủ đến trang admin &#10;+sửa trang admin hiện tại người dùng nào cũng đăng nhập được thành chỉ có admin mới có thể đăng nhập" />
+    <MESSAGE value="Sửa reply và thêm nút chia sẻ" />
+    <MESSAGE value="Sửa lại comment và reply trong xem chi tiết bài đăng" />
+    <MESSAGE value="Fix báo cáo bài viết" />
+    <MESSAGE value="Sửa chat trên web giống mobile" />
+    <option name="LAST_COMMIT_MESSAGE" value="Sửa chat trên web giống mobile" />
+  </component>
+</project>
