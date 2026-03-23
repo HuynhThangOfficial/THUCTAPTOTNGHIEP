@@ -126,23 +126,30 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
   };
 
   const handleMessageClick = async () => {
-  if (!isLoggedIn) return setShowAuthModal(true);
-  if (!targetUserId) return;
-  
-  try {
-    // Gọi API để tạo hoặc lấy ID phòng chat đã có sẵn giữa 2 người
-    const convId = await getOrCreateConversation({ otherUserId: targetUserId });
+    // 👇 KIỂM TRA ĐĂNG NHẬP TRƯỚC TIÊN 👇
+    if (!isLoggedIn || !user) {
+      onClose(); // Đóng profile modal
+      return setShowAuthModal(true); // Mở popup bắt đăng nhập
+    }
+
+    if (!targetUserId) return;
     
-    // Đóng Modal Profile lại
-    onClose();
-    
-    // Chuyển hướng thẳng vào phòng chat
-    router.push(`/chat/${convId}`);
-  } catch (error) {
-    console.error("Lỗi tạo cuộc trò chuyện:", error);
-    alert(t('common.error'));
-  }
-};
+    try {
+      // Vì đã qua bước if ở trên, nên lúc gọi API này chắc chắn đã có Token hợp lệ
+      const convId = await getOrCreateConversation({ otherUserId: targetUserId });
+      onClose();
+      router.push(`/chat/${convId}`);
+    } catch (error: any) {
+      console.error("Lỗi tạo cuộc trò chuyện:", error);
+      // Nếu vẫn lỗi, hiện thông báo tiếng Việt cho thân thiện
+      if (error.message.includes("UNAUTHORIZED")) {
+        alert("Vui lòng đăng nhập lại để nhắn tin!");
+        setShowAuthModal(true);
+      } else {
+        alert(t('common.error'));
+      }
+    }
+  };
 
   // =======================================================
   // HIỂN THỊ MÀN HÌNH DANH SÁCH FOLLOW NẾU ĐƯỢC KÍCH HOẠT
