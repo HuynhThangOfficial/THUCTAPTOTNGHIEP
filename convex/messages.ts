@@ -1001,11 +1001,11 @@ export const deleteAllNotifications = mutation({
 // ==========================================
 
 // 1. Gửi báo cáo bài viết
-export const createReport = mutation({
+export const reportMessage = mutation({
   args: {
     messageId: v.id("messages"),
     reason: v.string(),
-    serverId: v.optional(v.id("servers")), // Thêm serverId để Frontend truyền xuống
+    serverId: v.optional(v.id("servers")), // Vẫn cho phép nhận serverId từ Web
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -1016,14 +1016,13 @@ export const createReport = mutation({
     const message = await ctx.db.get(args.messageId);
     if (!message) throw new Error("Message not found");
 
-    // Tránh spam: Kiểm tra xem user này đã báo cáo bài này chưa
     const existingReport = await ctx.db.query("reports")
       .withIndex("by_message", q => q.eq("messageId", args.messageId))
       .filter(q => q.eq(q.field("userId"), user._id))
       .first();
 
     if (existingReport) {
-      throw new Error("ALREADY_REPORTED"); // Lỗi này Frontend sẽ bắt được để báo "Đã báo cáo rồi"
+      throw new Error("ALREADY_REPORTED");
     }
 
     await ctx.db.insert("reports", {
@@ -1032,8 +1031,8 @@ export const createReport = mutation({
       serverId: args.serverId || message.serverId,
       universityId: message.universityId,
       reason: args.reason,
-      status: "pending", // Đang chờ duyệt
-      type: "message"    // 👇 RẤT QUAN TRỌNG: Để Admin phân biệt với báo cáo Server
+      status: "pending",
+      type: "message" // 👇 Vẫn thêm cái nhãn này cho Web Admin hiểu
     });
 
     return { success: true };

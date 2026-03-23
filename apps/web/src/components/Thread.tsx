@@ -12,7 +12,7 @@ import UserProfileModal from './UserProfileModal';
 interface Props {
   thread: any;
   isNested?: boolean;
-  isDetailView?: boolean; // 👈 CỜ MỚI ĐỂ XÁC ĐỊNH ĐANG Ở TRANG CHI TIẾT
+  isDetailView?: boolean;
   onReplyClick?: (threadId: string, authorName: string) => void;
 }
 
@@ -58,7 +58,8 @@ export default function Thread({ thread, isNested = false, isDetailView = false,
   const likeThread = useMutation(api.messages.likeThread);
   const toggleRepost = useMutation(api.messages.toggleRepost);
   const deleteMessage = useMutation((api as any).messages.deleteThread);
-  const createReport = useMutation((api as any).messages.createReport);
+  // 👇 Đã chuẩn hóa tên biến ở đây 👇
+  const createReport = useMutation((api as any).messages.reportMessage);
   const updateThread = useMutation((api as any).messages.updateThread);
   const addThread = useMutation(api.messages.addThread);
 
@@ -69,21 +70,15 @@ export default function Thread({ thread, isNested = false, isDetailView = false,
   const displayName = isAnonymous ? t('thread.anonymous_member') : (isSelf ? (user?.fullName || user?.username) : (thread.creator?.first_name || thread.creator?.username || t('settings.default_user')));
   const displayAvatar = isAnonymous ? "https://www.gravatar.com/avatar/0?d=mp&f=y" : (isSelf ? user?.imageUrl : (thread.creator?.imageUrl || `https://ui-avatars.com/api/?name=${displayName}&background=random&color=fff`));
 
-  // 👇 HÀM XỬ LÝ KHI BẤM NÚT BÌNH LUẬN 👇
   const handleCommentClick = () => {
     if (!isLoggedIn) return setShowAuthModal(true);
 
     if (!isDetailView) {
-      // Nếu ở ngoài Feed: Mở bong bóng như bình thường
       setShowComments(!showComments);
     } else {
-      // Nếu ở trong Chi tiết bài đăng:
-      // Chỉ mở showComments nếu đây là một "Comment con" (để xem được cháu chắt của nó).
-      // TUYỆT ĐỐI KHÔNG mở showComments nếu đây là Bài viết gốc (tránh bị trùng lặp comment).
       if (isNested) setShowComments(true);
     }
 
-    // Luôn bắn tín hiệu xuống thanh Input ở đáy (Thanh Input này chỉ gắn ở màn Chi tiết bài đăng)
     if (onReplyClick) {
       onReplyClick(thread._id, displayName);
     } else {
@@ -111,11 +106,20 @@ export default function Thread({ thread, isNested = false, isDetailView = false,
     setIsReporting(true);
     const finalReason = reportReason === 'reason_other' ? customReason : reportReason;
     try {
+      // 👇 Gọi đúng tên hàm createReport 👇
       await createReport({ messageId: thread._id, reason: finalReason, serverId: activeServerId });
       alert(t('report.success'));
       setShowReportModal(false);
-    } catch (error) { alert(t('report.already_reported')); }
-    setIsReporting(false);
+    } catch (error: any) {
+      // 👇 BẮT LỖI THÔNG MINH: Lỗi nào ra lỗi đó 👇
+      if (error.message && error.message.includes("ALREADY_REPORTED")) {
+        alert(t('report.already_reported'));
+      } else {
+        alert(t('common.error') + ": " + (error.message || "Lỗi hệ thống"));
+      }
+    } finally {
+      setIsReporting(false);
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -210,7 +214,6 @@ export default function Thread({ thread, isNested = false, isDetailView = false,
       {showComments && (
         <div className={`mt-3 ${isNested ? '' : 'pt-4 border-t border-gray-100'} animate-in fade-in slide-in-from-top-2 duration-200`} onClick={e => e.stopPropagation()}>
 
-          {/* 👇 NẾU Ở TRONG TRANG CHI TIẾT THÌ GIẤU LUN CÁI FORM NHẬP NÀY ĐI 👇 */}
           {(!isDetailView && thread.allowComments !== false) && (
             <form onSubmit={handleCommentSubmit} className={`flex gap-3 mb-4 ${isNested ? 'pl-2' : ''}`}>
               <img src={user?.imageUrl || "https://ui-avatars.com/api/?name=Guest"} alt="Avt" className="w-8 h-8 rounded-full object-cover shrink-0 border border-gray-200" />
@@ -230,7 +233,6 @@ export default function Thread({ thread, isNested = false, isDetailView = false,
               {comments.map((comment: any) => (
                 <div key={comment._id} className="relative z-10 mb-1">
                   <div className="absolute -left-[14px] top-6 w-3 h-4 border-b-[2px] border-l-[2px] border-gray-100 rounded-bl-xl -z-10"></div>
-                  {/* 👇 TRUYỀN CỜ XUỐNG CÁC ĐỜI CHÁU 👇 */}
                   <Thread thread={comment} isNested={true} isDetailView={isDetailView} onReplyClick={onReplyClick} />
                 </div>
               ))}
