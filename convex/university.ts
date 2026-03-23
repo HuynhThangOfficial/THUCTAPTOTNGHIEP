@@ -55,7 +55,7 @@ export const getChannels = query({
 export const seedAndMigrate = mutation({
   handler: async (ctx) => {
     
-    // --- HÀM HỖ TRỢ TẠO DANH MỤC VÀ KÊNH (Đã nâng cấp để hỗ trợ isAnonymous) ---
+    // --- HÀM HỖ TRỢ TẠO DANH MỤC VÀ KÊNH (Đã nâng cấp để cập nhật thứ tự) ---
     const ensureCategoryWithChannels = async (
       workspaceId: Id<'universities'>,
       catName: string,
@@ -101,6 +101,12 @@ export const seedAndMigrate = mutation({
             sortOrder: i,
             isAnonymous: subData.isAnonymous || false, // Gắn cờ ẩn danh nếu có
           });
+        } else {
+          // Cập nhật lại vị trí (sortOrder) và trạng thái ẩn danh nếu kênh đã tồn tại
+          await ctx.db.patch(existing._id, {
+            sortOrder: i,
+            isAnonymous: subData.isAnonymous || false,
+          });
         }
       }
     };
@@ -135,9 +141,21 @@ export const seedAndMigrate = mutation({
       await ctx.db.insert('channels', { name: 'đại-sảnh', type: 'channel', universityId: uniId, sortOrder: 0 });
     }
 
+    // Cập nhật cấu trúc kênh Cộng Đồng cho VAA
     await ensureCategoryWithChannels(uniId, 'CỘNG ĐỒNG', 1, [
-      'làm-quen-kết-nối', 'phòng-trọ', 'chia-sẻ-tài-liệu', 'mua-bán', 'đồ-thất-lạc', 'kí-túc-xá', 'tổng-hợp-sự-kiện', 'đăng-ký-học-phần', 'review-giảng-viên', 'việc-làm', 'quân-sự',
-    ].map(name => ({ name })));
+      { name: 'làm-quen-kết-nối' },
+      { name: 'phòng-trọ' },
+      { name: 'chia-sẻ-tài-liệu' },
+      { name: 'mua-bán' },
+      { name: 'đồ-thất-lạc' },
+      { name: 'confession', isAnonymous: true }, 
+      { name: 'tổng-hợp-sự-kiện' },
+      { name: 'đăng-ký-học-phần' },
+      { name: 'review-giảng-viên' },
+      { name: 'việc-làm' },
+      { name: 'quân-sự' },
+      { name: 'kí-túc-xá' } 
+    ]);
     await ensureCategoryWithChannels(uniId, 'KHOÁ', 2, ['k17', 'k18', 'k19', 'k20'].map(name => ({ name })));
     await ensureCategoryWithChannels(uniId, 'KHOA', 3, [
       'khoa-công-nghệ-thông-tin', 'khoa-kinh-tế-hàng-không', 'khoa-cơ-bản', 'khoa-quản-trị-kinh-doanh', 'khoa-xây-dựng', 'khoa-khai-khác-hàng-không', 'khoa-kỹ-thuật-hàng-không', 'khoa-điện-điện-tử', 'khoa-du-lịch-và-dịch-vụ-hàng-không', 'khoa-ngoại-ngữ',
@@ -562,8 +580,6 @@ export const createChannel = mutation({
         throw new Error("ONLY_OWNER_CAN_CREATE_CHANNEL");
       }
     } 
-    // (Bổ sung thêm: Nếu có logic check Admin của University thì viết ở đây)
-    // else if (args.universityId) { ... }
 
     // TÌM CÁC KÊNH ĐANG TỒN TẠI TRONG KHÔNG GIAN NÀY
     let existing: any[] = [];
