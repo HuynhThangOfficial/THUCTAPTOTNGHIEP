@@ -228,7 +228,7 @@ function PostDetailView({ messageId, onBack }: { messageId: string, onBack: () =
      try {
         await addThread({
           content: replyContent.trim(),
-          threadId: replyTargetId || mainThread._id,
+         threadId: (replyTargetId as Id<"messages">) || mainThread._id,
           channelId: mainThread.channelId,
           serverId: mainThread.serverId,
           universityId: mainThread.universityId
