@@ -1,7 +1,7 @@
 export default {
   providers: [
     {
-      domain: "https://clerk.newyas.com", 
+      domain: "https://clerk.newyas.com",
       applicationID: "convex",
     },
   ],
