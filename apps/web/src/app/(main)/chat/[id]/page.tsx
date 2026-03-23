@@ -73,7 +73,13 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
   // --- HOOKS ---
   const currentUser = useQuery(api.users.current);
-  const messages = useQuery(api.chat.getMessages, { conversationId });
+  const messages = useQuery(api.chat.getMessages, { 
+  conversationId: params.id as any // Đảm bảo tên key là conversationId
+});
+
+const conversationInfo = useQuery(api.chat.getConversationInfo, {
+  conversationId: params.id as any
+});
   const otherUser = useQuery(api.chat.getConversationInfo, { conversationId });
   const rawConvo = useQuery(api.chat.getRawConversation, { conversationId });
   
