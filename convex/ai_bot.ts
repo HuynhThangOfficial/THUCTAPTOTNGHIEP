@@ -114,22 +114,33 @@ export const generateRoleplayPost = internalAction({
     if (!apiKey) throw new Error("SYS_ERR: Thiếu GEMINI_API_KEY");
 
     const genAI = new GoogleGenerativeAI(apiKey);
+    // Dùng bản Lite nhanh rẻ
     const model = genAI.getGenerativeModel({ 
       model: "gemini-3.1-flash-lite-preview",
       generationConfig: { responseMimeType: "application/json" }
     });
 
     const currentHour = (new Date().getUTCHours() + 7) % 24;
-    let timeContext = `Bây giờ là ${currentHour}h. `;
-    if (currentHour >= 5 && currentHour < 11) timeContext += "Sáng: kẹt xe, buồn ngủ, đói.";
-    else if (currentHour >= 11 && currentHour < 14) timeContext += "Trưa: nắng gắt, mệt mỏi, tìm đồ ăn.";
-    else if (currentHour >= 14 && currentHour < 18) timeContext += "Chiều: chán nản, đuối sức, rủ rê đi chơi.";
-    else if (currentHour >= 18 && currentHour < 23) timeContext += "Tối: chơi game, lướt top top, deadline sml.";
-    else timeContext += "Khuya: overthinking, deep, chửi thề, đói đêm, mất ngủ.";
+    // Bỏ mấy cái từ khóa kẹt xe, đói bụng đi. Chỉ để lại bối cảnh tổng quan.
+    let timeContext = `Bây giờ là ${currentHour}h. Bối cảnh: `;
+    if (currentHour >= 5 && currentHour < 11) timeContext += "Buổi sáng.";
+    else if (currentHour >= 11 && currentHour < 14) timeContext += "Buổi trưa.";
+    else if (currentHour >= 14 && currentHour < 18) timeContext += "Buổi chiều.";
+    else if (currentHour >= 18 && currentHour < 23) timeContext += "Buổi tối.";
+    else timeContext += "Đêm khuya.";
+
+    // BƠM KHO CHỦ ĐỀ NGẪU NHIÊN VÀO NÃO AI
+    const randomTopics = [
+      "hết tiền đầu tháng", "crush seen không rep", "bạn cùng phòng ở dơ", "chủ trọ khó tính",
+      "đăng ký tín chỉ sập web", "đồ ăn căn tin", "chơi game thua liên tiếp", "rớt môn triết",
+      "overthinking về tương lai", "chê WiFi trường yếu", "hóng drama", "triết lý xàm xí",
+      "tìm cạ cứng đi nhậu", "deadline ngập đầu", "xin info trai xinh/gái đẹp", "cúp tiết",
+      "thất tình", "muốn bảo lưu", "vấn đề cân nặng", "review quán cafe"
+    ];
+    const pickedTopic = randomTopics[Math.floor(Math.random() * randomTopics.length)];
 
     const cName = target.channelName.toLowerCase();
     
-    // 👇 FIX: ÉP BUỘC AI PHẢI BIẾT ĐANG Ở KÊNH NÀO 👇
     let channelContext = `Bạn đang đăng bài vào kênh: #${target.channelName}. `;
 
     if (cName === "confession") {
@@ -151,7 +162,7 @@ export const generateRoleplayPost = internalAction({
     } else if (cName.includes("clb")) {
       channelContext += `Nhiệm vụ: Rủ rê sinh hoạt câu lạc bộ, than vãn chạy sự kiện cho CLB.`;
     } else {
-      channelContext += `Nhiệm vụ: Viết một status xàm xí, than thở bốc đồng phù hợp với tính chất của kênh này.`;
+      channelContext += `Nhiệm vụ: Viết một status tự do, sáng tạo.`;
     }
 
     const isNewUser = !target.botUser;
@@ -160,10 +171,14 @@ export const generateRoleplayPost = internalAction({
       Bạn là sinh viên Học viện Hàng Không (VAA).
       ${isNewUser ? "Hãy TỰ NGHĨ RA một cái tên (Tên thật viết thiếu dấu, genz suy tình, bựa...) và tiểu sử cực ngắn." : `Tên bạn là "${target.botUser.first_name}", tiểu sử: "${target.botUser.bio}".`}
       
-      Chủ đề: ${channelContext}
+      Chủ đề kênh: ${channelContext}
+      Gợi ý nội dung ngẫu nhiên lần này: ${pickedTopic} (Sáng tạo dựa trên gợi ý này).
       Thời gian: ${timeContext}
       
-      Văn phong: Gen Z, teencode, viết tắt, không dùng hashtag, không dùng ngoặc kép, sai chính tả nhẹ. ĐI THẲNG VÀO VẤN ĐỀ, KHÔNG CHÀO HỎI. Cực kỳ tự nhiên giống người thật lướt Facebook.
+      QUY TẮC BẮT BUỘC:
+      1. TUYỆT ĐỐI KHÔNG lạm dụng việc nhắc đến "kẹt xe", "đói bụng", "buồn ngủ" hay nói về giờ giấc trừ khi thực sự phù hợp với ngữ cảnh.
+      2. Văn phong: Gen Z, teencode, viết tắt, sai chính tả nhẹ. ĐI THẲNG VÀO VẤN ĐỀ, KHÔNG CHÀO HỎI.
+      3. KHÔNG dùng hashtag, KHÔNG dùng ngoặc kép.
 
       TRẢ VỀ ĐÚNG ĐỊNH DẠNG JSON DUY NHẤT NHƯ SAU:
       {
@@ -193,7 +208,7 @@ export const generateRoleplayPost = internalAction({
         channelName: target.channelName
       });
 
-      return `SYS_SUCCESS | ${botName} đã đăng bài chuẩn xác vào #${target.channelName}`;
+      return `SYS_SUCCESS | ${botName} đã đăng bài chủ đề [${pickedTopic}] vào #${target.channelName}`;
     } catch (error: any) {
       console.error("Lỗi AI hoặc JSON:", error);
       return `SYS_ERR: ${error.message}`;
