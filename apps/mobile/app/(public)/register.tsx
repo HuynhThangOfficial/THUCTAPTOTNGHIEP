@@ -5,13 +5,14 @@ import { useSignUp } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
+import { useTranslation } from 'react-i18next';
+import * as WebBrowser from 'expo-web-browser';
 
 export default function RegisterScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isLoaded, signUp, setActive } = useSignUp();
-  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
+  const { t } = useTranslation();
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -19,14 +20,17 @@ export default function RegisterScreen() {
   // B1: Email
   const [email, setEmail] = useState('');
 
-  // B2: Điều khoản
-  const [terms, setTerms] = useState({ t1: false, t2: false, t3: false, t4: false, t5: false, t6: false });
+  // B2: Điều khoản (ĐÃ XÓA T3, T4)
+  const [terms, setTerms] = useState({ t1: false, t2: false, t5: false, t6: false });
   const isAllAccepted = Object.values(terms).every(Boolean);
+  
   const handleToggleAll = () => {
     const newValue = !isAllAccepted;
-    setTerms({ t1: newValue, t2: newValue, t3: newValue, t4: newValue, t5: newValue, t6: newValue });
+    setTerms({ t1: newValue, t2: newValue, t5: newValue, t6: newValue });
   };
-  const canProceedTerms = terms.t1 && terms.t2 && terms.t3 && terms.t4;
+  
+  // Điều kiện bắt buộc giờ chỉ còn Điều khoản (t1) và Bảo mật (t2)
+  const canProceedTerms = terms.t1 && terms.t2;
 
   // B3: OTP
   const [code, setCode] = useState('');
@@ -85,7 +89,6 @@ export default function RegisterScreen() {
     finally { setLoading(false); }
   };
 
-  // 🚀 CHỐT SỔ Ở BƯỚC 4
   const onFinishRegister = async () => {
     if (password !== confirmPassword) return Alert.alert(t('register.error'), t('register.password_mismatch'));
     if (password.length < 8) return Alert.alert(t('register.error'), t('register.password_length'));
@@ -93,9 +96,7 @@ export default function RegisterScreen() {
     if (!isLoaded) return;
     setLoading(true);
     try {
-      // TẠO TÊN NGẪU NHIÊN ĐỂ VƯỢT ẢI CLERK
       const tempUsername = 'user_' + Math.random().toString(36).substring(2, 10);
-
       const completeSignUp = await signUp.update({ 
         password: password,
         username: tempUsername 
@@ -114,14 +115,30 @@ export default function RegisterScreen() {
     }
   };
 
-  const CheckboxItem = ({ checked, onPress, title, subTitle, isLink = false }: any) => (
-    <TouchableOpacity style={styles.checkboxRow} onPress={onPress}>
-      <Ionicons name={checked ? "checkmark-circle" : "ellipse-outline"} size={24} color={checked ? Colors.primary : "#ccc"} />
+  const CheckboxItem = ({ checked, onPress, title, subTitle, isLink = false, linkUrl }: any) => (
+    <View style={styles.checkboxRow}>
+      <TouchableOpacity onPress={onPress}>
+        <Ionicons name={checked ? "checkmark-circle" : "ellipse-outline"} size={24} color={checked ? Colors.primary : "#ccc"} />
+      </TouchableOpacity>
+      
       <View style={styles.checkboxTexts}>
-        <Text style={[styles.checkboxTitle, isLink && { color: '#4B88E8' }]}>{title}</Text>
-        {subTitle && <Text style={styles.checkboxSub}>{subTitle}</Text>}
+        {isLink && linkUrl ? (
+          <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync(linkUrl)}>
+             <Text style={[styles.checkboxTitle, { color: '#4B88E8', textDecorationLine: 'underline' }]}>{title}</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={onPress}>
+             <Text style={[styles.checkboxTitle, isLink && { color: '#4B88E8' }]}>{title}</Text>
+          </TouchableOpacity>
+        )}
+        
+        {subTitle && (
+          <TouchableOpacity onPress={onPress} activeOpacity={1}>
+            <Text style={styles.checkboxSub}>{subTitle}</Text>
+          </TouchableOpacity>
+        )}
       </View>
-    </TouchableOpacity>
+    </View>
   );
 
   return (
@@ -157,10 +174,11 @@ export default function RegisterScreen() {
             <Text style={styles.titleLeft}>{t('register.terms_privacy')}</Text>
             <CheckboxItem checked={isAllAccepted} onPress={handleToggleAll} title={t('register.agree_all')} subTitle={t('register.agree_all_desc')} />
             <View style={styles.divider} />
-            <CheckboxItem checked={terms.t1} onPress={() => setTerms({...terms, t1: !terms.t1})} title={t('register.term_1')} isLink />
-            <CheckboxItem checked={terms.t2} onPress={() => setTerms({...terms, t2: !terms.t2})} title={t('register.term_2')} isLink />
-            <CheckboxItem checked={terms.t3} onPress={() => setTerms({...terms, t3: !terms.t3})} title={t('register.term_3')} isLink />
-            <CheckboxItem checked={terms.t4} onPress={() => setTerms({...terms, t4: !terms.t4})} title={t('register.term_4')} isLink />
+            
+            {/* 👇 CHỈ CÒN LẠI 4 ĐIỀU KHOẢN 👇 */}
+            <CheckboxItem checked={terms.t1} onPress={() => setTerms({...terms, t1: !terms.t1})} title={t('register.term_1')} isLink linkUrl="https://www.newyas.com/terms" />
+            <CheckboxItem checked={terms.t2} onPress={() => setTerms({...terms, t2: !terms.t2})} title={t('register.term_2')} isLink linkUrl="https://www.newyas.com/privacy" />
+            
             <CheckboxItem checked={terms.t5} onPress={() => setTerms({...terms, t5: !terms.t5})} title={t('register.term_5')} />
             <CheckboxItem checked={terms.t6} onPress={() => setTerms({...terms, t6: !terms.t6})} title={t('register.term_6')} />
 

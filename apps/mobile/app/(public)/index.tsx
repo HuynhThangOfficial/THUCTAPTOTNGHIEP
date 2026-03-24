@@ -138,20 +138,37 @@ const LoginScreen = () => {
             </View>
           </View>
 
-          {/* Checkboxes */}
-          <TouchableOpacity style={styles.checkboxRow} onPress={() => setAgreeTerms(!agreeTerms)}>
-            <Ionicons name={agreeTerms ? "checkbox" : "square-outline"} size={22} color={agreeTerms ? Colors.primary : "#ccc"} />
+          {/* 👇 Checkboxes (Đã nâng cấp để bấm vào link) 👇 */}
+          <View style={styles.checkboxRow}>
+            <TouchableOpacity onPress={() => setAgreeTerms(!agreeTerms)}>
+              <Ionicons name={agreeTerms ? "checkbox" : "square-outline"} size={22} color={agreeTerms ? Colors.primary : "#ccc"} />
+            </TouchableOpacity>
             <Text style={styles.checkboxText}>
-              {t('login.agree_to')}<Text style={styles.linkBold}>{t('login.terms_of_service')}</Text>
+              <Text onPress={() => setAgreeTerms(!agreeTerms)}>{t('login.agree_to')} </Text>
+              <Text 
+                style={[styles.linkBold, { textDecorationLine: 'underline' }]} 
+                onPress={() => WebBrowser.openBrowserAsync('https://www.newyas.com/terms')}
+              >
+                {t('login.terms_of_service')}
+              </Text>
             </Text>
-          </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity style={styles.checkboxRow} onPress={() => setAgreePrivacy(!agreePrivacy)}>
-            <Ionicons name={agreePrivacy ? "checkbox" : "square-outline"} size={22} color={agreePrivacy ? Colors.primary : "#ccc"} />
+          <View style={styles.checkboxRow}>
+            <TouchableOpacity onPress={() => setAgreePrivacy(!agreePrivacy)}>
+              <Ionicons name={agreePrivacy ? "checkbox" : "square-outline"} size={22} color={agreePrivacy ? Colors.primary : "#ccc"} />
+            </TouchableOpacity>
             <Text style={styles.checkboxText}>
-              {t('login.agree_privacy_policy')}<Text style={styles.linkBold}>{t('login.privacy_policy')}</Text>
+              <Text onPress={() => setAgreePrivacy(!agreePrivacy)}>{t('login.agree_privacy_policy')} </Text>
+              <Text 
+                style={[styles.linkBold, { textDecorationLine: 'underline' }]} 
+                onPress={() => WebBrowser.openBrowserAsync('https://www.newyas.com/privacy')}
+              >
+                {t('login.privacy_policy')}
+              </Text>
             </Text>
-          </TouchableOpacity>
+          </View>
+          {/* 👆 KẾT THÚC CẬP NHẬT CHECKBOX 👆 */}
 
           {/* Nút Đăng Nhập Chính */}
           <TouchableOpacity 

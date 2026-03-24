@@ -9,7 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useMutation } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
+import { useTranslation } from 'react-i18next'; 
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -17,14 +17,11 @@ export default function OnboardingScreen() {
   const { user, isLoaded } = useUser();
   const { userProfile } = useUserProfile(); 
   const syncUser = useMutation(api.users.updateUser);
-  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
+  const { t } = useTranslation(); 
 
   const [loading, setLoading] = useState(false);
   
-  // 1. Nickname: Lấy từ Clerk nếu có (Gmail thường có sẵn tên)
   const [displayName, setDisplayName] = useState(user?.firstName || '');
-  
-  // 2. ID Người dùng: ĐỂ SẴN TÊN NGẪU NHIÊN của Clerk cấp để người dùng đỡ phải gõ
   const [username, setUsername] = useState(user?.username || '');
 
   const [avatarUri, setAvatarUri] = useState<string | null>(user?.imageUrl || null);
@@ -46,7 +43,6 @@ export default function OnboardingScreen() {
   };
 
   const onFinish = async () => {
-    // Chỉ bắt buộc nhập Nickname và ID, không quan trọng ID có chữ user_ hay không
     if (!username.trim() || !displayName.trim()) {
       return Alert.alert(t('onboarding.error'), t('onboarding.fill_required_fields'));
     }
@@ -55,24 +51,29 @@ export default function OnboardingScreen() {
     setLoading(true);
     
     try {
-      // Up ảnh đại diện nếu có chọn mới
+      let latestImageUrl = user.imageUrl;
+
+      // 1. Up ảnh đại diện nếu có chọn mới
       if (avatarBase64) {
         await user.setProfileImage({ file: avatarBase64 });
+        await user.reload(); // 👇 LÀM MỚI USER ĐỂ LẤY LINK ẢNH MỚI
+        latestImageUrl = user.imageUrl; // Cập nhật link mới nhất
       }
 
-      // Cập nhật thông tin lên Clerk
+      // 2. Cập nhật thông tin lên Clerk
       await user.update({
         username: username.trim(),
         firstName: displayName.trim(),
       });
+      await user.reload(); // 👇 LÀM MỚI LẦN NỮA CHO CHẮC CÚ
       
+      // 3. Đồng bộ chuẩn xác sang Convex
       if (userProfile?._id) {
         await syncUser({
           _id: userProfile._id,
           first_name: displayName.trim(),
           username: username.trim(),
-          // Truyền thêm imageUrl từ Clerk nếu muốn đồng bộ luôn ảnh
-          imageUrl: user?.imageUrl ?? undefined
+          imageUrl: latestImageUrl // Đã lấy được link ảnh mới tinh
         });
       }
       

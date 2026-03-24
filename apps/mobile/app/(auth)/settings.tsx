@@ -200,19 +200,14 @@ export default function SettingsScreen() {
 
         <View style={styles.section}>
           <SettingsItem 
-            icon="book-outline" 
-            title={t('settings.community_guidelines')} 
-            onPress={() => openWebLink('https://www.google.com/search?q=nguyen+tac+cong+dong')} 
-          />
-          <SettingsItem 
             icon="document-text-outline" 
             title={t('settings.terms_of_service')} 
-            onPress={() => openWebLink('https://www.google.com/search?q=dieu+khoan+dich+vu')} 
+            onPress={() => openWebLink('https://www.newyas.com/terms')} 
           />
           <SettingsItem 
             icon="shield-checkmark-outline" 
             title={t('settings.privacy_policy')} 
-            onPress={() => openWebLink('https://www.google.com/search?q=chinh+sach+bao+mat')} 
+            onPress={() => openWebLink('https://www.newyas.com/privacy')} 
           />
         </View>
 

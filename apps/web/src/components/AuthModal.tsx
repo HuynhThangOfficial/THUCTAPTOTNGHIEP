@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useClerk, useUser } from '@clerk/nextjs';
 import { useApp } from '../context/AppContext';
-import { useTranslation } from 'react-i18next'; // 👈 IMPORT I18N
+import { useTranslation } from 'react-i18next';
 
 export default function AuthModal() {
   const { t } = useTranslation();
@@ -172,14 +172,13 @@ export default function AuthModal() {
           </button>
 
           <div className="text-center mb-6">
-  {/* Đã thay bằng Logo KonKet */}
-  <img 
-    src="/konket-logo-green.png" 
-    alt="KonKet Logo" 
-    className="h-15 mx-auto mb-0 object-contain" 
-  />
-  <h2 className="text-xl font-bold text-gray-900">{mode === 'login' ? t('login.login_button') : t('login.register_now')}</h2>
-</div>
+            <img 
+              src="/konket-logo-green.png" 
+              alt="KonKet Logo" 
+              className="h-15 mx-auto mb-0 object-contain" 
+            />
+            <h2 className="text-xl font-bold text-gray-900">{mode === 'login' ? t('login.login_button') : t('login.register_now')}</h2>
+          </div>
 
           {errorMsg && <div className="text-red-500 text-[13px] text-center mb-4 font-medium px-2">{errorMsg}</div>}
 
@@ -218,10 +217,30 @@ export default function AuthModal() {
                 </button>
               </div>
 
+              {/* 👇 ĐÃ NÂNG CẤP CHECKBOX CÓ LINK BẤM ĐƯỢC BÊN WEB 👇 */}
               <label className="flex items-start gap-2 mt-2 cursor-pointer group">
                 <input type="checkbox" checked={agreedTerms} onChange={(e) => setAgreedTerms(e.target.checked)} className="mt-1 border-gray-300 rounded text-blue-600 focus:ring-blue-500 cursor-pointer" />
                 <span className="text-[11px] text-gray-500 leading-snug">
-                  {t('login.agree_to')} <span className="text-blue-500 hover:underline">{t('login.terms_of_service')}</span>, <span className="text-blue-500 hover:underline">{t('settings.privacy_policy')}</span>
+                  {t('login.agree_to')}{' '}
+                  <a 
+                    href="https://www.newyas.com/terms" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-blue-500 hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {t('login.terms_of_service')}
+                  </a>
+                  ,{' '}
+                  <a 
+                    href="https://www.newyas.com/privacy" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-blue-500 hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {t('settings.privacy_policy')}
+                  </a>
                 </span>
               </label>
 
