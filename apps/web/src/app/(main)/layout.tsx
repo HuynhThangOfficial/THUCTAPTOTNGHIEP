@@ -11,7 +11,7 @@ import ThreadComposer from "@/components/ThreadComposer";
 import FloatingPostButton from "@/components/FloatingPostButton";
 import EditProfileModal from "@/components/EditProfileModal";
 
-// 👇 IMPORT ICON MỚI CHO NÚT BÊN PHẢI (LayoutGrid thay cho MessageSquare)
+// Import Menu và LayoutGrid (đã bỏ icon MessageSquare)
 import { Menu, LayoutGrid } from "lucide-react"; 
 
 export default function MainLayout({
@@ -24,38 +24,30 @@ export default function MainLayout({
 
   return (
     <AppProvider> 
-      {/* 👇 ĐỔI flex THÀNH flex-col trên mobile để nó tự đẩy nội dung xuống dưới 👇 */}
-      <div className="flex flex-col md:flex-row h-screen bg-white overflow-hidden text-slate-800 relative">
+      <div className="flex h-screen bg-white overflow-hidden text-slate-800 relative">
         
         {/* =========================================
-            THANH TOP BAR ĐIỀU HƯỚNG DÀNH RIÊNG CHO MOBILE
-            Sẽ không còn bị trôi nổi đè lên chữ nữa!
+            NÚT TRÔI NỔI (ABSOLUTE) NẰM CÙNG HÀNG VỚI HEADER BÊN TRONG
             ========================================= */}
-        <div className="md:hidden flex items-center justify-between bg-white px-4 py-2 border-b border-gray-200 z-[40] shrink-0">
-          {/* Nút mở Menu Trái (Server & Kênh) */}
-          <button 
-            onClick={() => setIsMobileSidebarOpen(true)}
-            className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
-          
-          {/* Tên App (Bác có thể đổi chữ KonKet thành tên đồ án của bác) */}
-          <div className="font-extrabold text-lg text-blue-600 tracking-tight">KonKet</div>
+        
+        {/* Nút Hamburger (Góc trái) */}
+        <button 
+          onClick={() => setIsMobileSidebarOpen(true)}
+          className="md:hidden absolute top-[12px] left-3 z-[70] p-1.5 text-gray-700 bg-white/80 backdrop-blur-sm rounded-md hover:bg-gray-100"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
 
-          {/* Nút mở Menu Phải đa năng (Tin nhắn, Thông báo, Thành viên) */}
-          <button 
-            onClick={() => setIsMobileDrawerOpen(true)}
-            className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors relative"
-          >
-            <LayoutGrid className="w-6 h-6" />
-            {/* Chấm đỏ nhỏ tạo hiệu ứng kích thích người dùng bấm vào xem */}
-            <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
-          </button>
-        </div>
+        {/* Nút Menu Phải (Góc phải) - Đã đổi thành LayoutGrid và bỏ chấm đỏ */}
+        <button 
+          onClick={() => setIsMobileDrawerOpen(true)}
+          className="md:hidden absolute top-[12px] right-3 z-[70] p-1.5 text-gray-700 bg-white/80 backdrop-blur-sm rounded-md hover:bg-gray-100"
+        >
+          <LayoutGrid className="w-6 h-6" />
+        </button>
 
 
-        {/* Lớp phủ tối màu khi mở Menu trên Mobile (Bấm vào để đóng) */}
+        {/* Lớp phủ tối màu khi mở Menu */}
         {(isMobileSidebarOpen || isMobileDrawerOpen) && (
           <div 
             className="md:hidden fixed inset-0 bg-black/50 z-[50]"
@@ -67,9 +59,7 @@ export default function MainLayout({
         )}
 
 
-        {/* =========================================
-            CỘT 1 & 2: DANH SÁCH SERVER VÀ KÊNH
-            ========================================= */}
+        {/* CỘT 1 & 2: DANH SÁCH SERVER VÀ KÊNH */}
         <div className={`
           fixed inset-y-0 left-0 z-[60] flex transform transition-transform duration-300 ease-in-out bg-white shadow-2xl
           md:relative md:translate-x-0 md:shadow-none md:z-0
@@ -79,19 +69,12 @@ export default function MainLayout({
           <ChannelSidebar />
         </div>
 
-
-        {/* =========================================
-            CỘT 3: NỘI DUNG CHÍNH (BẢNG TIN / FEED)
-            ========================================= */}
-        {/* Nội dung chính sẽ ngoan ngoãn nằm gọn bên dưới thanh Top Bar */}
+        {/* CỘT 3: NỘI DUNG CHÍNH */}
         <main className="flex-1 min-w-0 bg-[#f2f3f5] relative flex flex-col h-full w-full">
           {children}
         </main>
 
-
-        {/* =========================================
-            CỘT 4: THANH DRAWER BÊN PHẢI (TIN NHẮN / THÔNG BÁO)
-            ========================================= */}
+        {/* CỘT 4: THANH DRAWER BÊN PHẢI */}
         <div className={`
           fixed inset-y-0 right-0 z-[60] flex transform transition-transform duration-300 ease-in-out bg-white shadow-2xl
           md:relative md:translate-x-0 md:shadow-none md:z-0
@@ -99,16 +82,10 @@ export default function MainLayout({
         `}>
           <NavigationDrawer />
         </div>
-
         
-        {/* =========================================
-            CÁC LỚP PHỦ TOÀN CỤC (MODALS & BUTTONS)
-            ========================================= */}
         <AuthModal />
         <ThreadComposer />
         <EditProfileModal />
-        
-        {/* Nút "+" trôi nổi góc dưới (Không bị ảnh hưởng) */}
         <FloatingPostButton />
 
       </div>
