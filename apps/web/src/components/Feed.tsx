@@ -115,12 +115,13 @@ export default function Feed() {
     return <PostDetailView messageId={selectedThreadId} onBack={() => setSelectedThreadId(null)} />;
   }
 
-  return (
-    <div className="flex-1 flex flex-col h-full relative">
-      <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shrink-0 z-10 shadow-sm sticky top-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-gray-400 text-2xl font-light">#</span><span className="font-bold text-gray-800 text-[16px] truncate">{activeChannelName || t('common.lobby')}</span>
-        </div>
+ return (
+  <div className="flex-1 flex flex-col h-full relative">
+    {/* Thêm hidden md:flex vào đây để nó tàng hình trên Mobile */}
+    <div className="hidden md:flex h-14 bg-white border-b border-gray-200 items-center justify-between px-4 shrink-0 z-10 shadow-sm sticky top-0">
+      <div className="flex items-center gap-2 min-w-0">
+         <span className="text-gray-400 text-2xl font-light">#</span><span className="font-bold text-gray-800 text-[16px] truncate">{activeChannelName || t('common.lobby')}</span>
+      </div>
         <div className="flex items-center gap-4 relative shrink-0 ml-2">
           <div onClick={() => setShowSearchModal(true)} className="hidden md:flex items-center bg-[#f2f3f5] px-2.5 py-1.5 rounded-md border border-transparent hover:border-gray-300 cursor-pointer transition-colors">
             <span className="w-40 text-sm text-gray-500 truncate select-none">{t('follow_list.search_placeholder')}</span><Search className="w-4 h-4 text-gray-500 ml-1" />
