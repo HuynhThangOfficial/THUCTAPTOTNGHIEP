@@ -77,13 +77,33 @@ export const toggleReaction = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("UNAUTHORIZED");
+    
     const currentUser = await ctx.db.query("users").withIndex("byClerkId", q => q.eq("clerkId", identity.subject)).unique();
+    if (!currentUser) throw new Error("USER_NOT_FOUND");
+
     const msg = await ctx.db.get(args.messageId);
     if (!msg) return;
+    
     let reactions = msg.reactions || [];
-    const existingIdx = reactions.findIndex(r => r.userId === currentUser!._id && r.emoji === args.emoji);
-    if (existingIdx > -1) reactions.splice(existingIdx, 1);
-    else reactions.push({ userId: currentUser!._id, emoji: args.emoji });
+    
+    // 👇 BƯỚC 1: Tìm xem User này đã thả BẤT KỲ cảm xúc nào trên tin nhắn này chưa
+    const userReactionIndex = reactions.findIndex((r: any) => r.userId === currentUser._id);
+
+    if (userReactionIndex > -1) {
+      // 👇 BƯỚC 2A: Nếu đã thả rồi
+      if (reactions[userReactionIndex].emoji === args.emoji) {
+        // Bấm lại đúng cái icon cũ -> Thu hồi cảm xúc (Toggle off)
+        reactions.splice(userReactionIndex, 1);
+      } else {
+        // Bấm icon khác -> Ghi đè icon mới thay cho icon cũ (Replace)
+        reactions[userReactionIndex].emoji = args.emoji;
+      }
+    } else {
+      // 👇 BƯỚC 2B: Nếu chưa thả bao giờ -> Thêm mới hoàn toàn
+      reactions.push({ userId: currentUser._id, emoji: args.emoji });
+    }
+
+    // Cập nhật lại vào Database
     await ctx.db.patch(args.messageId, { reactions });
   }
 });
