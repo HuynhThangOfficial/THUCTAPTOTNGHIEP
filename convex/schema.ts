@@ -15,7 +15,6 @@ export const User = {
   followersCount: v.number(),
   pushToken: v.optional(v.string()),
   lastSeen: v.optional(v.number()),
-  isOnline: v.optional(v.boolean()),
   showActiveStatus: v.optional(v.boolean()),
   stones: v.optional(v.number()),
   language: v.optional(v.string()),

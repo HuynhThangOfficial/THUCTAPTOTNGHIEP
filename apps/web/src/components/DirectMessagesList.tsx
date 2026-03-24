@@ -101,14 +101,12 @@ export default function DirectMessagesList() {
                   onClick={() => setActiveChatId(conv._id)}
                   className="group flex items-center gap-3 p-2.5 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors relative"
                 >
-                  {/* Trạng thái hoạt động & Avatar */}
                   <div className="relative shrink-0">
                     <img
                       src={otherUser?.imageUrl || "https://ui-avatars.com/api/?name=U"}
                       alt="Avt"
                       className="w-11 h-11 rounded-full object-cover border border-gray-100"
                     />
-                    {otherUser?.isOnline && <span className="absolute bottom-0.5 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></span>}
                   </div>
 
                   {/* Tên & Tin nhắn cuối */}

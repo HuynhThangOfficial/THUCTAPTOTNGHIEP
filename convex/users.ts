@@ -515,24 +515,3 @@ export const updateLanguage = mutation({
     });
   },
 });
-
-export const updateOnlineStatus = mutation({
-  args: { isOnline: v.boolean() },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return;
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-
-    if (!user) return;
-
-    // Cập nhật isOnline và lastSeen (thời gian hoạt động cuối)
-    await ctx.db.patch(user._id, {
-      isOnline: args.isOnline,
-      lastSeen: Date.now(),
-    });
-  },
-});

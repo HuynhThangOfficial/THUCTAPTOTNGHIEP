@@ -286,8 +286,6 @@
     "share_profile_msg": "Connect with me on KonKet! {{url}}",
     "open_link_error": "Cannot open this link at this time.",
     "switch_account_error": "Cannot switch account.",
-    "active_status": "Active Status",
-    "active_status_desc": "Show when you are online",
     "switch_account": "Switch Account",
     "current_user": "Current: @{{username}}",
     "app_language": "App Language",

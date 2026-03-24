@@ -286,8 +286,6 @@
     "share_profile_msg": "Hãy kết nối với mình trên mạng xã hội KonKet nhé! {{url}}",
     "open_link_error": "Không thể mở liên kết này lúc này.",
     "switch_account_error": "Không thể chuyển đổi tài khoản.",
-    "active_status": "Trạng thái hoạt động",
-    "active_status_desc": "Hiển thị khi bạn đang online",
     "switch_account": "Chuyển đổi tài khoản",
     "current_user": "Đang dùng: @{{username}}",
     "app_language": "Ngôn ngữ ứng dụng",

@@ -154,16 +154,15 @@ const UsersContent = () => {
               <tr>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Người dùng</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Vai trò</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Trạng thái</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Hoạt động cuối</th>
                 <th className="px-6 py-4 text-right text-sm font-semibold text-gray-600">Hành động</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredUsers === undefined ? (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-emerald-500" />Đang tải dữ liệu...</td></tr>
+                <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-500"><Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-emerald-500" />Đang tải dữ liệu...</td></tr>
               ) : filteredUsers.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500">Không tìm thấy người dùng nào.</td></tr>
+                <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-500">Không tìm thấy người dùng nào.</td></tr>
               ) : (
                 filteredUsers.map((user) => (
                   <tr key={user._id} className="hover:bg-gray-50 transition-colors">
@@ -187,12 +186,6 @@ const UsersContent = () => {
                     <td className="px-6 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}`}>
                         {user.role === 'admin' ? 'Admin' : 'Thành viên'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium flex w-fit items-center ${user.isOnline ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
-                        <span className={`w-2 h-2 rounded-full mr-2 ${user.isOnline ? 'bg-emerald-500' : 'bg-gray-500'}`} />
-                        {user.isOnline ? 'Online' : 'Offline'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">

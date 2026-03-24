@@ -9,7 +9,6 @@ import * as Haptics from 'expo-haptics';
 import Animated, { useAnimatedStyle, interpolate, Extrapolation, runOnJS } from 'react-native-reanimated';
 import SideMenu from '@/components/SideMenu';
 import { MenuProvider, useMenu } from '@/context/MenuContext';
-import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useTranslation } from 'react-i18next'; // 👈 IMPORT DỊCH
 
 // 👇 THÊM 2 IMPORT CỦA CONVEX 👇
@@ -28,8 +27,6 @@ const TabsWithSwipe = () => {
   const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK
 
   usePush();
-  // Hợp nhất logic useOnlineStatus từ cả 2 nhánh
-  useOnlineStatus(isSignedIn);
 
   const { translateX, closeMenu } = useMenu();
   const MENU_WIDTH = 300;

@@ -7,28 +7,7 @@ import { Id } from '../../../../convex/_generated/dataModel';
 import { useTranslation } from 'react-i18next';
 import { Send, Image as ImageIcon, Pin, CheckCheck, Reply, Copy, Trash2, Smile, X, ChevronDown, ChevronUp, ArrowLeft, MoreHorizontal, AlertTriangle, Check, Repeat, Heart, MessageSquare, Share } from 'lucide-react';
 
-const formatLastSeen = (timestamp: number | undefined, t: any) => {
-  if (!timestamp) return ''; 
-  const now = new Date();
-  const date = new Date(timestamp);
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-
-  if (diffMins <= 2) return t('chat.active_now', {defaultValue: 'Đang hoạt động'});
-  if (diffMins < 60) return t('chat.active_mins_ago', { count: diffMins, defaultValue: `${diffMins} phút trước` });
-  
-  if (diffHours < 24) {
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (date.getDate() === yesterday.getDate()) return t('chat.active_yesterday', {defaultValue: 'Hôm qua'});
-    return t('chat.active_hours_ago', { count: diffHours, defaultValue: `${diffHours} giờ trước` });
-  }
-
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  return t('chat.active_date', { date: `${day}/${month}`, defaultValue: `${day}/${month}` });
-};
+// ĐÃ XÓA: Hàm formatLastSeen
 
 const formatTimeDivider = (timestamp: number, t: any) => {
   const date = new Date(timestamp);
@@ -115,12 +94,10 @@ export default function ChatBox({ conversationId, onBack }: { conversationId: Id
     if (conversationId && messages && messages.length > 0) markConvAsRead({ conversationId });
   }, [conversationId, messages?.length]);
 
-  // 👇 HÀM TRƯỢT ĐẾN TIN NHẮN 👇
   const scrollToMessage = (msgId: string) => {
     const el = document.getElementById(`msg-${msgId}`);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Thêm class highlight chớp nháy
       el.classList.add('bg-blue-50', 'transition-colors', 'duration-500');
       setTimeout(() => el.classList.remove('bg-blue-50'), 1500);
     }
@@ -204,13 +181,12 @@ export default function ChatBox({ conversationId, onBack }: { conversationId: Id
           
           <div className="relative shrink-0">
             <img src={otherUser.imageUrl || "https://ui-avatars.com/api/?name=U"} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-gray-100" />
-            {otherUser.isOnline && <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white"></span>}
           </div>
-          <div className="flex flex-col min-w-0">
+          <div className="flex flex-col min-w-0 justify-center">
             <h1 className="text-[14px] font-bold text-gray-900 truncate leading-tight">{otherUser.first_name} {otherUser.last_name}</h1>
-            <p className="text-[11px] text-gray-500 truncate">
-              {otherUser.isOnline ? <span className="text-green-600">{t('chat.active_now', {defaultValue: 'Đang hoạt động'})}</span> : formatLastSeen(otherUser.lastSeen, t)}
-            </p>
+            {otherUser.username && (
+              <p className="text-[11px] text-gray-500 truncate">@{otherUser.username}</p>
+            )}
           </div>
         </div>
       </div>
@@ -279,7 +255,6 @@ export default function ChatBox({ conversationId, onBack }: { conversationId: Id
           const hasReactions = uniqueEmojis.length > 0 && !msg.isDeleted;
 
           return (
-            // 👇 Thêm ID để scroll và margin-bottom lớn hơn nếu có Emoji 👇
             <div key={msg._id} id={`msg-${msg._id}`} className={`flex flex-col rounded-lg ${hasReactions ? 'mb-4' : 'mb-0'}`}>
               {showTimeDivider && <div className="text-[10px] text-gray-400 my-2 text-center">{formatTimeDivider(msg._creationTime, t)}</div>}
               
