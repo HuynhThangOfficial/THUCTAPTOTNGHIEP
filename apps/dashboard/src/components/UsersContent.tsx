@@ -169,7 +169,7 @@ const UsersContent = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         {user.imageUrl ? (
-                          <img src={user.imageUrl} alt={user.username} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
+                          <img loading="lazy"src={user.imageUrl} alt={user.username} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
                         ) : (
                           <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full flex items-center justify-center font-bold text-white">
                             {user.username ? user.username.charAt(0).toUpperCase() : 'U'}

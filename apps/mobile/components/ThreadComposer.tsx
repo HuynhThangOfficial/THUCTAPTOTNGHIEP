@@ -113,7 +113,7 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
   const handleCamera = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (permission.status !== 'granted') return Alert.alert(t('composer.permission'), t('composer.camera_permission_required'));
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.5 });
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.3 });
     if (!result.canceled) setNewMediaUris([...newMediaUris, result.assets[0].uri]);
   };
   const removeMedia = (item: MediaPreviewItem) => {

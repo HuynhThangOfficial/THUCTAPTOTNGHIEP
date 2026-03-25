@@ -94,7 +94,7 @@ const ChannelsContent = () => {
                       <ShieldCheck className="w-7 h-7 text-white" />
                     </div>
                   ) : (
-                    <img 
+                    <img loading="lazy"
                       src={ws.icon || `https://ui-avatars.com/api/?name=${ws.name.charAt(0)}`} 
                       alt={ws.name} 
                       className="w-14 h-14 rounded-2xl object-cover shadow-md shrink-0 border border-gray-100"
@@ -189,7 +189,7 @@ const ChannelsContent = () => {
                     <ShieldCheck className="w-8 h-8 text-white" />
                   </div>
                 ) : (
-                  <img 
+                  <img loading="lazy"
                     src={selectedWorkspace.icon || `https://ui-avatars.com/api/?name=${selectedWorkspace.name.charAt(0)}`} 
                     alt={selectedWorkspace.name} 
                     className="w-16 h-16 rounded-2xl object-cover shadow-md shrink-0 border border-gray-100"

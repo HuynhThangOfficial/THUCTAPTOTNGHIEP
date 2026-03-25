@@ -108,12 +108,17 @@ export const toggleReaction = mutation({
   }
 });
 
+// 👇 ĐÃ FIX: HÀM NÀY PHẢI TÌM TIN NHẮN THEO ID VÀ XÓA TEXT HOẶC MARK DELETED 👇
 export const unsendMessage = mutation({
   args: { messageId: v.id('direct_messages') },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("UNAUTHORIZED");
-    // Xóa trắng text thay vì gán text tiếng Việt cứng vào DB
+    
+    const msg = await ctx.db.get(args.messageId);
+    if (!msg) return;
+
+    // Chỉ thu hồi, không xóa object khỏi DB
     await ctx.db.patch(args.messageId, { content: "", isDeleted: true });
   }
 });
@@ -160,23 +165,48 @@ export const getMessages = query({
   },
 });
 
+// 👇 ĐÃ FIX LOGIC: THÊM LAST_MESSAGE VÀ UNREAD_COUNT VÀO INBOX 👇
 export const getInbox = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
+    
     const currentUser = await ctx.db.query("users").withIndex("byClerkId", q => q.eq("clerkId", identity.subject)).unique();
     if (!currentUser) return [];
+    
     const convos = await ctx.db.query('conversations').collect();
     const myConvos = convos.filter(c => c.participantIds.includes(currentUser._id));
+    
     const inbox = await Promise.all(myConvos.map(async (c) => {
+      // 1. Thông tin người dùng đối diện
       const otherUserId = c.participantIds.find(id => id !== currentUser._id);
       const otherUser = await ctx.db.get(otherUserId!);
       let imageUrl = otherUser?.imageUrl;
-      
       if (imageUrl && !isHttpUrl(imageUrl)) imageUrl = await ctx.storage.getUrl(imageUrl as any) || imageUrl;
-      
-      return { ...c, otherUser: { ...otherUser, imageUrl } };
+
+      // 2. Lấy toàn bộ tin nhắn trong cuộc hội thoại
+      const allMessages = await ctx.db.query('direct_messages')
+        .withIndex('by_conversation', q => q.eq('conversationId', c._id))
+        .collect();
+
+      // 3. Đếm số tin nhắn chưa đọc (người khác gửi cho mình & trạng thái khác read)
+      const unreadCount = allMessages.filter(
+        msg => msg.senderId !== currentUser._id && msg.status !== 'read'
+      ).length;
+
+      // 4. Lấy tin nhắn cuối cùng (để hiển thị đoạn snippet)
+      const lastMessage = allMessages.length > 0 
+        ? allMessages.sort((a, b) => b._creationTime - a._creationTime)[0] 
+        : null;
+
+      return { 
+        ...c, 
+        otherUser: { ...otherUser, imageUrl },
+        lastMessage, // Trả về chi tiết object lastMessage
+        unreadCount  // Trả về số lượng chưa đọc
+      };
     }));
+
     return inbox.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 });

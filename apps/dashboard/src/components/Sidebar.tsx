@@ -51,7 +51,7 @@ const Sidebar = ({ activeItem, setActiveItem, isOpen, setIsOpen }: SidebarProps)
 
           {/* Căn giữa ảnh và chữ */}
           <div className="flex flex-col items-center gap-2">
-            <img 
+            <img loading="lazy"
               src={logoImg} 
               alt="KonKet Logo" 
               className="h-15 w-auto object-contain drop-shadow-xl"

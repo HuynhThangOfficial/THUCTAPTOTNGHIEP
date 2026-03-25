@@ -5,6 +5,8 @@ import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { useApp } from '../context/AppContext';
 import { useTranslation } from 'react-i18next';
+// 👇 IMPORT THƯ VIỆN NÉN ẢNH 👇
+import imageCompression from 'browser-image-compression';
 
 interface Props {
   onClose: () => void;
@@ -51,12 +53,30 @@ export default function CreateServerModal({ onClose }: Props) {
     setIsSubmitting(true);
     try {
       let storageId = undefined;
+      
       if (selectedImage) {
+        // 👇 1. CẤU HÌNH NÉN ẢNH AVATAR SERVER MỚI (Ép xuống 100KB) 👇
+        const options = {
+          maxSizeMB: 0.1, 
+          maxWidthOrHeight: 512, 
+          useWebWorker: true,
+        };
+
+        // 👇 2. BẮT ĐẦU NÉN 👇
+        let finalFileToUpload = selectedImage;
+        try {
+          finalFileToUpload = await imageCompression(selectedImage, options);
+          console.log(`Đã nén Avatar Server mới từ ${selectedImage.size / 1024} KB xuống ${finalFileToUpload.size / 1024} KB`);
+        } catch (compressError) {
+          console.error("Lỗi nén ảnh tạo Server:", compressError);
+        }
+
+        // 👇 3. UPLOAD FILE ĐÃ NÉN LÊN CONVEX 👇
         const postUrl = await generateUploadUrl();
         const result = await fetch(postUrl, {
           method: 'POST',
-          headers: { 'Content-Type': selectedImage.type },
-          body: selectedImage,
+          headers: { 'Content-Type': finalFileToUpload.type },
+          body: finalFileToUpload,
         });
         const { storageId: uploadedStorageId } = await result.json();
         storageId = uploadedStorageId;
@@ -94,32 +114,32 @@ export default function CreateServerModal({ onClose }: Props) {
 
         <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-5">
           <div className="flex flex-col items-center justify-center">
-            <div onClick={() => fileInputRef.current?.click()} className="relative w-20 h-20 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors group overflow-hidden">
+            <div onClick={() => !isSubmitting && fileInputRef.current?.click()} className={`relative w-20 h-20 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center transition-colors group overflow-hidden ${isSubmitting ? 'cursor-not-allowed opacity-70' : 'cursor-pointer hover:bg-gray-50'}`}>
               {imagePreview ? (
-                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                <img loading="lazy" src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
               ) : (
                 <div className="flex flex-col items-center text-gray-400 group-hover:text-[#5865F2]">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 </div>
               )}
             </div>
-            <input type="file" ref={fileInputRef} onChange={handleImageSelect} accept="image/*" className="hidden" />
+            <input type="file" ref={fileInputRef} onChange={handleImageSelect} accept="image/*" className="hidden" disabled={isSubmitting}/>
           </div>
 
           <div>
             <label className="block text-xs font-extrabold text-slate-500 uppercase mb-2">{t('server.server_name_label')}</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('server.default_name', { name: currentUser?.first_name || currentUser?.username || t('common.me') })} className="w-full bg-[#f2f3f5] border border-transparent rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-[#5865F2] focus:bg-white transition-all font-medium" autoFocus />
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('server.default_name', { name: currentUser?.first_name || currentUser?.username || t('common.me') })} className="w-full bg-[#f2f3f5] border border-transparent rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-[#5865F2] focus:bg-white transition-all font-medium" autoFocus disabled={isSubmitting}/>
           </div>
 
           <div>
             <label className="block text-xs font-extrabold text-slate-500 uppercase mb-2">{t('server.start_from_template')}</label>
-            <select value={template} onChange={(e) => setTemplate(e.target.value)} className="w-full bg-[#f2f3f5] border border-transparent rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-[#5865F2] focus:bg-white transition-all text-sm font-medium">
+            <select value={template} onChange={(e) => setTemplate(e.target.value)} className="w-full bg-[#f2f3f5] border border-transparent rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-[#5865F2] focus:bg-white transition-all text-sm font-medium" disabled={isSubmitting}>
               {TEMPLATES.map(tmp => <option key={tmp.id} value={tmp.id}>{tmp.icon} {tmp.label}</option>)}
             </select>
           </div>
 
           <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl hover:underline text-slate-600 transition-colors text-sm font-bold">{t('common.cancel')}</button>
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="flex-1 py-3 rounded-xl hover:underline text-slate-600 transition-colors text-sm font-bold disabled:opacity-50">{t('common.cancel')}</button>
             <button type="submit" disabled={!name.trim() || isSubmitting} className="flex-1 py-3 rounded-xl bg-[#5865F2] hover:bg-[#4752C4] disabled:bg-indigo-300 text-white transition-colors text-sm font-bold shadow-sm">
               {isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto"></div> : t('server.create_btn')}
             </button>

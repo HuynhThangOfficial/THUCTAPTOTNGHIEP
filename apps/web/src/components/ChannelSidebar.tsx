@@ -188,7 +188,7 @@ export default function ChannelSidebar() {
 
               <div className="px-4 py-3 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden shrink-0 border border-gray-100 flex items-center justify-center">
-                  {currentWorkspace?.icon ? <img src={currentWorkspace.icon} alt="icon" className="w-full h-full object-cover" /> : <span className="font-bold text-gray-500 text-lg">{currentWorkspace?.name?.charAt(0)}</span>}
+                  {currentWorkspace?.icon ? <img loading="lazy"src={currentWorkspace.icon} alt="icon" className="w-full h-full object-cover" /> : <span className="font-bold text-gray-500 text-lg">{currentWorkspace?.name?.charAt(0)}</span>}
                 </div>
                 <span className="font-bold text-[15px] text-gray-900 truncate flex-1">{currentWorkspace?.name}</span>
               </div>
@@ -290,7 +290,7 @@ export default function ChannelSidebar() {
         <div className="h-[60px] bg-[#ebecee] flex items-center justify-between px-2 py-1 shrink-0 border-t border-gray-200">
           <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 flex-1 hover:bg-gray-300/50 p-1.5 rounded-md transition-colors min-w-0 text-left">
             <div className="relative shrink-0">
-              <img src={user?.imageUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-gray-300" />
+              <img loading="lazy"src={user?.imageUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-gray-300" />
               <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#ebecee]"></div>
             </div>
             <div className="flex flex-col min-w-0">

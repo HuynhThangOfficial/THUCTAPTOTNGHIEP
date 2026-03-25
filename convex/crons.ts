@@ -8,14 +8,14 @@ const crons = cronJobs();
 // Khi vào hàng chờ, nó sẽ bị delay ngẫu nhiên từ 30s đến 15 phút mới được hiện lên Web.
 crons.cron(
   "Post_BanNgay",
-  "*/7 0-16 * * *", 
+  "*/9 0-16 * * *", 
   (internal as any).ai_bot.scheduleRoleplayPost // <--- SỬA THÀNH SCHEDULE
 );
 
 // 🌙 Cú đêm: Mỗi 23 phút mới đẩy 1 yêu cầu vào hàng chờ.
 crons.cron(
   "Post_BanDem",
-  "*/23 17-23 * * *", 
+  "*/32 17-23 * * *", 
   (internal as any).ai_bot.scheduleRoleplayPost // <--- SỬA THÀNH SCHEDULE
 );
 
@@ -25,14 +25,14 @@ crons.cron(
 // ☀️ Ban ngày: 4 phút quét 1 lần! Tốc độ bàn thờ để sinh viên đăng bài xong là thấy có tương tác nổ Noti liên tục.
 crons.cron(
   "Cmt_BanNgay",
-  "*/4 0-16 * * *", 
+  "*/7 0-16 * * *", 
   (internal as any).engagement_bot.runAutoEngagement
 );
 
 // 🌙 Ban đêm: 13 phút quét 1 lần. Đêm khuya vẫn có cú đêm đi hóng hớt cmt dạo.
 crons.cron(
   "Cmt_BanDem",
-  "*/13 17-23 * * *", 
+  "*/24 17-23 * * *", 
   (internal as any).engagement_bot.runAutoEngagement
 );
 

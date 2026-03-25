@@ -172,7 +172,7 @@ export default function AuthModal() {
           </button>
 
           <div className="text-center mb-6">
-            <img 
+            <img loading="lazy"
               src="/konket-logo-green.png" 
               alt="KonKet Logo" 
               className="h-15 mx-auto mb-0 object-contain" 
@@ -312,7 +312,7 @@ export default function AuthModal() {
 
           <div className="flex justify-center mb-6 relative w-fit mx-auto group">
             <div className="w-24 h-24 rounded-full bg-indigo-50 border-4 border-indigo-100 flex items-center justify-center overflow-hidden shadow-inner">
-              <img src={avatarPreview || "https://ui-avatars.com/api/?name=New&background=E5E7EB&color=9CA3AF"} alt="Avatar" className="w-full h-full object-cover" />
+              <img loading="lazy"src={avatarPreview || "https://ui-avatars.com/api/?name=New&background=E5E7EB&color=9CA3AF"} alt="Avatar" className="w-full h-full object-cover" />
             </div>
             <input type="file" accept="image/*" ref={fileInputRef} onChange={handleAvatarChange} className="hidden" />
             <button type="button" onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 bg-white border border-gray-200 p-1.5 rounded-full shadow-sm cursor-pointer hover:bg-gray-50 hover:scale-110 transition-transform">

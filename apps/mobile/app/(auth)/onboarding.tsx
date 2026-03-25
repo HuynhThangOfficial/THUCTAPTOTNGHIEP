@@ -32,7 +32,7 @@ export default function OnboardingScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.7,
+      quality: 0.3,
       base64: true,
     });
 

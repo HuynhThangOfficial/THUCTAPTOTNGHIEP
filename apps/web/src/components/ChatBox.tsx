@@ -1,5 +1,5 @@
 "use client";
-
+import imageCompression from 'browser-image-compression';
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api'; 
@@ -39,7 +39,7 @@ function SharedPostPreview({ postId }: { postId: string }) {
   return (
     <div className="bg-white rounded-xl p-2 w-full max-w-[220px] border border-gray-200 shadow-sm cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => window.open(`/post/${postId}`, '_blank')}>
       <div className="flex items-center gap-1.5 mb-1.5">
-        <img src={displayAvatar} className="w-5 h-5 rounded-full object-cover" alt="avatar" />
+        <img loading="lazy"src={displayAvatar} className="w-5 h-5 rounded-full object-cover" alt="avatar" />
         <span className="font-bold text-[13px] text-gray-900 truncate">{displayName}</span>
       </div>
       <p className="text-[12px] text-gray-800 line-clamp-2 mb-2 leading-snug">{thread.content}</p>
@@ -126,8 +126,25 @@ export default function ChatBox({ conversationId, onBack }: { conversationId: Id
     if (!file) return;
     setIsUploading(true);
     try {
+      // 👇 1. CẤU HÌNH THÔNG SỐ NÉN (Ép xuống dưới 500KB) 👇
+      const options = {
+        maxSizeMB: 0.5, // Kích thước tối đa là 0.5MB (500KB)
+        maxWidthOrHeight: 1280, // Chiều dài/rộng tối đa (vẫn cực kỳ nét trên điện thoại/web)
+        useWebWorker: true, // Chạy ngầm để không đơ app lúc nén
+      };
+      
+      // 👇 2. BẮT ĐẦU NÉN ẢNH 👇
+      const compressedFile = await imageCompression(file, options);
+      console.log(`Đã nén từ ${file.size / 1024} KB xuống còn ${compressedFile.size / 1024} KB`);
+
+      // 👇 3. UPLOAD ẢNH ĐÃ NÉN LÊN CONVEX (Thay file gốc bằng compressedFile) 👇
       const postUrl = await generateUploadUrl();
-      const result = await fetch(postUrl, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const result = await fetch(postUrl, { 
+        method: "POST", 
+        headers: { "Content-Type": compressedFile.type }, 
+        body: compressedFile // <--- Up cái ảnh đã nén nhẹ hều này lên!
+      });
+      
       const { storageId } = await result.json();
       await send({ conversationId, content: t('chat.image_label', {defaultValue: '[Hình ảnh]'}), imageId: storageId, replyToMessageId: replyingTo?._id });
       setReplyingTo(null);
@@ -180,7 +197,7 @@ export default function ChatBox({ conversationId, onBack }: { conversationId: Id
           </button>
           
           <div className="relative shrink-0">
-            <img src={otherUser.imageUrl || "https://ui-avatars.com/api/?name=U"} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-gray-100" />
+            <img loading="lazy"src={otherUser.imageUrl || "https://ui-avatars.com/api/?name=U"} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-gray-100" />
           </div>
           <div className="flex flex-col min-w-0 justify-center">
             <h1 className="text-[14px] font-bold text-gray-900 truncate leading-tight">{otherUser.first_name} {otherUser.last_name}</h1>
@@ -262,7 +279,7 @@ export default function ChatBox({ conversationId, onBack }: { conversationId: Id
                 
                 {!isMe && (
                   <div className="w-6 h-6 shrink-0">
-                    {isLastInGroup && <img src={msg.senderImageUrl || otherUser.imageUrl} alt="Avt" className="w-full h-full rounded-full object-cover" />}
+                    {isLastInGroup && <img loading="lazy"src={msg.senderImageUrl || otherUser.imageUrl} alt="Avt" className="w-full h-full rounded-full object-cover" />}
                   </div>
                 )}
                 
@@ -334,7 +351,7 @@ export default function ChatBox({ conversationId, onBack }: { conversationId: Id
                       {isSharedPost && !msg.isDeleted && postId ? (
                         <SharedPostPreview postId={postId} />
                       ) : msg.imageUrl && !msg.isDeleted ? (
-                        <img 
+                        <img loading="lazy"
                           src={msg.imageUrl} 
                           alt="upload" 
                           className="w-48 h-auto max-h-48 rounded-lg object-cover cursor-pointer hover:opacity-90" 
@@ -442,7 +459,7 @@ export default function ChatBox({ conversationId, onBack }: { conversationId: Id
       {viewerImage && (
         <div className="fixed inset-0 z-[99999] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setViewerImage(null)}>
           <button onClick={() => setViewerImage(null)} className="absolute top-4 right-4 p-2 text-white"><X className="w-6 h-6" /></button>
-          <img src={viewerImage} alt="phóng to" className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" onClick={e => e.stopPropagation()} />
+          <img loading="lazy"src={viewerImage} alt="phóng to" className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" onClick={e => e.stopPropagation()} />
         </div>
       )}
 

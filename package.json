@@ -13,6 +13,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@mendable/firecrawl-js": "^4.16.0",
+    "browser-image-compression": "^2.0.2",
     "convex": "^1.33.1",
     "expo-localization": "~15.0.3"
   }

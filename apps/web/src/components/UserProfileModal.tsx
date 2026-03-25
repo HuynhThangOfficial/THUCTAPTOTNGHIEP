@@ -210,7 +210,7 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
                 displayUsers.map((u: any) => (
                   <div key={u._id} className="flex items-center justify-between p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => { onClose(); router.push(`/profile/${u._id}`); }}>
                      <div className="flex items-center gap-3">
-                       <img src={u.imageUrl || "https://ui-avatars.com/api/?name=U"} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
+                       <img loading="lazy"src={u.imageUrl || "https://ui-avatars.com/api/?name=U"} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
                        <div>
                           <div className="font-bold text-[15px] text-gray-900">{u.first_name || u.username}</div>
                           <div className="text-[13px] text-gray-500">@{u.username}</div>
@@ -242,7 +242,7 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
         <div className="flex-1 overflow-y-auto hidden-scrollbar relative bg-[#f2f3f5]">
           <div className="bg-white p-6 mb-2">
             <div className="flex items-start justify-between mb-4">
-              <img src={(isSelf ? user?.imageUrl : profile?.imageUrl) || "https://ui-avatars.com/api/?name=User"} alt="Avatar" className="w-20 h-20 rounded-full object-cover border border-gray-200 shadow-sm" />
+              <img loading="lazy"src={(isSelf ? user?.imageUrl : profile?.imageUrl) || "https://ui-avatars.com/api/?name=User"} alt="Avatar" className="w-20 h-20 rounded-full object-cover border border-gray-200 shadow-sm" />
               {isSelf && (
                 <button onClick={handleEditClick} className="px-4 py-1.5 border border-gray-300 rounded-full font-semibold text-sm hover:bg-gray-50 transition-colors">
                   {t('profile.edit_profile')}

@@ -85,7 +85,7 @@ const Page = () => {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1], // Tỉ lệ 1:1 cho ảnh tròn là quá chuẩn
-      quality: 0.5,
+      quality: 0.3,
     });
     if (!result.canceled) {
       setSelectedImage(result.assets[0]);

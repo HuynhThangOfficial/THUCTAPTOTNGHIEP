@@ -159,7 +159,7 @@ export default function UpgradeServerModal({ workspace, channelCount, onClose }:
                         <div className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${index === 0 ? 'bg-yellow-100 text-yellow-700' : index === 1 ? 'bg-gray-200 text-gray-700' : index === 2 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
                           {index + 1}
                         </div>
-                        <img src={booster.imageUrl || "https://ui-avatars.com/api/?name=U"} alt="Avt" className="w-8 h-8 rounded-full border border-gray-200 object-cover" />
+                        <img loading="lazy"src={booster.imageUrl || "https://ui-avatars.com/api/?name=U"} alt="Avt" className="w-8 h-8 rounded-full border border-gray-200 object-cover" />
                         <span className="text-[14px] font-bold text-gray-800 truncate max-w-[120px]">{booster.first_name || booster.username}</span>
                       </div>
                       <div className="flex items-center text-[13px] font-bold text-pink-600">

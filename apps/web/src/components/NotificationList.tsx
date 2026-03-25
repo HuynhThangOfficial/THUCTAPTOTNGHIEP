@@ -34,7 +34,7 @@ export default function NotificationList() {
             ${notif.isRead ? 'hover:bg-gray-100' : 'bg-emerald-50 hover:bg-emerald-100'}`}
           onClick={() => !notif.isRead && markRead({ notificationId: notif._id })}
         >
-          <img src={notif.sender?.imageUrl || "https://via.placeholder.com/40"} alt="Avt" className="w-9 h-9 rounded-full object-cover shrink-0" />
+          <img loading="lazy"src={notif.sender?.imageUrl || "https://via.placeholder.com/40"} alt="Avt" className="w-9 h-9 rounded-full object-cover shrink-0" />
           <div className="flex-1 min-w-0 space-y-0.5">
             <p className="text-[13px] text-gray-800">
               <span className="font-bold text-gray-900">{notif.sender?.first_name}</span> 

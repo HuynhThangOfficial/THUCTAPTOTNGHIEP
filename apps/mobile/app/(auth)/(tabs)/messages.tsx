@@ -113,7 +113,7 @@ const MessagesScreen = () => {
       Alert.alert("Error", "Library access required.");
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.All, quality: 0.7 });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.All, quality: 0.5 });
     if (!result.canceled) {
       setIsUploading(true);
       try {

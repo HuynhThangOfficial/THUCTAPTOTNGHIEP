@@ -47,7 +47,7 @@ const PermissionsContent = () => {
               adminUsers.map((admin) => (
                 <div key={admin._id} className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3">
                   {admin.imageUrl ? (
-                    <img src={admin.imageUrl} alt={admin.username} className="w-10 h-10 rounded-full object-cover border border-gray-200 shrink-0" />
+                    <img loading="lazy"src={admin.imageUrl} alt={admin.username} className="w-10 h-10 rounded-full object-cover border border-gray-200 shrink-0" />
                   ) : (
                     <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center font-bold text-white shrink-0">
                       {admin.username?.charAt(0).toUpperCase() || 'A'}

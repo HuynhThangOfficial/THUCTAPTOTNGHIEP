@@ -341,7 +341,7 @@ const ReportsContent = () => {
                       <div className="mt-4 grid grid-cols-2 gap-2">
                         {selectedReport.message.mediaFiles.map((img: string, i: number) => (
                            <a key={i} href={img} target="_blank" rel="noreferrer" className="block w-full aspect-square bg-gray-100 rounded-lg overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity">
-                             <img src={img} alt="Đính kèm" className="w-full h-full object-cover" />
+                             <img loading="lazy"src={img} alt="Đính kèm" className="w-full h-full object-cover" />
                            </a>
                         ))}
                       </div>

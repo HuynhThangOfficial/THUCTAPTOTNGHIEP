@@ -166,7 +166,7 @@ export default function PaymentModal({ isOpen, onClose, onSuccess, pricePerUnit,
           
           {/* HIỂN THỊ ẢNH QR THẬT */}
           <div className="bg-white p-2 rounded-2xl border-2 border-blue-100 shadow-md flex flex-col items-center justify-center relative overflow-hidden">
-            <img 
+            <img loading="lazy"
               src={qrImageUrl} 
               alt="VietQR" 
               className="w-56 h-56 object-contain"

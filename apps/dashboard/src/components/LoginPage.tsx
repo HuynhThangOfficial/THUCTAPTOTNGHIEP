@@ -53,7 +53,7 @@ const LoginPage = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
-           <img src={logoImg} alt="Logo" className="h-16 w-auto object-contain" />
+           <img loading="lazy"src={logoImg} alt="Logo" className="h-16 w-auto object-contain" />
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
           Đăng nhập Quản trị
@@ -145,7 +145,7 @@ const LoginPage = () => {
                 onClick={loginWithGoogle}
                 className="w-full flex items-center justify-center gap-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-700 hover:bg-gray-50 font-medium transition-colors shadow-sm"
               >
-                <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
+                <img loading="lazy"src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
                 <span>Đăng nhập bằng Google</span>
               </button>
             </div>

@@ -16,7 +16,7 @@ const WorkspaceIcon = ({ icon, name }: { icon?: string; name: string }) => {
   if (icon === 'local:community') return <span className="text-2xl">🌍</span>; // Cộng đồng chung
   
   // Render ảnh
-  return <img src={icon} alt={name} className="w-full h-full object-cover" />;
+  return <img loading="lazy"src={icon} alt={name} className="w-full h-full object-cover" />;
 };
 
 export default function ServerSidebar() {

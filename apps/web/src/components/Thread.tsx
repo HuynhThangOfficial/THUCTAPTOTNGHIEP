@@ -153,7 +153,7 @@ export default function Thread({ thread, isNested = false, isDetailView = false,
 
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-3 w-full min-w-0">
-          <img src={displayAvatar} alt="Avatar" onClick={handleGoToProfile} className={`${isNested ? 'w-8 h-8' : 'w-10 h-10'} rounded-full object-cover border border-gray-100 shrink-0 ${!isAnonymous ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`} />
+          <img loading="lazy"src={displayAvatar} alt="Avatar" onClick={handleGoToProfile} className={`${isNested ? 'w-8 h-8' : 'w-10 h-10'} rounded-full object-cover border border-gray-100 shrink-0 ${!isAnonymous ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`} />
           <div className="flex-1 min-w-0 pr-2">
             <div className="flex items-center gap-2">
               <h4 onClick={handleGoToProfile} className={`font-bold text-gray-800 ${isNested ? 'text-[14px]' : 'text-[15px]'} truncate ${!isAnonymous ? 'cursor-pointer hover:underline' : ''}`}>{displayName}</h4>
@@ -200,7 +200,7 @@ export default function Thread({ thread, isNested = false, isDetailView = false,
           <p className={`text-gray-800 whitespace-pre-wrap leading-relaxed ${isNested ? 'text-[14px]' : 'text-[15px]'}`}>{thread.content}</p>
         )}
         {thread.mediaFiles && thread.mediaFiles.length > 0 && (
-          <div className={`mt-3 grid gap-2 ${thread.mediaFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>{thread.mediaFiles.map((url: string, idx: number) => <img key={idx} src={url} alt="Media" className="rounded-lg object-cover w-full h-auto max-h-80 border border-gray-100" />)}</div>
+          <div className={`mt-3 grid gap-2 ${thread.mediaFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>{thread.mediaFiles.map((url: string, idx: number) => <img loading="lazy"key={idx} src={url} alt="Media" className="rounded-lg object-cover w-full h-auto max-h-80 border border-gray-100" />)}</div>
         )}
       </div>
 
@@ -216,7 +216,7 @@ export default function Thread({ thread, isNested = false, isDetailView = false,
 
           {(!isDetailView && thread.allowComments !== false) && (
             <form onSubmit={handleCommentSubmit} className={`flex gap-3 mb-4 ${isNested ? 'pl-2' : ''}`}>
-              <img src={user?.imageUrl || "https://ui-avatars.com/api/?name=Guest"} alt="Avt" className="w-8 h-8 rounded-full object-cover shrink-0 border border-gray-200" />
+              <img loading="lazy"src={user?.imageUrl || "https://ui-avatars.com/api/?name=Guest"} alt="Avt" className="w-8 h-8 rounded-full object-cover shrink-0 border border-gray-200" />
               <div className="flex-1 flex bg-[#f2f3f5] rounded-xl border border-transparent focus-within:border-green-400 focus-within:bg-white transition-all overflow-hidden px-2">
                 <input type="text" value={commentText} onChange={(e) => setCommentText(e.target.value)} onClick={() => !isLoggedIn && setShowAuthModal(true)} readOnly={!isLoggedIn} placeholder={isLoggedIn ? t('thread.reply_placeholder') : t('login.login_button')} className={`flex-1 bg-transparent py-2.5 px-2 outline-none text-sm text-gray-800 ${!isLoggedIn ? 'cursor-pointer' : 'cursor-text'}`} />
                 <button type="submit" disabled={!commentText.trim() || !isLoggedIn} className="px-3 text-green-600 font-bold text-sm disabled:opacity-50 transition-colors">{t('thread.send')}</button>

@@ -5,7 +5,9 @@ import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { useUser } from '@clerk/nextjs';
 import { useApp } from '../context/AppContext';
-import { useTranslation } from 'react-i18next'; // 👈 IMPORT I18N
+import { useTranslation } from 'react-i18next';
+// 👇 IMPORT THƯ VIỆN NÉN ẢNH 👇
+import imageCompression from 'browser-image-compression';
 
 export default function EditProfileModal() {
   const { t } = useTranslation();
@@ -66,15 +68,36 @@ export default function EditProfileModal() {
       });
 
       if (avatarFile) {
+        // 👇 1. CẤU HÌNH THÔNG SỐ NÉN CHO AVATAR (Ép cực mạnh vì avatar chỉ cần nhỏ) 👇
+        const options = {
+          maxSizeMB: 0.1, // Ép xuống 100KB là quá đủ cho avatar
+          maxWidthOrHeight: 512, // Avatar không cần to, 512px là vừa đẹp
+          useWebWorker: true,
+        };
+
+        // 👇 2. NÉN ẢNH 👇
+        let finalFileToUpload = avatarFile;
+        try {
+          finalFileToUpload = await imageCompression(avatarFile, options);
+          console.log(`Đã nén Avatar từ ${avatarFile.size / 1024} KB xuống ${finalFileToUpload.size / 1024} KB`);
+        } catch (compressError) {
+          console.error("Lỗi khi nén Avatar:", compressError);
+          // Nếu nén lỗi thì xài file gốc
+        }
+
+        // 👇 3. UPLOAD ẢNH ĐÃ NÉN 👇
         const postUrl = await generateUploadUrl();
         const result = await fetch(postUrl, {
           method: 'POST',
-          headers: { 'Content-Type': avatarFile.type },
-          body: avatarFile,
+          headers: { 'Content-Type': finalFileToUpload.type },
+          body: finalFileToUpload, // Up file siêu nhẹ lên Convex
         });
         const { storageId } = await result.json();
+        
         await updateImage({ storageId, _id: profile._id });
-        await user.setProfileImage({ file: avatarFile });
+        
+        // Cập nhật cả avatar bên Clerk (Nên dùng file gốc để lỡ Clerk tự tối ưu, hoặc dùng file nén cũng ok)
+        await user.setProfileImage({ file: finalFileToUpload });
       }
 
       setShowEditProfileModal(false);

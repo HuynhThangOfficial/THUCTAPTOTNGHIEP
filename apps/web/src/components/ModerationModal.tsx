@@ -86,7 +86,7 @@ export default function ModerationModal({ serverId, onClose }: Props) {
                   ) : (
                     <>
                       <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
-                        <img src={item.author?.imageUrl || "https://ui-avatars.com/api/?name=U"} className="w-6 h-6 rounded-full object-cover" alt="avatar" />
+                        <img loading="lazy"src={item.author?.imageUrl || "https://ui-avatars.com/api/?name=U"} className="w-6 h-6 rounded-full object-cover" alt="avatar" />
                         <div className="flex-1 text-sm font-bold text-gray-900 truncate">
                           {item.message.isAnonymous ? t('thread.anonymous_member') : (item.author?.first_name || item.author?.username || t('settings.default_user'))}
                         </div>

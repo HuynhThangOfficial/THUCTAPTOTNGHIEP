@@ -6,6 +6,8 @@ import { api } from '../../../../convex/_generated/api';
 import { useApp } from '../context/AppContext';
 import { useUser } from '@clerk/nextjs';
 import { useTranslation } from 'react-i18next';
+// 👇 1. IMPORT THƯ VIỆN NÉN ẢNH VÀO ĐÂY 👇
+import imageCompression from 'browser-image-compression';
 
 export default function ThreadComposer() {
   const { t } = useTranslation();
@@ -95,12 +97,37 @@ export default function ThreadComposer() {
     setIsSubmitting(true);
     try {
       const mediaFileIds: string[] = [];
+      
       if (selectedImages.length > 0) {
+        // 👇 2. CẤU HÌNH THÔNG SỐ NÉN ẢNH 👇
+        const options = {
+          maxSizeMB: 0.5, // Tối đa 500KB một ảnh
+          maxWidthOrHeight: 1280, // Chiều rộng/dài tối đa
+          useWebWorker: true, // Xử lý ngầm không làm đơ giao diện
+        };
+
         for (const file of selectedImages) {
-          const postUrl = await generateUploadUrl();
-          const result = await fetch(postUrl, { method: "POST", headers: { "Content-Type": file.type }, body: file });
-          const { storageId } = await result.json();
-          mediaFileIds.push(storageId);
+          // 👇 3. NÉN ẢNH TRƯỚC KHI UPLOAD 👇
+          try {
+            const compressedFile = await imageCompression(file, options);
+            console.log(`Đã nén ảnh từ ${file.size / 1024} KB xuống ${compressedFile.size / 1024} KB`);
+            
+            const postUrl = await generateUploadUrl();
+            const result = await fetch(postUrl, { 
+              method: "POST", 
+              headers: { "Content-Type": compressedFile.type }, 
+              body: compressedFile // UPLOAD FILE ĐÃ NÉN!
+            });
+            const { storageId } = await result.json();
+            mediaFileIds.push(storageId);
+          } catch (compressError) {
+            console.error("Lỗi khi nén ảnh:", compressError);
+            // Nếu nén lỗi thì fallback up file gốc để không bị kẹt tiến trình
+            const postUrl = await generateUploadUrl();
+            const result = await fetch(postUrl, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+            const { storageId } = await result.json();
+            mediaFileIds.push(storageId);
+          }
         }
       }
 
@@ -185,7 +212,7 @@ export default function ThreadComposer() {
 
               <div className="flex gap-3">
                 <div className="flex flex-col items-center shrink-0">
-                  <img src={displayAvatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-100 z-10" />
+                  <img loading="lazy"src={displayAvatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-100 z-10" />
                   <div className="w-[2.5px] h-full min-h-[50px] bg-gray-200 mt-2 rounded-full"></div>
                 </div>
 
@@ -208,7 +235,7 @@ export default function ThreadComposer() {
                     <div className="flex flex-wrap gap-2 mt-3 pb-3">
                       {previewUrls.map((url, idx) => (
                         <div key={idx} className="relative w-28 h-28 rounded-xl overflow-hidden border border-gray-200 group">
-                          <img src={url} alt="preview" className="w-full h-full object-cover" />
+                          <img loading="lazy"src={url} alt="preview" className="w-full h-full object-cover" />
                           <button type="button" onClick={() => removeImage(idx)} className="absolute top-1.5 right-1.5 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-black transition-colors">✕</button>
                         </div>
                       ))}

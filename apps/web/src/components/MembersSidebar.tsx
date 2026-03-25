@@ -36,7 +36,7 @@ export default function MembersSidebar() {
               <div key={member._id} className="flex items-center gap-2 px-2 py-2 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer">
                 <div className="relative">
                   <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-base overflow-hidden shrink-0">
-                    <img src={member.imageUrl || `https://ui-avatars.com/api/?name=${member.first_name || member.username || 'U'}&background=random`} alt="avatar" className="w-full h-full object-cover" />
+                    <img loading="lazy"src={member.imageUrl || `https://ui-avatars.com/api/?name=${member.first_name || member.username || 'U'}&background=random`} alt="avatar" className="w-full h-full object-cover" />
                   </div>
                   {/* ĐÃ XÓA CHẤM TRẠNG THÁI Ở ĐÂY */}
                 </div>
