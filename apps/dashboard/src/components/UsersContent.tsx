@@ -20,7 +20,7 @@ const UsersContent = () => {
 
   // States quản lý Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isAddMode, setIsAddMode] = useState(false); // Thêm mode cho Add
+  const [isAddMode, setIsAddMode] = useState(false); 
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [formData, setFormData] = useState({ email: '', first_name: '', last_name: '', username: '', role: 'user' });
@@ -36,8 +36,8 @@ const UsersContent = () => {
     return true;
   });
 
-  const formatLastSeen = (timestamp?: number) => {
-    if (!timestamp) return 'Chưa từng đăng nhập';
+  const formatJoinDate = (timestamp?: number) => {
+    if (!timestamp) return 'Không xác định';
     return new Date(timestamp).toLocaleString('vi-VN', {
       hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric'
     });
@@ -47,7 +47,7 @@ const UsersContent = () => {
   const handleOpenAdd = () => {
     setFormData({ email: '', first_name: '', last_name: '', username: '', role: 'user' });
     setIsAddMode(true);
-    setIsEditMode(true); // Tái sử dụng form Edit để cho phép nhập liệu
+    setIsEditMode(true); 
     setIsModalOpen(true);
   };
 
@@ -79,14 +79,12 @@ const UsersContent = () => {
   const handleSave = async () => {
     try {
       if (isAddMode) {
-        // Gọi hàm Thêm mới
         if (!formData.email || !formData.username) {
           alert("Email và Tên đăng nhập không được để trống!");
           return;
         }
         await createUser(formData);
       } else if (selectedUser) {
-        // Gọi hàm Sửa
         await updateUser({
           userId: selectedUser._id,
           first_name: formData.first_name,
@@ -137,7 +135,6 @@ const UsersContent = () => {
             <option value="user">User</option>
           </select>
         </div>
-        {/* ĐÃ GẮN SỰ KIỆN onClick CHO NÚT THÊM */}
         <button 
           onClick={handleOpenAdd}
           className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white font-medium rounded-xl hover:from-emerald-600 hover:to-green-700 transition-all shadow-lg shadow-emerald-200"
@@ -154,7 +151,8 @@ const UsersContent = () => {
               <tr>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Người dùng</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Vai trò</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Hoạt động cuối</th>
+                {/* 👇 ĐÃ SỬA: Tiêu đề cột 👇 */}
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Ngày tham gia</th>
                 <th className="px-6 py-4 text-right text-sm font-semibold text-gray-600">Hành động</th>
               </tr>
             </thead>
@@ -169,7 +167,7 @@ const UsersContent = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         {user.imageUrl ? (
-                          <img loading="lazy"src={user.imageUrl} alt={user.username} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
+                          <img loading="lazy" src={user.imageUrl} alt={user.username} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
                         ) : (
                           <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-green-500 rounded-full flex items-center justify-center font-bold text-white">
                             {user.username ? user.username.charAt(0).toUpperCase() : 'U'}
@@ -189,7 +187,8 @@ const UsersContent = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {formatLastSeen(user.lastSeen)}
+                      {/* 👇 ĐÃ SỬA: Truyền _creationTime vào 👇 */}
+                      {formatJoinDate(user._creationTime)}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
@@ -218,7 +217,6 @@ const UsersContent = () => {
             </div>
             
             <div className="p-6 space-y-4">
-              {/* TRƯỜNG EMAIL ĐƯỢC MỞ KHÓA NẾU LÀ CHẾ ĐỘ THÊM */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email {isAddMode && <span className="text-red-500">*</span>}</label>
                 <input 

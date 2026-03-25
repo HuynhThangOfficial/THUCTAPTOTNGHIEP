@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Konket",
-    "slug": "ThucTapTotNghiep",
+    "slug": "konket",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -27,7 +27,8 @@
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.supersimon.threads"
+      "package": "com.huynhthang.konket",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",

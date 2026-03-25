@@ -14,8 +14,6 @@ export const User = {
   linkTitle: v.optional(v.string()),
   followersCount: v.number(),
   pushToken: v.optional(v.string()),
-  lastSeen: v.optional(v.number()),
-  showActiveStatus: v.optional(v.boolean()),
   stones: v.optional(v.number()),
   language: v.optional(v.string()),
   role: v.optional(v.string()),

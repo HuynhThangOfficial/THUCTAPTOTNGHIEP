@@ -108,40 +108,7 @@ export const updateUserFromClerk = internalMutation({
   },
 });
 
-export const updateLastSeen = mutation({
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return;
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-
-    if (user) {
-      await ctx.db.patch(user._id, { lastSeen: Date.now() });
-    }
-  },
-});
-
-export const updateActiveStatus = mutation({
-  args: { isEnabled: v.boolean() },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("UNAUTHORIZED");
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("byClerkId", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-
-    if (!user) throw new Error("USER_NOT_FOUND");
-
-    await ctx.db.patch(user._id, { 
-      showActiveStatus: args.isEnabled 
-    });
-  },
-});
+// 👇 ĐÃ XÓA updateLastSeen VÀ updateActiveStatus TẠI ĐÂY 👇
 
 export const generateUploadUrl = mutation(async (ctx) => {
   await getCurrentUserOrThrow(ctx);

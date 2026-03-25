@@ -7,8 +7,6 @@ import { Id } from '../../../../convex/_generated/dataModel';
 import { useTranslation } from 'react-i18next';
 import { Send, Image as ImageIcon, Pin, CheckCheck, Reply, Copy, Trash2, Smile, X, ChevronDown, ChevronUp, ArrowLeft, MoreHorizontal, AlertTriangle, Check, Repeat, Heart, MessageSquare, Share } from 'lucide-react';
 
-// ĐÃ XÓA: Hàm formatLastSeen
-
 const formatTimeDivider = (timestamp: number, t: any) => {
   const date = new Date(timestamp);
   const now = new Date();

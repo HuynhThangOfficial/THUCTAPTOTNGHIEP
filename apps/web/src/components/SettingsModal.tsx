@@ -27,7 +27,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
   // Lấy dữ liệu và Mutation từ Convex
   const userProfile = useQuery(api.users.current);
-  const updateActiveStatus = useMutation(api.users.updateActiveStatus);
   const updateLanguage = useMutation(api.users.updateLanguage);
 
   const LANGUAGES = [
@@ -42,16 +41,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   };
 
   // --- CÁC HÀM XỬ LÝ LOGIC ---
-
-  const handleToggleActiveStatus = async () => {
-    const currentStatus = userProfile?.showActiveStatus ?? true;
-    try {
-      await updateActiveStatus({ isEnabled: !currentStatus });
-    } catch (error) {
-      console.error(t('common.error'), error);
-    }
-  };
-
   const handleLanguageChange = async (langCode: string) => {
     // 1. Đổi giao diện Web sang ngôn ngữ mới ngay lập tức
     i18n.changeLanguage(langCode);
@@ -147,23 +136,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
           {/* Mục 2: Cài đặt hiển thị & Đa ngôn ngữ */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-
-            {/* Trạng thái hoạt động */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors">
-               <div className="flex items-center gap-3">
-                 <div className={`w-3 h-3 rounded-full ${userProfile?.showActiveStatus ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                 <div>
-                   <div className="text-[15px] font-medium text-gray-800">{t('settings.active_status')}</div>
-                   <div className="text-xs text-gray-500 mt-0.5">{t('settings.active_status_desc')}</div>
-                 </div>
-               </div>
-               <button
-                 onClick={handleToggleActiveStatus}
-                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${userProfile?.showActiveStatus ? 'bg-green-500' : 'bg-gray-300'}`}
-               >
-                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${userProfile?.showActiveStatus ? 'translate-x-6' : 'translate-x-1'}`} />
-               </button>
-            </div>
 
             {/* Chuyển đổi tài khoản */}
             <div className="relative">

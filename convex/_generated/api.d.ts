@@ -18,7 +18,6 @@ import type * as firecrawl_bot from "../firecrawl_bot.js";
 import type * as firecrawl_db from "../firecrawl_db.js";
 import type * as http from "../http.js";
 import type * as messages from "../messages.js";
-import type * as migrations from "../migrations.js";
 import type * as push from "../push.js";
 import type * as social from "../social.js";
 import type * as university from "../university.js";
@@ -42,7 +41,6 @@ declare const fullApi: ApiFromModules<{
   firecrawl_db: typeof firecrawl_db;
   http: typeof http;
   messages: typeof messages;
-  migrations: typeof migrations;
   push: typeof push;
   social: typeof social;
   university: typeof university;

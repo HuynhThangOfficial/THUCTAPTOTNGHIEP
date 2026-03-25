@@ -22,7 +22,6 @@ export default function SettingsScreen() {
 
   // 1. Lấy dữ liệu và Mutation từ Convex
   const userProfile = useQuery(api.users.current);
-  const updateActiveStatus = useMutation(api.users.updateActiveStatus);
   const updateLanguage = useMutation(api.users.updateLanguage);
 
   const getLanguageName = (code: string) => {
@@ -152,30 +151,6 @@ export default function SettingsScreen() {
 
       <ScrollView style={styles.container}>
         <View style={styles.section}>
-          <View style={styles.itemContainer}>
-            <Ionicons 
-              name="ellipse" 
-              size={12} 
-              color={userProfile?.showActiveStatus ? "#44b669" : "gray"} 
-              style={[styles.icon, { marginLeft: 6, marginRight: 21 }]} 
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.itemText}>{t('settings.active_status')}</Text>
-              <Text style={styles.subText}>{t('settings.active_status_desc')}</Text>
-            </View>
-            <Switch
-              value={userProfile?.showActiveStatus ?? true}
-              onValueChange={async (newValue) => {
-                try {
-                  await updateActiveStatus({ isEnabled: newValue });
-                } catch (error) {
-                  console.error("Lỗi cập nhật trạng thái:", error);
-                }
-              }}
-              trackColor={{ false: "#d3d3d3", true: "#44b669" }}
-              thumbColor="#fff"
-            />
-          </View>
 
           <SettingsItem 
             icon="people-circle-outline" 

@@ -1,3 +1,5 @@
+"use client";
+
 import { View, Text, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, StyleSheet, Image, Modal, Alert, ActivityIndicator, Keyboard } from 'react-native';
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -12,6 +14,8 @@ import Toast from 'react-native-root-toast';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { useTranslation } from 'react-i18next';
+// 👇 THÊM BỘ NÉN ẢNH CỦA EXPO 👇
+import * as ImageManipulator from 'expo-image-manipulator';
 
 // --- CÁC HÀM TIỆN ÍCH ---
 const isHttpUrl = (url?: string | null): boolean => {
@@ -25,30 +29,6 @@ const getValidAvatar = (url?: string | null): string => {
 };
 
 const DEFAULT_ANON_AVATAR = 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y';
-
-const formatLastSeen = (timestamp: number | undefined, t: any) => {
-  if (!timestamp) return ''; 
-  const now = new Date();
-  const date = new Date(timestamp);
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-
-  if (diffMins <= 2) return t('chat.active_now');
-  if (diffMins < 60) return t('chat.active_mins_ago', { count: diffMins });
-  
-  if (diffHours < 24) {
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (date.getDate() === yesterday.getDate()) return t('chat.active_yesterday');
-    return t('chat.active_hours_ago', { count: diffHours });
-  }
-
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const year = date.getFullYear();
-  return t('chat.active_date', { date: `${day}/${month}/${year}` });
-};
 
 const formatTimeDivider = (timestamp: number, t: any) => {
   const date = new Date(timestamp);
@@ -224,9 +204,16 @@ const ChatRoom = () => {
     else setSelectedPhotos([...selectedPhotos, uri]);
   };
 
+  // 👇 ĐÃ THÊM LOGIC NÉN ẢNH BẰNG EXPO-IMAGE-MANIPULATOR 👇
   const uploadSingleImage = async (uri: string) => {
+    const compressedImage = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: 1080 } }],
+      { compress: 0.4, format: ImageManipulator.SaveFormat.JPEG }
+    );
+
     const postUrl = await generateUploadUrl();
-    const response = await fetch(uri);
+    const response = await fetch(compressedImage.uri);
     const blob = await response.blob();
     const result = await fetch(postUrl, { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob });
     const { storageId } = await result.json();
@@ -234,7 +221,8 @@ const ChatRoom = () => {
   };
 
   const handleTakeAndSendPhoto = async () => {
-    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7 });
+    // 👇 CHỈNH LẠI CHẤT LƯỢNG CAMERA CÒN 0.4 👇
+    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.4 });
     if (!result.canceled) {
       setIsGalleryVisible(false); setIsUploading(true);
       try {
@@ -314,7 +302,10 @@ const ChatRoom = () => {
             <Image source={{ uri: getValidAvatar(otherUser.imageUrl) }} style={styles.headerAvatar} />
             <View style={styles.headerTextContainer}>
               <Text style={styles.headerName}>{otherUser.first_name} {otherUser.last_name}</Text>
-              <Text style={styles.statusText}>{formatLastSeen(otherUser.lastSeen, t)}</Text>
+              {/* 👇 ĐÃ XÓA TRẠNG THÁI ONLINE VÀ THAY BẰNG @USERNAME 👇 */}
+              {otherUser.username && (
+                <Text style={styles.statusText}>@{otherUser.username}</Text>
+              )}
             </View>
           </View>
         ) : <Text style={styles.headerName}>{t('chat.loading')}</Text>}
@@ -586,7 +577,6 @@ const ChatRoom = () => {
   );
 };
 
-// ... Các style phía dưới giữ nguyên không đổi ...
 const styles = StyleSheet.create({
   timeDividerContainer: { alignItems: 'center', marginVertical: 15 },
   timeDividerText: { fontSize: 12, color: '#888', fontWeight: '500' },
@@ -660,7 +650,7 @@ const styles = StyleSheet.create({
   sharedPostStats: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'space-between', // 👇 ĐÃ SỬA LỖI TẠI ĐÂY 👇
     paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(0,0,0,0.1)'

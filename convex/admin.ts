@@ -65,7 +65,6 @@ export const adminDeleteUser = mutation({
     const { userId } = args;
 
     // Xóa tin nhắn, bài viết, lượt thích, follow... (Cascading Delete)
-    // [Logic dựa trên schema.ts của Thăng]
     const messages = await ctx.db.query("messages").withIndex("by_user", q => q.eq("userId", userId)).collect();
     for (const m of messages) await ctx.db.delete(m._id);
 
@@ -168,7 +167,6 @@ export const adminGetServersAndUniversities = query({
       const categories = allChannels.filter(c => c.type === 'category').sort((a, b) => a.sortOrder - b.sortOrder);
       const channels = allChannels.filter(c => c.type !== 'category').sort((a, b) => a.sortOrder - b.sortOrder);
 
-      // Đếm số bài đăng gốc (threadId = undefined)
       const allMessages = await ctx.db.query("messages").withIndex("by_university", q => q.eq("universityId", uni._id)).collect();
       const postCount = allMessages.filter(m => m.threadId === undefined).length;
 
@@ -182,8 +180,8 @@ export const adminGetServersAndUniversities = query({
         categoryCount: categories.length,
         channelCount: channels.length,
         postCount: postCount,
-        categories: categories, // Trả về để hiện trong Modal
-        channels: channels,     // Trả về để hiện trong Modal
+        categories: categories, 
+        channels: channels,     
         totalStones: 0
       });
     }
@@ -194,7 +192,6 @@ export const adminGetServersAndUniversities = query({
       const categories = allChannels.filter(c => c.type === 'category').sort((a, b) => a.sortOrder - b.sortOrder);
       const channels = allChannels.filter(c => c.type !== 'category').sort((a, b) => a.sortOrder - b.sortOrder);
 
-      // Đếm số bài đăng gốc (threadId = undefined)
       const allMessages = await ctx.db.query("messages").withIndex("by_server", q => q.eq("serverId", srv._id)).collect();
       const postCount = allMessages.filter(m => m.threadId === undefined).length;
 
@@ -216,8 +213,8 @@ export const adminGetServersAndUniversities = query({
         categoryCount: categories.length,
         channelCount: channels.length,
         postCount: postCount,
-        categories: categories, // Trả về để hiện trong Modal
-        channels: channels,     // Trả về để hiện trong Modal
+        categories: categories, 
+        channels: channels,     
         totalStones: srv.totalStones || 0,
         creatorName: creator?.username || "Không rõ"
       });
@@ -231,7 +228,6 @@ export const adminGetServersAndUniversities = query({
 export const adminDeleteServer = mutation({
   args: { serverId: v.id("servers") },
   handler: async (ctx, args) => {
-    // Logic xóa server giống hệt hàm deleteServer trong university.ts
     const channels = await ctx.db.query('channels').withIndex('by_server', q => q.eq('serverId', args.serverId)).collect();
     for (const channel of channels) {
       const messages = await ctx.db.query('messages').withIndex('by_channel', q => q.eq('channelId', channel._id)).collect();
@@ -259,7 +255,6 @@ export const adminDeleteServer = mutation({
 
 export const adminGetBroadcasts = query({
   handler: async (ctx) => {
-    // Lấy lịch sử gửi thông báo mới nhất
     return await ctx.db.query("admin_broadcasts").order("desc").take(50);
   }
 });
@@ -271,7 +266,6 @@ export const adminSendBroadcast = mutation({
     target: v.string() 
   },
   handler: async (ctx, args) => {
-    // 1. Lấy danh sách người dùng mục tiêu
     let targetUsers;
     if (args.target === 'all') {
       targetUsers = await ctx.db.query("users").collect();
@@ -283,22 +277,17 @@ export const adminSendBroadcast = mutation({
 
     if (targetUsers.length === 0) return 0;
 
-    // 2. Định dạng nội dung thông báo
     const textContent = `📢 [${args.title}]\n${args.message}`;
 
-    // 3. Rải thông báo cho từng người
     for (const user of targetUsers) {
       await ctx.db.insert("notifications", {
         userId: user._id,
-        type: "system", // Loại thông báo hệ thống
+        type: "system", 
         content: textContent,
         isRead: false,
       });
-      // Ghi chú: Nếu app mobile đã cấu hình xong Expo Push Token, 
-      // bạn có thể gọi internalAction sendPushNotification ở đây!
     }
 
-    // 4. Lưu lại lịch sử gửi
     await ctx.db.insert("admin_broadcasts", {
       title: args.title,
       message: args.message,
@@ -327,12 +316,22 @@ export const adminGetAnalytics = query({
     const adminCount = users.filter(u => u.role === 'admin').length;
     const userCount = totalUsers - adminCount;
 
-    // 2. GIỮ CHÂN
+    // 👇 2. ĐÃ SỬA: TÍNH RETENTION RATE DỰA VÀO HÀNH ĐỘNG GỬI TIN NHẮN 👇
+    const messages = await ctx.db.query("messages").collect();
     const calcRetention = () => {
+        // Chỉ xét những người dùng tạo acc trước mốc thời gian (VD: trước 7 ngày)
         const eligibleUsers = users.filter(u => u._creationTime < cutoffTime);
         if (eligibleUsers.length === 0) return 0;
-        const retained = eligibleUsers.filter(u => (u.lastSeen || 0) > cutoffTime).length;
-        return Math.round((retained / eligibleUsers.length) * 100);
+        
+        // Tìm ra ID của những người có đăng bài / chat trong khoảng thời gian cutoff
+        const activeUserIdsInPeriod = new Set(
+           messages.filter(m => m._creationTime > cutoffTime).map(m => m.userId)
+        );
+
+        // Đếm xem trong số "người cũ", có bao nhiêu người vừa tương tác
+        const retainedCount = eligibleUsers.filter(u => activeUserIdsInPeriod.has(u._id)).length;
+        
+        return Math.round((retainedCount / eligibleUsers.length) * 100);
     };
 
     // 3. MÁY CHỦ & TRƯỜNG
@@ -343,12 +342,11 @@ export const adminGetAnalytics = query({
                           universities.filter(u => u._creationTime > cutoffTime).length;
 
     // 4. BÀI ĐĂNG GỐC
-    const messages = await ctx.db.query("messages").collect();
     const originalPosts = messages.filter(m => m.threadId === undefined);
     const totalPosts = originalPosts.length;
     const newPosts = originalPosts.filter(m => m._creationTime > cutoffTime).length;
 
-    // 5. HOẠT ĐỘNG THEO GIỜ (CHỈ LẤY BÀI ĐĂNG GỐC - Bỏ bình luận)
+    // 5. HOẠT ĐỘNG THEO GIỜ (CHỈ LẤY BÀI ĐĂNG GỐC)
     const hourlyActivity = new Array(24).fill(0);
     originalPosts.filter(m => m._creationTime > cutoffTime).forEach(m => {
         const hour = new Date(m._creationTime).getHours();
@@ -358,7 +356,6 @@ export const adminGetAnalytics = query({
     const maxActivity = Math.max(...hourlyActivity, 1);
     const normalizedHourly = hourlyActivity.map(count => Math.round((count / maxActivity) * 100));
 
-    // ĐÃ BỎ avgTime
     return {
       totalUsers, newUsers,
       totalPosts, newPosts,
@@ -376,7 +373,6 @@ export const adminGetAnalytics = query({
 
 export const adminGetAuditLogs = query({
   handler: async (ctx) => {
-    // Lấy 50 hành động gần nhất
     return await ctx.db.query("audit_logs").order("desc").take(50);
   }
 });
@@ -399,8 +395,6 @@ export const adminGetReports = query({
   handler: async (ctx) => {
     const reports = await ctx.db.query("reports").order("desc").collect();
 
-    // 1. GOM NHÓM (GROUP) BÁO CÁO CỰC KỲ QUAN TRỌNG
-    // Đã phân loại: Nếu là Server thì nhóm theo serverId, nếu là Bài viết thì nhóm theo messageId
     const grouped = new Map<string, any[]>();
     for (const r of reports) {
         const key = r.type === 'server' ? `server_${r.serverId}` : `msg_${r.messageId}`;
@@ -418,7 +412,6 @@ export const adminGetReports = query({
       let channel = null;
       let serverInfo = null;
 
-      // 2. LẤY DỮ LIỆU TƯƠNG ỨNG VỚI LOẠI BÁO CÁO
       if (isServerReport) {
          if (firstReport.serverId) {
             serverInfo = await ctx.db.get(firstReport.serverId as Id<"servers">);
@@ -435,7 +428,6 @@ export const adminGetReports = query({
          }
       }
 
-      // 3. LẤY THÔNG TIN NHỮNG NGƯỜI ĐÃ GỬI BÁO CÁO
       const reporters = await Promise.all(groupReports.map(async r => {
           const user = await ctx.db.get(r.userId as Id<"users">);
           return { ...user, reason: r.reason, status: r.status };
@@ -445,18 +437,18 @@ export const adminGetReports = query({
 
       result.push({
         _id: firstReport._id,
-        reportIds: groupReports.map(r => r._id), // Mảng chứa ID để xóa/duyệt 1 lần
+        reportIds: groupReports.map(r => r._id), 
         messageId: firstReport.messageId,
         serverId: firstReport.serverId,
-        type: firstReport.type || 'message', // Phân loại: 'server' hoặc 'message'
-        targets: firstReport.targets || [],  // Các mục bị báo cáo (Avatar, Name...)
+        type: firstReport.type || 'message', 
+        targets: firstReport.targets || [],  
         reportCount: groupReports.length,
         status: overallStatus,
         reporters,
         message,
         author,
         channel,
-        server: serverInfo, // Thông tin máy chủ bị report
+        server: serverInfo, 
         createdAt: firstReport._creationTime
       });
     }
