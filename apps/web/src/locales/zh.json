@@ -543,5 +543,30 @@
     "target_purpose": "服务器目的",
     "step1_title": "举报服务器",
     "step1_desc": "请选择您要举报的项目："
+  },
+  "deleteAccount": {
+  "title": "KonKet 账号删除请求",
+  "description": "您好，如果您希望从 KonKet 社交网络系统中完全删除您的账号和个人数据，请按照以下说明操作。",
+  "method1": {
+    "title": "方法一：在应用或网页端直接删除",
+    "subtitle": "如果您仍可以登录 KonKet，这是最快的方法：",
+    "webLabel": "网页端 (konket.newyas.com):",
+    "webSteps": "登录 ➔ 点击设置 ➔ 选择“删除账号”。",
+    "appLabel": "移动端应用:",
+    "appSteps": "打开应用 ➔ 进入设置 ➔ 选择“删除账号”。"
+  },
+  "method2": {
+    "title": "方法二：通过电子邮件请求删除",
+    "subtitle": "如果您无法访问您的账号，请发送电子邮件至我们的支持团队：",
+    "sendTo": "发送至：",
+    "subject": "邮件主题：",
+    "subjectText": "KonKet 账号删除请求",
+    "content": "邮件正文：",
+    "contentText": "请提供您注册账号时使用的电子邮件或用户名。"
+  },
+  "warning": {
+    "title": "重要提示：",
+    "content": "一旦您的请求被处理，您的所有数据（包括：个人资料、帖子、评论和服务器上的消息）将在 7 个工作日内被永久删除，且无法恢复。"
   }
+}
 }

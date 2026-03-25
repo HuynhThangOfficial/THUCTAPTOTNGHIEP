@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Konket",
-    "slug": "konket",
+    "slug": "konket-mobile-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.supersimon.threads",
+      "bundleIdentifier": "com.huynhthang.konket",
       "entitlements": {
         "aps-environment": "development"
       }
@@ -40,14 +40,6 @@
       "expo-font",
       "expo-secure-store",
       [
-        "@sentry/react-native/expo",
-        {
-          "organization": "chat-app-j4",
-          "project": "react-native",
-          "url": "https://sentry.io/"
-        }
-      ],
-      [
         "expo-image-picker",
         {
           "photosPermission": "The app accesses your photos to let you share them with your friends.",
@@ -64,7 +56,7 @@
         "origin": false
       },
       "eas": {
-        "projectId": "5608065f-af9c-463a-b3cf-e0ddf141b5d8"
+        "projectId": "3a506c08-009a-4cab-9643-6a30b0f2b352"
       }
     }
   }

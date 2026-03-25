@@ -286,6 +286,8 @@
     "share_profile_msg": "Connect with me on KonKet! {{url}}",
     "open_link_error": "Cannot open this link at this time.",
     "switch_account_error": "Cannot switch account.",
+    "active_status": "Active Status",
+    "active_status_desc": "Show when you are online",
     "switch_account": "Switch Account",
     "current_user": "Current: @{{username}}",
     "app_language": "App Language",
@@ -541,5 +543,30 @@
     "target_purpose": "Server Purpose",
     "step1_title": "Report Server",
     "step1_desc": "Please select the items you want to report:"
+  },
+  "deleteAccount": {
+  "title": "Yêu cầu xóa tài khoản KonKet",
+  "description": "Chào bạn, nếu bạn muốn xóa hoàn toàn tài khoản và dữ liệu cá nhân khỏi hệ thống mạng xã hội KonKet, vui lòng làm theo hướng dẫn dưới đây.",
+  "method1": {
+    "title": "Cách 1: Xóa trực tiếp trên Ứng dụng hoặc Web",
+    "subtitle": "Nếu bạn vẫn đang đăng nhập được vào KonKet, đây là cách nhanh nhất:",
+    "webLabel": "Trên phiên bản Web (konket.newyas.com):",
+    "webSteps": "Đăng nhập ➔ Nhấn vào Cài đặt ➔ Chọn \"Xóa tài khoản\".",
+    "appLabel": "Trên ứng dụng Mobile:",
+    "appSteps": "Mở ứng dụng ➔ Vào phần Cài đặt ➔ Chọn \"Xóa tài khoản\"."
+  },
+  "method2": {
+    "title": "Cách 2: Yêu cầu xóa qua Email",
+    "subtitle": "Nếu bạn không thể truy cập vào tài khoản, vui lòng gửi email đến hỗ trợ viên:",
+    "sendTo": "Gửi đến:",
+    "subject": "Tiêu đề:",
+    "subjectText": "Yêu cầu xóa tài khoản KonKet",
+    "content": "Nội dung:",
+    "contentText": "Ghi rõ Email hoặc Tên đăng nhập bạn đã dùng để tạo tài khoản."
+  },
+  "warning": {
+    "title": "Lưu ý quan trọng:",
+    "content": "Khi yêu cầu được xử lý, toàn bộ dữ liệu của bạn bao gồm: Hồ sơ cá nhân, Bài đăng, Bình luận và Tin nhắn trên hệ thống máy chủ sẽ bị xóa vĩnh viễn trong vòng 7 ngày làm việc và không thể khôi phục."
   }
+}
 }
