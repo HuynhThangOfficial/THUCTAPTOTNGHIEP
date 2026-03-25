@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { useTranslation } from 'react-i18next'; // Hoặc thư viện i18n bác đang dùng
+import { useTranslation } from 'react-i18next'; // Bác kiểm tra xem có đúng thư viện bác đang dùng không nhé
 
 export default function DeleteAccountPage() {
   const { t } = useTranslation();
@@ -35,7 +35,9 @@ export default function DeleteAccountPage() {
       </div>
 
       <div style={{ marginTop: '30px', padding: '15px', background: '#FFF5F5', borderRadius: '8px', color: '#C53030' }}>
-        <strong>⚠️ {t('deleteAccount.warning.title')}</strong>
+        <strong>
+          <span role="img" aria-label="warning">⚠️</span> {t('deleteAccount.warning.title')}
+        </strong>
         <p style={{ margin: '5px 0 0 0', fontSize: '14px' }}>
           {t('deleteAccount.warning.content')}
         </p>
