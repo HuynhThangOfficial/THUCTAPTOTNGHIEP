@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom'; // 👈 1. IMPORT MA THUẬT PORTAL
 import { useQuery, usePaginatedQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
@@ -46,6 +47,10 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
   const isLoggedIn = isLoaded && user;
   const { setShowEditProfileModal, setShowAuthModal } = useApp() as any;
 
+  // 👇 2. STATE CHỐNG LỖI NEXT.JS SSR KHI DÙNG PORTAL 👇
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const profile = useQuery(api.users.getUserById, targetUserId ? { userId: targetUserId } : "skip");
   const postCount = useQuery(api.users.getPostCount, targetUserId ? { userId: targetUserId } : "skip") || 0;
 
@@ -83,7 +88,8 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
     api.messages.getFavoriteThreads, targetUserId ? { userId: targetUserId } : "skip", { initialNumItems: 10 }
   );
 
-  if (profile === undefined) return null;
+  // Chờ mount xong mới render Portal để không bị crash SSR
+  if (profile === undefined || !mounted) return null;
 
   const isSelf = user?.id === profile?.clerkId;
 
@@ -99,19 +105,12 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
 
   const currentTab = getActiveTabState();
 
-  // ĐÃ SỬA LỖI TẠI ĐÂY: Thêm e.stopPropagation() và gỡ bỏ setTimeout
   const handleEditClick = (e: React.MouseEvent) => {
-    e.preventDefault(); // Chặn mọi hành vi mặc định
-    e.stopPropagation(); // Chống trôi sự kiện click
-    
-    // 1. Gửi tín hiệu bật bảng Cài đặt Hồ sơ lên
+    e.stopPropagation();
     setShowEditProfileModal(true);
-    
-    // 2. Trì hoãn việc "tự sát" (đóng bảng Profile) lại 100ms để React kịp xử lý
-    setTimeout(() => {
-      onClose();
-    }, 100);
+    onClose();
   };
+
   const handleToggleFollow = async () => {
     if (!isLoggedIn) return setShowAuthModal(true);
     if (!targetUserId || isFollowLoading) return;
@@ -152,6 +151,9 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
     }
   };
 
+  // =======================================================
+  // HIỂN THỊ MÀN HÌNH DANH SÁCH FOLLOW NẾU ĐƯỢC KÍCH HOẠT
+  // =======================================================
   if (showFollowList) {
     const getListUsers = () => {
       let list = [];
@@ -166,8 +168,9 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
     }
     const displayUsers = getListUsers();
 
-    return (
-      <div className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all animate-in fade-in duration-200" onClick={onClose}>
+    // 👇 3. GÓI NỘI DUNG VÀ BẮN RA PORTAL 👇
+    const followListContent = (
+      <div className="fixed inset-0 z-[99990] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all animate-in fade-in duration-200" onClick={onClose}>
         <div className="bg-white w-full max-w-[500px] h-[80vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
 
            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white shrink-0">
@@ -221,11 +224,16 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
            </div>
         </div>
       </div>
-    )
+    );
+
+    return createPortal(followListContent, document.body);
   }
 
-  return (
-    <div className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all animate-in fade-in duration-200" onClick={onClose}>
+  // =======================================================
+  // HIỂN THỊ TRANG CHỦ HỒ SƠ (CŨNG BẮN RA PORTAL NỐT)
+  // =======================================================
+  const profileContent = (
+    <div className="fixed inset-0 z-[99990] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all animate-in fade-in duration-200" onClick={onClose}>
       <div className="bg-white w-full max-w-[620px] h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
 
         <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white shrink-0">
@@ -346,4 +354,6 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
       </div>
     </div>
   );
+
+  return createPortal(profileContent, document.body);
 }
