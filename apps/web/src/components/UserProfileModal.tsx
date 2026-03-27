@@ -8,7 +8,6 @@ import { useUser } from '@clerk/nextjs';
 import Thread from './Thread';
 import { useApp } from '../context/AppContext';
 import { useTranslation } from 'react-i18next';
-// 👇 Đã import thêm ArrowLeft, Search để dùng cho Màn hình Follow List 👇
 import { X, ArrowLeft, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -64,7 +63,6 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
 
   const [activeTab, setActiveTab] = useState<'posts' | 'replies' | 'reposts' | 'likes'>('posts');
 
-  // 👇 MÀN HÌNH FOLLOW LIST STATE 👇
   const [showFollowList, setShowFollowList] = useState(false);
   const [followListTab, setFollowListTab] = useState<'followers' | 'following' | 'friends'>('followers');
   const [searchUser, setSearchUser] = useState('');
@@ -101,9 +99,11 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
 
   const currentTab = getActiveTabState();
 
-  const handleEditClick = () => {
+  // ĐÃ SỬA LỖI TẠI ĐÂY: Thêm e.stopPropagation() và gỡ bỏ setTimeout
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowEditProfileModal(true);
     onClose();
-    setTimeout(() => setShowEditProfileModal(true), 150);
   };
 
   const handleToggleFollow = async () => {
@@ -126,7 +126,6 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
   };
 
   const handleMessageClick = async () => {
-    // Kiểm tra đăng nhập ở client
     if (!isLoggedIn || !user) {
       onClose(); 
       return setShowAuthModal(true);
@@ -134,14 +133,11 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
     if (!targetUserId) return;
     
     try {
-      // Gọi API Backend
       const convId = await getOrCreateConversation({ otherUserId: targetUserId });
       onClose();
       router.push(`/chat/${convId}`);
     } catch (error: any) {
       console.error("Lỗi tạo cuộc trò chuyện:", error);
-      
-      // Bắt chính xác lỗi ConvexError có data là "UNAUTHORIZED"
       if (error.data === "UNAUTHORIZED" || error.message?.includes("UNAUTHORIZED")) {
         alert("Phiên đăng nhập đã hết hạn hoặc chưa đồng bộ. Vui lòng F5 lại trang!");
       } else {
@@ -150,9 +146,6 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
     }
   };
 
-  // =======================================================
-  // HIỂN THỊ MÀN HÌNH DANH SÁCH FOLLOW NẾU ĐƯỢC KÍCH HOẠT
-  // =======================================================
   if (showFollowList) {
     const getListUsers = () => {
       let list = [];
@@ -225,9 +218,6 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
     )
   }
 
-  // =======================================================
-  // HIỂN THỊ TRANG CHỦ HỒ SƠ
-  // =======================================================
   return (
     <div className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all animate-in fade-in duration-200" onClick={onClose}>
       <div className="bg-white w-full max-w-[620px] h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
@@ -253,7 +243,6 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
             <h1 className="text-2xl font-bold text-gray-900">{isSelf ? user?.fullName : `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || t('settings.default_user')}</h1>
             <p className="text-gray-500 font-medium">@{isSelf ? user?.username : profile?.username}</p>
 
-            {/* 👇 CÁC NÚT ĐÃ CÓ THỂ CLICK ĐỂ XEM DANH SÁCH 👇 */}
             <div className="flex items-center gap-2 mt-3 text-[15px] text-gray-800">
               <button onClick={() => { setFollowListTab('followers'); setShowFollowList(true); }} className="hover:underline focus:outline-none">
                 <strong>{profile?.followersCount || 0}</strong> {t('profile.followers')}

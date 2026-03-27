@@ -8,6 +8,7 @@ import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 // 👇 Import hàm dịch
 import { useTranslation } from 'react-i18next';
+import { useApp } from '../context/AppContext';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -17,8 +18,8 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const { signOut } = useAuth();
   const { client, setActive } = useClerk();
   const { user } = useUser();
-
   const { t, i18n } = useTranslation();
+  const { setShowEditProfileModal } = useApp() as any;
 
   // 👇 THÊM STATE ĐỂ CHỐNG LỖI NEXT.JS SSR 👇
   const [mounted, setMounted] = useState(false);
@@ -119,12 +120,20 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           <div>
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1">Tài khoản của tôi</h3>
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4">
-               <img loading="lazy"src={user?.imageUrl || "https://ui-avatars.com/api/?name=Guest"} alt="Avatar" className="w-16 h-16 rounded-full border border-gray-200 object-cover" />
+               <img loading="lazy" src={user?.imageUrl || "https://ui-avatars.com/api/?name=Guest"} alt="Avatar" className="w-16 h-16 rounded-full border border-gray-200 object-cover" />
                <div className="flex-1 min-w-0">
                  <div className="text-lg font-bold text-gray-900 truncate">{user?.fullName || user?.username || t('settings.default_user')}</div>
                  <div className="text-sm text-gray-500 truncate">@{user?.username}</div>
                </div>
-               <button className="px-4 py-2 bg-[#5865F2] hover:bg-[#4752C4] text-white text-sm font-semibold rounded-lg transition-colors shadow-sm whitespace-nowrap">
+               
+               {/* 👇 ĐÃ GẮN SỰ KIỆN ONCLICK Ở ĐÂY 👇 */}
+               <button 
+                 onClick={() => {
+                   setShowEditProfileModal(true); // Bật modal sửa hồ sơ lên
+                   onClose(); // Đóng cái bảng Cài đặt này lại cho đỡ vướng
+                 }}
+                 className="px-4 py-2 bg-[#5865F2] hover:bg-[#4752C4] text-white text-sm font-semibold rounded-lg transition-colors shadow-sm whitespace-nowrap"
+               >
                  {t('profile.edit_profile')}
                </button>
             </div>
