@@ -1,17 +1,20 @@
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom'; // 👈 1. THÊM MA THUẬT PORTAL
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { useUser } from '@clerk/nextjs';
 import { useApp } from '../context/AppContext';
 import { useTranslation } from 'react-i18next';
-// 👇 IMPORT THƯ VIỆN NÉN ẢNH 👇
 import imageCompression from 'browser-image-compression';
 
 export default function EditProfileModal() {
   const { t } = useTranslation();
+  
+  // 👇 LƯU Ý QUAN TRỌNG: 2 biến này phải GHI ĐÚNG TÊN như trong file AppContext.tsx nhé bác! 👇
   const { showEditProfileModal, setShowEditProfileModal } = useApp() as any;
+  
   const { user } = useUser();
   const profile = useQuery(api.users.current);
 
@@ -29,6 +32,10 @@ export default function EditProfileModal() {
   const [avatarPreview, setAvatarPreview] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // 👇 2. STATE CHỐNG LỖI NEXT.JS SSR 👇
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (profile) {
       setBio(profile.bio || '');
@@ -45,7 +52,8 @@ export default function EditProfileModal() {
     }
   }, [link]);
 
-  if (!showEditProfileModal || !profile || !user) return null;
+  // Nếu chưa mount xong, hoặc biến showEditProfileModal = false (hoặc undefined do sai tên) thì không render
+  if (!mounted || !showEditProfileModal || !profile || !user) return null;
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -68,35 +76,28 @@ export default function EditProfileModal() {
       });
 
       if (avatarFile) {
-        // 👇 1. CẤU HÌNH THÔNG SỐ NÉN CHO AVATAR (Ép cực mạnh vì avatar chỉ cần nhỏ) 👇
         const options = {
-          maxSizeMB: 0.1, // Ép xuống 100KB là quá đủ cho avatar
-          maxWidthOrHeight: 512, // Avatar không cần to, 512px là vừa đẹp
+          maxSizeMB: 0.1, 
+          maxWidthOrHeight: 512, 
           useWebWorker: true,
         };
 
-        // 👇 2. NÉN ẢNH 👇
         let finalFileToUpload = avatarFile;
         try {
           finalFileToUpload = await imageCompression(avatarFile, options);
-          console.log(`Đã nén Avatar từ ${avatarFile.size / 1024} KB xuống ${finalFileToUpload.size / 1024} KB`);
         } catch (compressError) {
           console.error("Lỗi khi nén Avatar:", compressError);
-          // Nếu nén lỗi thì xài file gốc
         }
 
-        // 👇 3. UPLOAD ẢNH ĐÃ NÉN 👇
         const postUrl = await generateUploadUrl();
         const result = await fetch(postUrl, {
           method: 'POST',
           headers: { 'Content-Type': finalFileToUpload.type },
-          body: finalFileToUpload, // Up file siêu nhẹ lên Convex
+          body: finalFileToUpload, 
         });
         const { storageId } = await result.json();
         
         await updateImage({ storageId, _id: profile._id });
-        
-        // Cập nhật cả avatar bên Clerk (Nên dùng file gốc để lỡ Clerk tự tối ưu, hoặc dùng file nén cũng ok)
         await user.setProfileImage({ file: finalFileToUpload });
       }
 
@@ -109,11 +110,12 @@ export default function EditProfileModal() {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+  // 👇 3. GÓI GIAO DIỆN VÀO BIẾN ĐỂ ĐẨY RA PORTAL 👇
+  const modalContent = (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white w-[500px] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
 
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white">
           <button onClick={() => setShowEditProfileModal(false)} className="text-gray-500 font-medium hover:text-black">{t('common.cancel')}</button>
           <h2 className="text-[16px] font-bold">{t('profile.edit_profile')}</h2>
           <button onClick={handleSave} disabled={isUpdating} className={`font-bold ${isUpdating ? 'text-gray-400' : 'text-blue-500 hover:text-blue-700'}`}>
@@ -165,4 +167,7 @@ export default function EditProfileModal() {
       </div>
     </div>
   );
+
+  // 👇 BẮN THẲNG RA BODY CỦA HTML ĐỂ CHỐNG LỖI CSS 👇
+  return createPortal(modalContent, document.body);
 }
