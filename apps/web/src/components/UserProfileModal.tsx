@@ -101,11 +101,17 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
 
   // ĐÃ SỬA LỖI TẠI ĐÂY: Thêm e.stopPropagation() và gỡ bỏ setTimeout
   const handleEditClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+    e.preventDefault(); // Chặn mọi hành vi mặc định
+    e.stopPropagation(); // Chống trôi sự kiện click
+    
+    // 1. Gửi tín hiệu bật bảng Cài đặt Hồ sơ lên
     setShowEditProfileModal(true);
-    onClose();
+    
+    // 2. Trì hoãn việc "tự sát" (đóng bảng Profile) lại 100ms để React kịp xử lý
+    setTimeout(() => {
+      onClose();
+    }, 100);
   };
-
   const handleToggleFollow = async () => {
     if (!isLoggedIn) return setShowAuthModal(true);
     if (!targetUserId || isFollowLoading) return;
