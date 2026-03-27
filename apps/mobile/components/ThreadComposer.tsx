@@ -9,7 +9,17 @@ import { Ionicons, MaterialIcons, MaterialCommunityIcons, FontAwesome } from '@e
 import * as ImagePicker from 'expo-image-picker';
 import { Id } from '@/convex/_generated/dataModel';
 import { useChannel } from '@/context/ChannelContext';
-import { useTranslation } from 'react-i18next'; // 👈 IMPORT I18N
+import { useTranslation } from 'react-i18next';
+
+// 👇 1. THÊM CUSTOM HOOK DEBOUNCE ĐỂ TỐI ƯU HIỆU NĂNG TẠI ĐÂY 👇
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 type ThreadComposerProps = {
   isPreview?: boolean;
@@ -24,7 +34,7 @@ type MediaPreviewItem = {
 };
 
 const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) => {
-  const { t } = useTranslation(); // 👈 KHỞI TẠO HOOK DỊCH
+  const { t } = useTranslation();
   const router = useRouter();
   const { editId } = useLocalSearchParams();
   const { userProfile } = useUserProfile();
@@ -36,8 +46,8 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
   const [existingMediaIds, setExistingMediaIds] = useState<string[]>([]);
   const [newMediaUris, setNewMediaUris] = useState<string[]>([]);
 
-  // State quản lý bình luận
   const [allowComments, setAllowComments] = useState(true);
+  const [enableAI, setEnableAI] = useState(true);
 
   const [selectedUniId, setSelectedUniId] = useState<Id<'universities'> | null>(activeUniversityId);
   const [selectedServerId, setSelectedServerId] = useState<Id<'servers'> | null>(activeServerId);
@@ -47,6 +57,21 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
   const [selectedChannelName, setSelectedChannelName] = useState<string>(activeChannelName || t('composer.select_channel'));
 
   const [isPickerVisible, setPickerVisible] = useState(false);
+
+  // 👇 2. GỌI TRẠNG THÁI DEBOUNCE (TRỄ 1500MS) 👇
+  const debouncedContent = useDebounce(threadContent, 1500);
+
+  // 👇 3. GỌI API MACHINE LEARNING 👇
+  const suggestedChannels = useQuery(
+    api.ai_recommendation.suggestChannels, 
+    enableAI && debouncedContent.trim().length >= 10 
+      ? {
+          content: debouncedContent,
+          universityId: selectedUniId || undefined,
+          serverId: selectedServerId || undefined,
+        }
+      : "skip" // <--- "Van khóa" thần thánh của Convex nằm ở đây
+  );
 
   useEffect(() => {
     if (!editId) {
@@ -249,6 +274,49 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
 
             <TextInput style={styles.input} placeholder={t('composer.whats_on_your_mind')} value={threadContent} onChangeText={setThreadContent} multiline autoFocus={!isPreview && !editId} editable={!isUploading} placeholderTextColor={Colors.border} />
 
+            {/* 👇 4. GIAO DIỆN TIA CHỚP AI GỢI Ý DÀNH CHO MOBILE 👇 */}
+            {suggestedChannels && suggestedChannels.length > 0 && !isReply && !editId && (
+              <View style={styles.aiSuggestionContainer}>
+                <View style={styles.aiSuggestionHeader}>
+                  <Ionicons name="flash" size={15} color="#4f46e5" />
+                  <Text style={styles.aiSuggestionTitle}>AI Gợi ý nơi đăng:</Text>
+                </View>
+                <View style={styles.aiSuggestionChips}>
+                  {suggestedChannels.map((ch) => (
+                    <TouchableOpacity
+                      key={ch.channelId}
+                      style={[
+                        styles.aiChip,
+                        selectedChannelId === ch.channelId && styles.aiChipSelected
+                      ]}
+                      onPress={() => {
+                        setSelectedChannelId(ch.channelId as Id<'channels'>);
+                        setSelectedChannelName(ch.name);
+                      }}
+                    >
+                      <Text style={[
+                        styles.aiChipText,
+                        selectedChannelId === ch.channelId && styles.aiChipTextSelected
+                      ]}>
+                        #{ch.name}
+                      </Text>
+                      <View style={[
+                        styles.aiScoreBadge,
+                        selectedChannelId === ch.channelId && styles.aiScoreBadgeSelected
+                      ]}>
+                        <Text style={[
+                          styles.aiScoreText,
+                          selectedChannelId === ch.channelId && styles.aiScoreTextSelected
+                        ]}>
+                          {Math.round(ch.score * 100)}%
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
             {mediaPreviewList.length > 0 && (
               <ScrollView horizontal style={styles.mediaScroll} showsHorizontalScrollIndicator={false}>
                 {mediaPreviewList.map((item, index) => (
@@ -268,6 +336,22 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
               <TouchableOpacity onPress={handleHashtag}><FontAwesome name="hashtag" size={20} color={Colors.border} /></TouchableOpacity>
               <TouchableOpacity onPress={handlePoll}><MaterialCommunityIcons name="chart-bar" size={24} color={Colors.border} /></TouchableOpacity>
             </View>
+
+{!isReply && !editId && (
+              <View style={[styles.toggleCommentContainer, { borderTopWidth: 0, marginTop: 10, paddingTop: 0 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name={enableAI ? "flash" : "flash-off-outline"} size={22} color={enableAI ? "#4f46e5" : "gray"} />
+                  <Text style={styles.toggleCommentText}>
+                    {enableAI ? "AI đang hỗ trợ gợi ý kênh" : "Đã tắt AI gợi ý"}
+                  </Text>
+                </View>
+                <Switch
+                  value={enableAI}
+                  onValueChange={setEnableAI}
+                  trackColor={{ false: '#767577', true: '#4f46e5' }}
+                />
+              </View>
+            )}
 
             {/* CÔNG TẮC BẬT TẮT BÌNH LUẬN */}
             {!isReply && !editId && (
@@ -338,6 +422,7 @@ const ThreadComposer = ({ isPreview, isReply, threadId }: ThreadComposerProps) =
 };
 export default ThreadComposer;
 
+// 👇 5. BỔ SUNG CSS CHO UI AI GỢI Ý 👇
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
   previewContainer: { padding: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: Colors.border, backgroundColor: 'white' },
@@ -370,5 +455,73 @@ const styles = StyleSheet.create({
   channelItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f0f0f0' },
   channelNameText: { fontSize: 16 },
   toggleCommentContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, paddingTop: 15, borderTopWidth: 1, borderTopColor: '#f0f0f0' },
-  toggleCommentText: { marginLeft: 8, fontSize: 15, fontWeight: '500', color: '#333' }
+  toggleCommentText: { marginLeft: 8, fontSize: 15, fontWeight: '500', color: '#333' },
+
+  // --- STYLES MỚI CHO AI SUGGESTION ---
+  aiSuggestionContainer: {
+    marginTop: 10,
+    marginBottom: 10,
+    padding: 12,
+    backgroundColor: '#eef2ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e0e7ff',
+  },
+  aiSuggestionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 6,
+  },
+  aiSuggestionTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#4f46e5',
+  },
+  aiSuggestionChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  aiChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginBottom: 4,
+  },
+  aiChipSelected: {
+    backgroundColor: '#4f46e5',
+    borderColor: '#4f46e5',
+  },
+  aiChipText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  aiChipTextSelected: {
+    color: 'white',
+  },
+  aiScoreBadge: {
+    marginLeft: 6,
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  aiScoreBadgeSelected: {
+    backgroundColor: '#6366f1',
+  },
+  aiScoreText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#6b7280',
+  },
+  aiScoreTextSelected: {
+    color: 'white',
+  },
 });

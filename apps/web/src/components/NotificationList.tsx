@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { MessageSquare, Bell, Heart, UserPlus, Check } from "lucide-react";
+import { MessageSquare, Bell, UserPlus, ShieldAlert } from "lucide-react";
 // Import thư viện chuẩn
 import { formatDistanceToNow } from "date-fns";
 import { vi } from "date-fns/locale";
@@ -27,32 +27,65 @@ export default function NotificationList() {
 
   return (
     <div className="flex-1 overflow-y-auto hidden-scrollbar space-y-1 p-2">
-      {notifications.map((notif: any) => (
-        <div 
-          key={notif._id} 
-          className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors relative
-            ${notif.isRead ? 'hover:bg-gray-100' : 'bg-emerald-50 hover:bg-emerald-100'}`}
-          onClick={() => !notif.isRead && markRead({ notificationId: notif._id })}
-        >
-          <img loading="lazy"src={notif.sender?.imageUrl || "https://via.placeholder.com/40"} alt="Avt" className="w-9 h-9 rounded-full object-cover shrink-0" />
-          <div className="flex-1 min-w-0 space-y-0.5">
-            <p className="text-[13px] text-gray-800">
-              <span className="font-bold text-gray-900">{notif.sender?.first_name}</span> 
-              {notif.type === 'post' ? ' đã đăng một bài mới' : notif.type === 'follow' ? ' đã bắt đầu theo dõi bạn' : ' đã nhắn tin cho bạn'}
-            </p>
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
-              {notif.type === 'message' ? <MessageSquare className="w-3 h-3" /> : <Bell className="w-3 h-3" />}
+      {notifications.map((notif: any) => {
+        // 👇 XỬ LÝ ĐA DẠNG CÁC LOẠI THÔNG BÁO TẠI ĐÂY 👇
+        const isSystem = notif.type === 'system';
+        
+        // 1. Xử lý Tên người gửi
+        const senderName = isSystem 
+            ? "Hệ thống AI" 
+            : (notif.sender?.first_name || notif.sender?.username || "Ai đó");
+
+        // 2. Xử lý Avatar (Hệ thống màu đỏ, User màu bình thường)
+        const avatarUrl = isSystem 
+            ? "https://ui-avatars.com/api/?name=AI&background=ef4444&color=fff" 
+            : (notif.sender?.imageUrl || "https://ui-avatars.com/api/?name=U&background=e5e7eb&color=9ca3af");
+
+        // 3. Xử lý Nội dung thông báo
+        let actionText = "";
+        let IconComponent = Bell;
+
+        if (isSystem) {
+           actionText = notif.content; // Lấy đúng lý do con AI báo về
+           IconComponent = ShieldAlert;
+        } else if (notif.type === 'post') {
+           actionText = ' đã nhắc đến bạn trong một tin nhắn';
+        } else if (notif.type === 'follow') {
+           actionText = ' đã bắt đầu theo dõi bạn';
+           IconComponent = UserPlus;
+        } else {
+           actionText = ' đã nhắn tin cho bạn';
+           IconComponent = MessageSquare;
+        }
+
+        return (
+          <div 
+            key={notif._id} 
+            className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors relative
+              ${notif.isRead ? 'hover:bg-gray-100' : (isSystem ? 'bg-red-50 hover:bg-red-100' : 'bg-emerald-50 hover:bg-emerald-100')}`}
+            onClick={() => !notif.isRead && markRead({ notificationId: notif._id })}
+          >
+            <img loading="lazy" src={avatarUrl} alt="Avt" className="w-9 h-9 rounded-full object-cover shrink-0" />
+            <div className="flex-1 min-w-0 space-y-0.5">
               
-              {/* SỬ DỤNG DATE-FNS TẠI ĐÂY */}
-              <span className="first-letter:uppercase">
-                {formatDistanceToNow(new Date(notif._creationTime), { addSuffix: true, locale: vi })}
-              </span>
-              
+              <p className={`text-[13px] ${isSystem ? 'text-red-800' : 'text-gray-800'}`}>
+                <span className="font-bold">{senderName}</span> 
+                {isSystem ? `: ${actionText}` : actionText}
+              </p>
+
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                <IconComponent className="w-3 h-3" />
+                <span className="first-letter:uppercase">
+                  {formatDistanceToNow(new Date(notif._creationTime), { addSuffix: true, locale: vi })}
+                </span>
+              </div>
             </div>
+            {!notif.isRead && (
+                <span className={`absolute top-3 right-3 w-2 h-2 rounded-full ${isSystem ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
+            )}
           </div>
-          {!notif.isRead && <span className="absolute top-3 right-3 w-2 h-2 bg-emerald-500 rounded-full"></span>}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

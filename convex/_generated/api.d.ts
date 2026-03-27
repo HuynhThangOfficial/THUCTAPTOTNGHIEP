@@ -10,6 +10,8 @@
 
 import type * as admin from "../admin.js";
 import type * as ai_bot from "../ai_bot.js";
+import type * as ai_moderation from "../ai_moderation.js";
+import type * as ai_recommendation from "../ai_recommendation.js";
 import type * as boosts from "../boosts.js";
 import type * as chat from "../chat.js";
 import type * as crons from "../crons.js";
@@ -33,6 +35,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   ai_bot: typeof ai_bot;
+  ai_moderation: typeof ai_moderation;
+  ai_recommendation: typeof ai_recommendation;
   boosts: typeof boosts;
   chat: typeof chat;
   crons: typeof crons;

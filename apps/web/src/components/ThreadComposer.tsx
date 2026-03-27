@@ -6,8 +6,19 @@ import { api } from '../../../../convex/_generated/api';
 import { useApp } from '../context/AppContext';
 import { useUser } from '@clerk/nextjs';
 import { useTranslation } from 'react-i18next';
-// 👇 1. IMPORT THƯ VIỆN NÉN ẢNH VÀO ĐÂY 👇
+// 👇 IMPORT THƯ VIỆN NÉN ẢNH 👇
 import imageCompression from 'browser-image-compression';
+import { Id } from '../../../../convex/_generated/dataModel';
+
+// 👇 CUSTOM HOOK DEBOUNCE 👇
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 export default function ThreadComposer() {
   const { t } = useTranslation();
@@ -16,13 +27,21 @@ export default function ThreadComposer() {
   const isLoggedIn = isLoaded && user;
 
   const [content, setContent] = useState('');
+  
+  // 👇 DEBOUNCE (Nghỉ tay 800ms mới gọi AI) 👇
+  const debouncedContent = useDebounce(content, 800);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [allowComments, setAllowComments] = useState(true);
-  const [selectedChannelId, setSelectedChannelId] = useState(activeChannelId);
+  
+  // 👇 STATE CÔNG TẮC BẬT TẮT AI 👇
+  const [enableAI, setEnableAI] = useState(true);
+
+  const [selectedChannelId, setSelectedChannelId] = useState<Id<'channels'> | null>(activeChannelId);
   const [showChannelPicker, setShowChannelPicker] = useState(false);
 
   const channelsData = useQuery(api.university.getChannels, {
@@ -32,10 +51,22 @@ export default function ThreadComposer() {
 
   const channels = channelsData?.channels || [];
 
-  // 👇 ĐÃ GỠ BỎ KÊNH "chung" ĐỂ NÓ CÓ THỂ NHẬN BÀI VIẾT 👇
-  const postableChannels = channels.filter(c => c.name !== 'đại-sảnh' && !c.parentId === false && c.type !== 'category' || c.name !== 'đại-sảnh');
+  // 👇 GỌI API AI KÈM "VAN KHÓA" (SKIP) 👇
+  const suggestedChannels = useQuery(
+    api.ai_recommendation.suggestChannels,
+    enableAI && debouncedContent.trim().length >= 10
+      ? {
+          content: debouncedContent,
+          universityId: activeUniversityId || undefined,
+          serverId: activeServerId || undefined,
+        }
+      : "skip"
+  );
 
-  const selectedChannelObj = channels.find(c => c._id === selectedChannelId);
+  // Đã sửa các lỗi type `any` ở đây
+  const postableChannels = channels.filter((c: any) => c.name !== 'đại-sảnh' && !c.parentId === false && c.type !== 'category' || c.name !== 'đại-sảnh');
+
+  const selectedChannelObj = channels.find((c: any) => c._id === selectedChannelId);
   const isAnonymous = selectedChannelObj?.isAnonymous || false;
   const selectedChannelName = selectedChannelObj?.name || t('composer.select_channel', { defaultValue: 'Chọn kênh...' });
 
@@ -86,7 +117,6 @@ export default function ThreadComposer() {
         return setShowAuthModal(true);
     }
 
-    // 👇 GỠ BỎ KHÓA CỦA KÊNH "chung" TRONG LÚC SUBMIT 👇
     if (!selectedChannelId || selectedChannelName === 'đại-sảnh') {
       alert(t('composer.cannot_post_in_lobby'));
       return;
@@ -99,30 +129,25 @@ export default function ThreadComposer() {
       const mediaFileIds: string[] = [];
       
       if (selectedImages.length > 0) {
-        // 👇 2. CẤU HÌNH THÔNG SỐ NÉN ẢNH 👇
         const options = {
-          maxSizeMB: 0.5, // Tối đa 500KB một ảnh
-          maxWidthOrHeight: 1280, // Chiều rộng/dài tối đa
-          useWebWorker: true, // Xử lý ngầm không làm đơ giao diện
+          maxSizeMB: 0.5, 
+          maxWidthOrHeight: 1280, 
+          useWebWorker: true, 
         };
 
         for (const file of selectedImages) {
-          // 👇 3. NÉN ẢNH TRƯỚC KHI UPLOAD 👇
           try {
             const compressedFile = await imageCompression(file, options);
-            console.log(`Đã nén ảnh từ ${file.size / 1024} KB xuống ${compressedFile.size / 1024} KB`);
-            
             const postUrl = await generateUploadUrl();
             const result = await fetch(postUrl, { 
               method: "POST", 
               headers: { "Content-Type": compressedFile.type }, 
-              body: compressedFile // UPLOAD FILE ĐÃ NÉN!
+              body: compressedFile 
             });
             const { storageId } = await result.json();
             mediaFileIds.push(storageId);
           } catch (compressError) {
             console.error("Lỗi khi nén ảnh:", compressError);
-            // Nếu nén lỗi thì fallback up file gốc để không bị kẹt tiến trình
             const postUrl = await generateUploadUrl();
             const result = await fetch(postUrl, { method: "POST", headers: { "Content-Type": file.type }, body: file });
             const { storageId } = await result.json();
@@ -165,7 +190,6 @@ export default function ThreadComposer() {
           <div className="flex items-center gap-2 pointer-events-none">
              <span className="font-bold text-lg text-slate-800 tracking-tight">{t('composer.new_post_title')}</span>
           </div>
-          {/* 👇 GỠ BỎ KHÓA CỦA KÊNH "chung" TRONG NÚT BẤM 👇 */}
           <button
             type="submit"
             form="modal-composer-form"
@@ -192,7 +216,7 @@ export default function ThreadComposer() {
 
                 {showChannelPicker && (
                   <div className="absolute top-10 left-[80px] w-56 bg-white border border-gray-100 shadow-xl rounded-xl overflow-hidden z-50 max-h-48 overflow-y-auto custom-scrollbar">
-                    {postableChannels.map(channel => (
+                    {postableChannels.map((channel: any) => (
                       <button
                         key={channel._id}
                         type="button"
@@ -212,7 +236,7 @@ export default function ThreadComposer() {
 
               <div className="flex gap-3">
                 <div className="flex flex-col items-center shrink-0">
-                  <img loading="lazy"src={displayAvatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-100 z-10" />
+                  <img loading="lazy" src={displayAvatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover shrink-0 border border-gray-100 z-10" />
                   <div className="w-[2.5px] h-full min-h-[50px] bg-gray-200 mt-2 rounded-full"></div>
                 </div>
 
@@ -231,11 +255,36 @@ export default function ThreadComposer() {
                     autoFocus
                   />
 
+                  {/* 👇 GIAO DIỆN TIA CHỚP AI GỢI Ý CÓ "CÔNG TẮC" 👇 */}
+                  {suggestedChannels && suggestedChannels.length > 0 && enableAI && (
+                     <div className="mt-2 mb-1 p-3 bg-indigo-50/60 border border-indigo-100 rounded-xl">
+                        <p className="text-[13px] font-bold text-indigo-600 mb-2 flex items-center gap-1.5">
+                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                           AI Gợi ý nơi đăng:
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                           {suggestedChannels.map((ch: any) => (
+                              <button
+                                 key={ch.channelId}
+                                 type="button"
+                                 onClick={() => setSelectedChannelId(ch.channelId)}
+                                 className={`px-3 py-1.5 text-[13px] font-medium border rounded-lg transition-colors flex items-center gap-1 ${selectedChannelId === ch.channelId ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-gray-700 hover:bg-indigo-50 border-gray-200 shadow-sm'}`}
+                              >
+                                 #{ch.name} 
+                                 <span className={`text-[10px] px-1.5 rounded-full ${selectedChannelId === ch.channelId ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                                    {Math.round(ch.score * 100)}%
+                                 </span>
+                              </button>
+                           ))}
+                        </div>
+                     </div>
+                  )}
+
                   {previewUrls.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-3 pb-3">
                       {previewUrls.map((url, idx) => (
                         <div key={idx} className="relative w-28 h-28 rounded-xl overflow-hidden border border-gray-200 group">
-                          <img loading="lazy"src={url} alt="preview" className="w-full h-full object-cover" />
+                          <img loading="lazy" src={url} alt="preview" className="w-full h-full object-cover" />
                           <button type="button" onClick={() => removeImage(idx)} className="absolute top-1.5 right-1.5 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-black transition-colors">✕</button>
                         </div>
                       ))}
@@ -256,12 +305,27 @@ export default function ThreadComposer() {
                     </button>
                 </div>
 
+                {/* 👇 GIAO DIỆN CÔNG TẮC BẬT TẮT AI 👇 */}
+                <div className="flex items-center justify-between bg-indigo-50/50 px-3 py-2.5 rounded-xl border border-indigo-100">
+                  <div className="flex items-center gap-2 text-indigo-700">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                    <span className="text-sm font-medium">{enableAI ? "AI đang hỗ trợ gợi ý kênh" : "Đã tắt AI gợi ý"}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEnableAI(!enableAI)}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${enableAI ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${enableAI ? 'translate-x-4' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
+                {/* CÔNG TẮC BÌNH LUẬN (CŨ) */}
                 <div className="flex items-center justify-between bg-gray-50 px-3 py-2.5 rounded-xl border border-gray-100">
                   <div className="flex items-center gap-2 text-gray-600">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
                     <span className="text-sm font-medium">{allowComments ? t('composer.allow_comments') : t('composer.comments_disabled')}</span>
                   </div>
-
                   <button
                     type="button"
                     onClick={() => setAllowComments(!allowComments)}
@@ -270,11 +334,10 @@ export default function ThreadComposer() {
                     <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${allowComments ? 'translate-x-4' : 'translate-x-1'}`} />
                   </button>
                 </div>
-              </div>
 
+              </div>
             </form>
         </div>
-        
       </div>
     </div>
   );

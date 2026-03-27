@@ -1,8 +1,8 @@
 export default {
   providers: [
     {
-      domain: "https://clerk.newyas.com",
-      applicationID: "convex",
+      domain: "https://delicate-bee-38.clerk.accounts.dev",
+      applicationID: 'convex',
     },
   ],
 };

@@ -3,6 +3,7 @@ import { mutation, query, QueryCtx, internalMutation } from './_generated/server
 import { paginationOptsValidator } from 'convex/server';
 import { Id, Doc } from './_generated/dataModel';
 import { isHttpUrl } from './utils';
+import { internal } from './_generated/api';
 
 async function getCurrentUserId(ctx: QueryCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -117,6 +118,26 @@ export const addThread = mutation({
         }
       }
     }
+    // Xử lý kiểm duyệt Text (NLP)
+    if (args.content && args.content.trim().length > 0) {
+      await ctx.scheduler.runAfter(0, internal.ai_moderation.checkMessageContent, {
+        messageId: messageId,
+        content: args.content,
+        userId: userId
+      });
+    }
+
+    // 👇 THÊM ĐOẠN NÀY ĐỂ KÍCH HOẠT KIỂM DUYỆT ẢNH (COMPUTER VISION) 👇
+    if (args.mediaFiles && args.mediaFiles.length > 0) {
+      for (const storageId of args.mediaFiles) {
+        await ctx.scheduler.runAfter(0, internal.ai_moderation.checkImageContent, {
+          messageId: messageId,
+          storageId: storageId as Id<"_storage">,
+          userId: userId
+        });
+      }
+    }
+
     return messageId;
   },
 });

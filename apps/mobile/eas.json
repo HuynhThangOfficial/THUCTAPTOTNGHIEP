@@ -8,9 +8,23 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_CONVEX_URL": "https://neighborly-ocelot-364.convex.cloud",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZGVsaWNhdGUtYmVlLTM4LmNsZXJrLmFjY291bnRzLmRldiQ",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://42790f2c4fd545b1acabe990009c3dd2@o4510641207640064.ingest.us.sentry.io/4510641989550080"
+      }
     },
-    "production": {}
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_CONVEX_URL": "https://sensible-hamster-698.convex.cloud",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsubmV3eWFzLmNvbSQ",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://42790f2c4fd545b1acabe990009c3dd2@o4510641207640064.ingest.us.sentry.io/4510641989550080"
+      }
+    }
   },
   "submit": {
     "production": {}
