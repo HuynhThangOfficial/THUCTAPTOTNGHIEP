@@ -42,14 +42,18 @@ export default function NotificationList() {
             : (notif.sender?.imageUrl || "https://ui-avatars.com/api/?name=U&background=e5e7eb&color=9ca3af");
 
         // 3. Xử lý Nội dung thông báo
+        // 3. Xử lý Nội dung thông báo
         let actionText = "";
         let IconComponent = Bell;
 
         if (isSystem) {
-           actionText = notif.content; // Lấy đúng lý do con AI báo về
+           actionText = notif.content;
            IconComponent = ShieldAlert;
+        } else if (notif.type === 'mention') {
+           actionText = notif.content || ' đã nhắc đến bạn trong một bình luận';
+           IconComponent = MessageSquare;
         } else if (notif.type === 'post') {
-           actionText = ' đã nhắc đến bạn trong một tin nhắn';
+           actionText = ' đã đăng một bài mới';
         } else if (notif.type === 'follow') {
            actionText = ' đã bắt đầu theo dõi bạn';
            IconComponent = UserPlus;

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom'; // 👈 IMPORT MA THUẬT PORTAL VÀO ĐÂY
 import { useAuth, useClerk, useUser } from '@clerk/nextjs';
 import { useQuery, useMutation } from 'convex/react';
 // Kiểm tra lại đường dẫn import này cho khớp dự án của bạn
@@ -17,15 +18,16 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
   const { client, setActive } = useClerk();
   const { user } = useUser();
 
-  // Lấy hàm t (translate) và i18n (để đổi ngôn ngữ)
   const { t, i18n } = useTranslation();
 
-  // Các state quản lý menu con
+  // 👇 THÊM STATE ĐỂ CHỐNG LỖI NEXT.JS SSR 👇
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [showAccountSwitch, setShowAccountSwitch] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Lấy dữ liệu và Mutation từ Convex
   const userProfile = useQuery(api.users.current);
   const updateLanguage = useMutation(api.users.updateLanguage);
 
@@ -40,14 +42,10 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     return lang ? lang.label : 'English 🇺🇸';
   };
 
-  // --- CÁC HÀM XỬ LÝ LOGIC ---
   const handleLanguageChange = async (langCode: string) => {
-    // 1. Đổi giao diện Web sang ngôn ngữ mới ngay lập tức
     i18n.changeLanguage(langCode);
-
     if (userProfile?._id) {
       try {
-        // 2. Lưu xuống Database để lần sau vào vẫn giữ ngôn ngữ này
         await updateLanguage({ userId: userProfile._id, language: langCode });
         setShowLanguageMenu(false);
       } catch(e) {
@@ -83,7 +81,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     if (confirm(t('settings.delete_account_warning_desc'))) {
       try {
         setIsDeleting(true);
-        await user?.delete(); // Xóa tài khoản trên Clerk
+        await user?.delete();
         await signOut();
         onClose();
       } catch (error: any) {
@@ -93,8 +91,9 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all" onClick={onClose}>
+  // 👇 GÓI TOÀN BỘ GIAO DIỆN VÀO BIẾN NÀY 👇
+  const modalContent = (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all" onClick={onClose}>
 
       {isDeleting && (
         <div className="absolute inset-0 z-[10000] bg-white/80 flex flex-col items-center justify-center">
@@ -108,7 +107,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
         className="bg-[#f2f3f5] w-full max-w-[500px] max-h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header Modal */}
         <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-white shrink-0">
           <h2 className="text-xl font-extrabold text-gray-800">{t('settings.title')}</h2>
           <button onClick={onClose} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-full transition-colors">
@@ -116,9 +114,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
           </button>
         </div>
 
-        {/* Nội dung Cài đặt (Cuộn được) */}
         <div className="flex-1 overflow-y-auto hidden-scrollbar p-5 space-y-6">
-
           {/* Mục 1: Thông tin tài khoản */}
           <div>
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1">Tài khoản của tôi</h3>
@@ -136,7 +132,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
           {/* Mục 2: Cài đặt hiển thị & Đa ngôn ngữ */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-
             {/* Chuyển đổi tài khoản */}
             <div className="relative">
               <button onClick={() => setShowAccountSwitch(!showAccountSwitch)} className="w-full flex items-center justify-between p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors text-left">
@@ -146,7 +141,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                  </div>
                  <svg className={`w-5 h-5 text-gray-400 transition-transform ${showAccountSwitch ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
               </button>
-
               {showAccountSwitch && (
                 <div className="bg-gray-50 border-b border-gray-100 py-2">
                   {client.sessions.map((session) => (
@@ -171,7 +165,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                     {getLanguageName(userProfile?.language)} <svg className={`w-4 h-4 transition-transform ${showLanguageMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                  </div>
               </button>
-
               {showLanguageMenu && (
                 <div className="bg-gray-50 border-b border-gray-100 py-2">
                   {LANGUAGES.map((lang) => (
@@ -192,7 +185,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                </div>
                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
             </button>
-
           </div>
 
           {/* Mục 3: Vùng nguy hiểm */}
@@ -207,9 +199,12 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                 <span className="text-[15px] font-semibold text-red-500">{t('settings.delete_account')}</span>
              </button>
           </div>
-
         </div>
       </div>
     </div>
   );
+
+  // 👇 BẮN THẲNG RA BODY CỦA HTML ĐỂ CHỐNG LỖI CSS 👇
+  if (!mounted) return null;
+  return createPortal(modalContent, document.body);
 }

@@ -34,7 +34,7 @@ export const addThread = mutation({
     let finalUniId = args.universityId;
 
     if (args.threadId) {
-      // 1. NẾU LÀ BÌNH LUẬN -> TUYỆT ĐỐI KHÔNG CHO ẨN DANH (isAnon bắt buộc = false)
+      // 1. NẾU LÀ BÌNH LUẬN -> TUYỆT ĐỐI KHÔNG CHO ẨN DANH
       isAnon = false; 
       
       const parentPost = await ctx.db.get(args.threadId);
@@ -66,7 +66,7 @@ export const addThread = mutation({
       retweetCount: 0,
       allowComments: args.allowComments ?? true,
       // @ts-ignore
-      isAnonymous: isAnon, // Chỉ bài gốc mới được true, bình luận luôn false
+      isAnonymous: isAnon, 
     });
 
     // Cập nhật số bình luận của bài gốc
@@ -79,7 +79,33 @@ export const addThread = mutation({
       }
     }
 
-    // Xử lý gửi thông báo (Giữ nguyên logic cũ của bạn)
+    // 👇 TÍNH NĂNG MỚI: QUÉT @USERNAME ĐỂ GỬI THÔNG BÁO TAG 👇
+    const mentionRegex = /@([a-zA-Z0-9_.]+)/g;
+    const mentions = args.content.match(mentionRegex);
+    
+    if (mentions && mentions.length > 0) {
+      const usernames = mentions.map(m => m.slice(1));
+      for (const un of usernames) {
+        const taggedUser = await ctx.db.query("users")
+          .filter(q => q.eq(q.field("username"), un))
+          .first();
+        
+        if (taggedUser && taggedUser._id !== userId) {
+          await ctx.db.insert('notifications', {
+            userId: taggedUser._id,
+            senderId: userId,
+            type: 'mention', 
+            channelId: finalChannelId,
+            messageId: messageId,
+            isRead: false,
+            content: "đã nhắc đến bạn trong một bình luận",
+          });
+        }
+      }
+    }
+    // 👆 KẾT THÚC TÍNH NĂNG TAG 👆
+
+    // Xử lý gửi thông báo (Channel Subscriptions)
     if (args.channelId && !args.threadId) {
       const notifyUserIds = new Set<Id<"users">>();
       const targetId = args.serverId || args.universityId;
@@ -108,17 +134,18 @@ export const addThread = mutation({
         if (uid !== userId) {
           await ctx.db.insert('notifications', {
             userId: uid,
-            senderId: userId, // Dù ẩn danh vẫn lưu senderId ở DB để sau này cần tra cứu (nhưng FE sẽ ko hiện)
+            senderId: userId, 
             type: 'post',
             channelId: args.channelId,
             messageId: messageId,
             isRead: false,
-            content: "đã nhắc đến bạn trong một tin nhắn",
+            content: "đã đăng bài viết mới trong kênh bạn theo dõi",
           });
         }
       }
     }
-    // Xử lý kiểm duyệt Text (NLP)
+
+    // 👇 AI KIỂM DUYỆT TEXT (NLP) 👇
     if (args.content && args.content.trim().length > 0) {
       await ctx.scheduler.runAfter(0, internal.ai_moderation.checkMessageContent, {
         messageId: messageId,
@@ -127,7 +154,7 @@ export const addThread = mutation({
       });
     }
 
-    // 👇 THÊM ĐOẠN NÀY ĐỂ KÍCH HOẠT KIỂM DUYỆT ẢNH (COMPUTER VISION) 👇
+    // 👇 AI KIỂM DUYỆT ẢNH (COMPUTER VISION) 👇
     if (args.mediaFiles && args.mediaFiles.length > 0) {
       for (const storageId of args.mediaFiles) {
         await ctx.scheduler.runAfter(0, internal.ai_moderation.checkImageContent, {

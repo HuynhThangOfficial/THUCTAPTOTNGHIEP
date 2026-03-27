@@ -5,7 +5,7 @@ import { v } from "convex/values";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // ============================================================================
-// [PHẦN 1] ĐỊNH NGHĨA KIỂU DỮ LIỆU (TYPES & INTERFACES) CHO BÁO CÁO HOÀNH TRÁNG
+// [PHẦN 1] ĐỊNH NGHĨA KIỂU DỮ LIỆU (TYPES & INTERFACES)
 // ============================================================================
 interface VaaKnowledgeBase {
   departments: Record<string, string>;
@@ -73,13 +73,12 @@ export const getVAAContext = internalQuery({
 });
 
 // ============================================================================
-// [PHẦN 3] MODULE LƯU TRỮ VÀ SINH USER ẢO VÀO DATABASE
+// [PHẦN 3] MODULE LƯU TRỮ VÀ SINH USER ẢO VÀO DATABASE (CHÂN THỰC 100%)
 // ============================================================================
 export const saveAiPost = internalMutation({
   args: { 
     userId: v.optional(v.id("users")), 
     botName: v.string(), 
-    botMajor: v.string(), 
     content: v.string(), 
     channelId: v.id("channels"), 
     universityId: v.id("universities"),
@@ -88,18 +87,17 @@ export const saveAiPost = internalMutation({
   handler: async (ctx, args) => {
     let authorId = args.userId;
 
-    // Tự động sinh User Ảo nếu chưa có
+    // Tự động sinh User Ảo nếu chưa có (Tên thật, Không Follow Ảo, Không Bio)
     if (!authorId) {
       const clerkId = `bot_${Date.now()}_${Math.floor(Math.random() * 999999)}`;
-      const safeUsername = "vaa_" + Math.random().toString(36).substring(2, 10);
+      const safeUsername = "u_" + Math.random().toString(36).substring(2, 12); // Không dùng chữ vaa_ nữa
       
       authorId = await ctx.db.insert("users", {
         clerkId: clerkId,
-        email: `${safeUsername}@vaa.edu.vn`,
+        email: `${safeUsername}@bot.local`,
         first_name: args.botName,
         username: safeUsername,
-        bio: args.botMajor, 
-        followersCount: Math.floor(Math.random() * 300), 
+        followersCount: 0, // Đã bỏ follow ảo
       });
     }
 
@@ -128,15 +126,12 @@ export const scheduleRoleplayPost = internalMutation({
   handler: async (ctx) => {
     const currentHour = (new Date().getUTCHours() + 7) % 24;
     
-    // Giả lập thói quen sinh hoạt: Giờ ngủ (2h - 5h sáng) bot ít hoạt động
     if (currentHour >= 2 && currentHour <= 5) {
         if (Math.random() < 0.8) return "SYS_SKIP: Nửa đêm, bot đi ngủ.";
     } else {
-        // Giờ bình thường, thỉnh thoảng lười
         if (Math.random() < 0.15) return "SYS_SKIP: Bot đang bận học trên lớp.";
     }
 
-    // Thời gian trễ ngẫu nhiên từ 15 phút đến 6 tiếng
     const delayMs = Math.floor(Math.random() * (21600000 - 900000) + 900000);
     await ctx.scheduler.runAfter(delayMs, internal.ai_bot.generateRoleplayPost);
     return `SYS_QUEUED: Lên lịch bài đăng tiếp theo sau ${Math.round(delayMs / 60000)} phút.`;
@@ -144,7 +139,7 @@ export const scheduleRoleplayPost = internalMutation({
 });
 
 // ============================================================================
-// [PHẦN 5] BỘ NÃO AI TRUNG TÂM - XỬ LÝ ĐA LUỒNG & TẠO KỊCH BẢN CHI TIẾT
+// [PHẦN 5] BỘ NÃO AI TRUNG TÂM - CỞI TRÓI SÁNG TẠO VÔ CỰC
 // ============================================================================
 export const generateRoleplayPost = internalAction({
   args: {}, 
@@ -158,7 +153,7 @@ export const generateRoleplayPost = internalAction({
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ 
       model: "gemini-3.1-flash-lite-preview", 
-      generationConfig: { responseMimeType: "application/json", temperature: 0.95 } // Sáng tạo tối đa
+      generationConfig: { responseMimeType: "application/json", temperature: 1.0 } // Đẩy nhiệt độ max để tăng độ sáng tạo
     });
 
     // ------------------------------------------------------------------------
@@ -185,42 +180,40 @@ export const generateRoleplayPost = internalAction({
     }
 
     // ------------------------------------------------------------------------
-    // 5.2. BÁCH KHOA TOÀN THƯ VAA (DỮ LIỆU ĐỘC QUYỀN VÀ CỰC KỲ CHI TIẾT)
+    // 5.2. BÁCH KHOA TOÀN THƯ VAA
     // ------------------------------------------------------------------------
     const knowledgeBase: VaaKnowledgeBase = {
         departments: {
-            "công-nghệ-thông-tin": "Khoa CNTT: Tòa G lầu 5, CS2. Môn học ám ảnh: C++, CTDL&GT, Đồ án chuyên ngành. Sinh viên hay code thâu đêm, ôm laptop ngồi CircleK.",
-            "khai-thác-hàng-không": "Khoa KTHK: D13, CS1. Đặc sản: Tiếng Anh hàng không ICAO khoai vô cùng. Đào tạo ATC (Không lưu). Ngành ngầu nhưng áp lực cao.",
-            "quản-trị-kinh-doanh": "Khoa QTKD: G206, CS2. Đặc sản: Đông sinh viên nhất, trùm làm slide Canva, thuyết trình liên tục, chạy sự kiện quanh năm.",
-            "ngoại-ngữ": "Khoa Ngoại ngữ: G112, CS2. Đặc sản: Chạy deadline dịch thuật, thi Speaking liên tọi. Sinh viên nổi tiếng ăn mặc có gu, sang chảnh.",
-            "cơ-bản": "Khoa Cơ bản: Quản lý môn đại cương. 'Trùm cuối' của sinh viên năm 1,2: Triết Mác-Lênin, Tư tưởng HCM, Vật lý, Thể dục (Chạy bền rớt như rạ).",
-            "kinh-tế-hàng-không": "Khoa Kinh tế HK: Logistics, Chuỗi cung ứng. Hay phải làm báo cáo, đi thực tế doanh nghiệp.",
-            "điện-điện-tử": "Khoa Điện - Điện tử: G405, CS2. Mùi nhựa thông, mạch in. Sinh viên nam áp đảo, hay chế tạo robot, thi đua kỹ thuật."
+            "công-nghệ-thông-tin": "Khoa CNTT: Tòa G lầu 5, CS2. Môn học ám ảnh: C++, CTDL&GT, Đồ án chuyên ngành.",
+            "khai-thác-hàng-không": "Khoa KTHK: D13, CS1. Đào tạo Kiểm soát viên không lưu (ATC). Ngành ngầu nhưng áp lực cao.",
+            "quản-trị-kinh-doanh": "Khoa QTKD: G206, CS2. Đặc sản: Trùm làm slide Canva, thuyết trình liên tục, chạy sự kiện quanh năm.",
+            "ngoại-ngữ": "Khoa Ngoại ngữ: G112, CS2. Đặc sản: Chạy deadline dịch thuật, thi Speaking liên tọi.",
+            "cơ-bản": "Khoa Cơ bản: Trùm các môn đại cương (Mác-Lênin, Vật lý, Thể dục). Chạy bền rớt như rạ.",
+            "kinh-tế-hàng-không": "Khoa Kinh tế HK: Logistics, Chuỗi cung ứng. Hay đi thực tế doanh nghiệp.",
+            "điện-điện-tử": "Khoa Điện - Điện tử: G405, CS2. Mùi nhựa thông, mạch in. Sinh viên nam áp đảo."
         },
         locations: {
-            "cs1": "Cơ sở 1 (104 Nguyễn Văn Trỗi, Phú Nhuận): Trụ sở chính, nơi có phòng Đào tạo (thầy Lưu), sảnh lớn hay tổ chức sự kiện Đoàn Hội, hội trại.",
-            "cs2": "Cơ sở 2 (18A/1 Cộng Hòa, Tân Bình): Nơi học chính. Nổi tiếng với tòa G cao chót vót, thang máy kẹt cứng lúc đổi ca, lết bộ lầu 5 lầu 6 là chuyện thường ở huyện. Bãi xe hầm chật, hay phải gửi ngoài giá 10k.",
-            "thư-viện": "Thư viện số VAA: tailieuso.vaa.edu.vn, nơi tải giáo trình, nhưng nhiều khi đăng nhập bị lỗi."
+            "cs1": "Cơ sở 1 (104 Nguyễn Văn Trỗi, Phú Nhuận): Trụ sở chính, phòng Đào tạo (thầy Lưu), sảnh lớn.",
+            "cs2": "Cơ sở 2 (18A/1 Cộng Hòa, Tân Bình): Nơi học chính. Tòa G cao, thang máy kẹt cứng, hầm để xe chật."
         },
         foodAndLife: {
-            "ăn-uống": "Quanh CS2 hẻm 18A: Cơm tấm bãi rác (ăn ngon nhưng tên lạ), hủ tiếu Nam Vang, xiên bẩn. Cứu tinh chạy deadline: Circle K, FamilyMart, Highlands Cộng Hòa. Quanh CS1: Bún bò, bánh tráng trộn Nguyễn Văn Trỗi.",
-            "kẹt-xe": "Đặc sản kẹt xe: Vòng xoay Lăng Cha Cả, đường Cộng Hòa giờ tan tầm. Đi học mà như đi thỉnh kinh."
+            "ăn-uống": "Hẻm 18A: Cơm tấm bãi rác, hủ tiếu Nam Vang, Circle K, FamilyMart. Ngã tư Nguyễn Văn Trỗi: Bún bò, bánh tráng trộn.",
+            "kẹt-xe": "Đặc sản: Vòng xoay Lăng Cha Cả, đường Cộng Hòa giờ tan tầm."
         },
         clubsAndEvents: {
-            "clb": "CLB Văn nghệ (VAM), CLB Truyền thông (VAC), Đội CTXH, Hội Sinh viên. Rất năng nổ hoạt động, hay sinh hoạt tối ở sảnh.",
-            "sự-kiện": "Chào tân sinh viên, Hội xuân VAA, Nét đẹp Hàng không. Đi lấy điểm rèn luyện là chính."
+            "clb": "CLB Văn nghệ (VAM), CLB Truyền thông (VAC), Đội CTXH.",
+            "sự-kiện": "Hội xuân VAA, Nét đẹp Hàng không. Đi lấy điểm rèn luyện là chính."
         },
         loreAndJokes: [
-            "Đăng ký tín chỉ VAA: Cuộc chiến sinh tồn, web sập xoay vòng vòng, F5 gãy tay mới vào được.",
-            "Phòng Đào tạo (A303): Nơi giải quyết mọi nỗi lo lắng nhưng lúc nào cũng đông sinh viên đứng chờ.",
-            "Môn Thể dục: Môn phụ nhưng rớt nhiều hơn môn chính, nhất là chạy bền và võ thuật."
+            "Đăng ký tín chỉ VAA: Cuộc chiến sinh tồn, web sập xoay vòng vòng.",
+            "Phòng Đào tạo (A303): Nơi giải quyết mọi nỗi lo lắng nhưng đông sinh viên đứng chờ.",
+            "Môn Thể dục: Rớt nhiều hơn môn chính, nhất là võ thuật."
         ]
     };
 
     const cName = target.channelName.toLowerCase();
     let specificContext = "";
     
-    // Thuật toán quét và trích xuất thông tin phù hợp từ thư viện
     for (const [key, val] of Object.entries(knowledgeBase.departments)) {
         if (cName.includes(key)) specificContext += `\n- Ngữ cảnh khoa: ${val}`;
     }
@@ -228,118 +221,72 @@ export const generateRoleplayPost = internalAction({
         if (cName.includes(key)) specificContext += `\n- Địa điểm liên quan: ${val}`;
     }
     
-    // Bơm kiến thức đời sống ngẫu nhiên nếu thiếu ngữ cảnh
     if (!specificContext) {
         specificContext += `\n- Đời sống VAA: ${knowledgeBase.foodAndLife["ăn-uống"]}`;
-        specificContext += `\n- Đặc sản VAA: ${knowledgeBase.loreAndJokes[Math.floor(Math.random() * knowledgeBase.loreAndJokes.length)]}`;
+        specificContext += `\n- Chuyện trường lớp: ${knowledgeBase.loreAndJokes[Math.floor(Math.random() * knowledgeBase.loreAndJokes.length)]}`;
     }
 
     // ------------------------------------------------------------------------
     // 5.3. HỆ THỐNG PERSONA (TÍNH CÁCH AI)
     // ------------------------------------------------------------------------
     const personas: BotPersona[] = [
-        { type: "Chiến thần chạy deadline", tone: "Than thở, mệt mỏi, vội vã", vocabulary: "deadline, trầm cảm, cứu, còng lưng, gánh team", behavior: "Hay đăng bài đêm khuya, tìm đồng đội, chê bai bọn không làm bài." },
-        { type: "Thương gia Tân Bình", tone: "Mời chào, thân thiện, sòng phẳng", vocabulary: "pass, slot, nhượng, inb, giá hssv", behavior: "Chuyên đăng bán đồ cũ, nhượng trọ, pass vé sự kiện." },
-        { type: "Học bá (Con nhà người ta)", tone: "Hỏi hang nghiêm túc, tập trung học hành", vocabulary: "tín chỉ, thực tập, đề cương, GPA, tài liệu", behavior: "Chỉ quan tâm học, hỏi giấy tờ thủ tục, xin review giáo viên." },
-        { type: "Gen Z mỏ hỗn", tone: "Hài hước, châm biếm, toxic nhẹ", vocabulary: "xu cà na, chê, khóc thét, cảm lạnh", behavior: "Thích cà khịa việc kẹt thang máy, web tín chỉ sập, trường kẹt xe." }
+        { type: "Chiến thần chạy deadline", tone: "Than thở, cáu gắt, vội vã", vocabulary: "deadline, trầm cảm, cứu, còng lưng, team như cc", behavior: "Gánh team, tìm đồng đội, chê bai bọn lười." },
+        { type: "Thương gia Tân Bình", tone: "Nhanh gọn, sòng phẳng", vocabulary: "pass, nhượng, inb, giá hssv, rcm", behavior: "Chuyên mua bán đồ cũ, kiếm trọ, hỏi review chỗ ăn chơi." },
+        { type: "Người hướng nội (Overthinking)", tone: "Tự kỷ, suy tư, buồn chán", vocabulary: "khóc thét, xu cà na, mệt, nản, ớn", behavior: "Hay than vãn chuyện kẹt xe, kẹt thang máy, học rớt môn." },
+        { type: "Gen Z mỏ hỗn", tone: "Cà khịa, châm biếm, hài hước", vocabulary: "ảo, vcl, khum, cảm lạnh, hề hước, ủa", behavior: "Thích mỉa mai web trường, đùa giỡn, cmt dạo." }
     ];
     const currentPersona = personas[Math.floor(Math.random() * personas.length)];
 
     // ------------------------------------------------------------------------
-    // 5.4. KHO CHỦ ĐỀ CHUYÊN BIỆT (PHÂN LOẠI THEO KÊNH)
+    // 5.4. ĐỊNH NGHĨA LOẠI KÊNH (ĐỂ AI TỰ DO SÁNG TẠO NỘI DUNG)
     // ------------------------------------------------------------------------
-    let channelRules = `Kênh hiện tại: #${target.channelName}. `;
-    let availableTopics: string[] = [];
+    let channelRules = `BẠN ĐANG CHUẨN BỊ ĐĂNG BÀI VÀO KÊNH: #${target.channelName}. \n`;
 
     if (cName === "confession") {
-      channelRules += `LOẠI KÊNH: Ẩn danh, bóc phốt, kể lể tình cảm, xả stress.`;
-      availableTopics = [
-        "Kể khổ chuyện lỡ cưa cẩm bạn cùng khóa giờ chia tay đi học chạm mặt ngượng ngùng.",
-        "Bóc phốt ý thức chen lấn thang máy ở CS2, xếp hàng mua đồ ăn căntin.",
-        "Trầm cảm vì áp lực đồng trang lứa khi thấy bạn bè đi thực tập sân bay xịn.",
-        "Tỏ tình ẩn danh một bạn nữ/nam hay ngồi học ở CircleK Cộng Hòa.",
-        "Thất vọng tột cùng vì làm bài tập nhóm môn chuyên ngành mà gánh hết team.",
-        "Chê trách mấy bạn hút thuốc lá trong nhà vệ sinh CS1 làm hôi rình."
-      ];
+      channelRules += `=> Đây là kênh ẨN DANH (Confession). Mọi người vào đây để: Bóc phốt, cắm sừng, tỏ tình, chửi xéo, kể khổ tâm sự thầm kín. Tình huống càng drama càng tốt.`;
     } 
     else if (cName === "đồ-thất-lạc" || cName === "tìm-đồ") {
-      channelRules += `LOẠI KÊNH: Tìm đồ mất, thông báo nhặt được của rơi.`;
-      availableTopics = [
-        "Tìm bóp tiền/thẻ sinh viên rớt ở bãi giữ xe hầm CS2 hoặc nhà vệ sinh.",
-        "Nhặt được chìa khóa xe máy/móc khóa ở phòng học tòa G lầu 5, đã nộp CTSV.",
-        "Để quên áo khoác/bình nước giữ nhiệt ở hội trường CS1, ai thấy cho xin lại.",
-        "Tìm tai nghe Airpods đánh rơi ở quán cafe hẻm 18A Cộng Hòa trưa nay."
-      ];
+      channelRules += `=> Đây là kênh TÌM ĐỒ THẤT LẠC. Mọi người vào đây để: Đăng bài làm rớt đồ (mất ví, rớt tai nghe...) hoặc nhặt được của rơi tìm người trả.`;
     } 
     else if (["mua-bán", "phòng-trọ", "việc-làm"].includes(cName)) {
-      channelRules += `LOẠI KÊNH: Rao vặt. BẮT BUỘC có SĐT liên hệ giả (09x, 03x).`;
-      availableTopics = [
-        "Pass lại 2 bộ đồng phục thể dục VAA size L, mới mặc 1 kỳ giá hạt dẻ.",
-        "Pass sách giáo trình Mác-Lênin, Xác suất thống kê, Vật lý giá rẻ như cho.",
-        "Tìm bạn nữ/nam ở ghép phòng trọ đường Hoàng Hoa Thám, tiện đi bộ ra CS2.",
-        "Nhượng lại phòng trọ full nội thất khu vực Phú Nhuận gần CS1 cho ai cần.",
-        "Tuyển nhân viên part-time quán cafe gần trường, xoay ca linh động theo lịch học."
-      ];
+      channelRules += `=> Đây là kênh RAO VẶT/MUA BÁN. Mọi người vào đây để: Thanh lý đồ, tìm người ở ghép, kiếm trọ, hoặc tìm việc làm thêm (phục vụ, gia sư...). Cần có SĐT liên hệ ảo (09x, 03x).`;
     } 
-    else if (cName.includes("tài-liệu") || cName.includes("học-tập")) {
-      channelRules += `LOẠI KÊNH: Xin tài liệu, hỏi kinh nghiệm học tập. ĐƯỢC PHÉP NHẮC TÊN GIẢNG VIÊN VÀ MÔN HỌC.`;
-      availableTopics = [
-        "Xin file đề cương, ngân hàng câu hỏi ôn thi giữa kỳ môn chuyên ngành.",
-        "Hỏi thăm phong cách ra đề, độ khó khi chấm điểm của giảng viên trong khoa.",
-        "Tuyển thành viên làm tiểu luận/đồ án nhóm, cam kết chạy deadline, không tàng hình.",
-        "Hỏi thủ tục nộp chứng chỉ tiếng Anh (TOEIC), tin học đầu ra chuẩn VAA.",
-        "Xin kinh nghiệm để qua môn Thể dục (Chạy bền/Võ) mà không bị thở oxy."
-      ];
+    else if (cName.includes("tài-liệu") || cName.includes("học-tập") || cName.includes("review")) {
+      channelRules += `=> Đây là kênh HỌC TẬP. Mọi người vào đây để: Xin đề cương, hỏi bài, xin review tính cách/cách chấm điểm của giảng viên, tìm nhóm làm tiểu luận. (Được phép bịa tên một môn học hoặc nhắc tên thầy cô).`;
     }
     else {
-      // Các kênh tổng hợp (K1, K2, Đại sảnh...)
-      channelRules += `LOẠI KÊNH: Thảo luận tự do sinh viên VAA.`;
-      availableTopics = [
-        "Pass slot tham gia hội trại/sự kiện Đoàn Hội lấy điểm rèn luyện do bận đột xuất.",
-        "Hỏi về quy định đăng ký học vượt, cải thiện điểm tín chỉ.",
-        "Khóc thét vì lịch học xếp dở: sáng CS1 Nguyễn Văn Trỗi, chiều lết sang CS2 Cộng Hòa.",
-        "Than thở web đăng ký tín chỉ lag xoay đều, F5 nát chuột không vào được.",
-        "Rủ rê lập team đi ăn bún đậu mắm tôm, xiên bẩn gần trường xả stress sau thi.",
-        "Than mệt mỏi rã rời sau khi lết bộ lên lầu 5 tòa G CS2 do thang máy quá tải.",
-        "Review một quán cafe chạy deadline wifi mạnh, yên tĩnh quanh khu Tân Bình."
-      ];
+      channelRules += `=> Đây là kênh THẢO LUẬN TỰ DO. Bạn có thể nói bất cứ thứ gì trên trời dưới biển: Kẹt xe, đói bụng, rủ đi nhậu, kẹt thang máy, than thở thời khóa biểu oái oăm...`;
     }
 
-    const pickedTopic = availableTopics[Math.floor(Math.random() * availableTopics.length)];
     const isNewUser = !target.botUser;
     
     // ------------------------------------------------------------------------
-    // 5.5. PROMPT KẾT HỢP ĐA YẾU TỐ CHO GEMINI
+    // 5.5. PROMPT SIÊU SÁNG TẠO
     // ------------------------------------------------------------------------
     const prompt = `
       Bạn là sinh viên Học viện Hàng Không Việt Nam (VAA).
-      ${isNewUser ? "Hãy TỰ NGHĨ RA một cái tên Facebook GenZ thật tự nhiên (vd: Diễm Phương, Tuấn Kiệt, Thảo Nhi...) và tiểu sử sinh viên gọn gàng." : `Tên bạn là "${target.botUser.first_name}", tiểu sử: "${target.botUser.bio}".`}
+      ${isNewUser ? "Hãy tự nghĩ ra một tên hiển thị NGẪU NHIÊN trên mạng xã hội cho bạn. Có thể là tên thật (Nguyễn Nam, Thảo Vy), tên lóng (Boy Tân Bình, Pé Lùn), hoặc những tên tấu hài (Sợ rớt môn, Chúa tể deadline, Mỏ Hỗn). Không được trùng lặp." : `Tên bạn là "${target.botUser.first_name}".`}
       
-      NGỮ CẢNH HỆ THỐNG:
+      NGỮ CẢNH:
       ${channelRules}
       ${specificContext}
       
-      THIẾT LẬP NHÂN VẬT & TÂM TRẠNG NÀY:
+      THIẾT LẬP NHÂN VẬT & THỜI GIAN:
+      - Cảm xúc hiện tại: ${timeContext}
       - Tính cách: ${currentPersona.type}
       - Giọng điệu: ${currentPersona.tone}
       - Từ vựng hay dùng: ${currentPersona.vocabulary}
-      - ${timeContext}
       
-      NHIỆM VỤ CHÍNH: Viết MỘT status Facebook sinh viên về chủ đề:
-      => [ ${pickedTopic} ]
+      NHIỆM VỤ QUAN TRỌNG: 
+      Dựa vào TÊN KÊNH và LOẠI KÊNH ở trên, hãy TỰ DO TƯỞNG TƯỢNG VÀ SÁNG TẠO ra một nội dung bài đăng hoàn toàn mới. HÃY THOÁT KHỎI KHUÔN MẪU. Nghĩ ra một tình huống đời thường bất kỳ cực kỳ cụ thể (Ví dụ thay vì nói chung chung "kẹt thang máy", hãy nói "Vừa lết bộ lên lầu 6 tòa G thở oxy thì thầy báo nghỉ..."). 
       
-      ĐIỀU KHOẢN RÀNG BUỘC (QUAN TRỌNG NHẤT):
-      1. KIỂM SOÁT TÊN RIÊNG CỰC NGHIÊM: 
-         - CHỈ ĐƯỢC PHÉP dùng tên giảng viên/thầy cô/phòng ban nếu chủ đề rơi vào "Học tập", "Review", "Xin tài liệu".
-         - NẾU chủ đề là Mua bán, Pass đồ, Pass trọ, Pass slot sự kiện, Rớt đồ, Tìm đồ: TUYỆT ĐỐI CẤM bịa tên giảng viên hay Phòng Đào Tạo vào bài. Chỉ tập trung vào giao dịch của sinh viên.
-      2. NGÔN NGỮ MẠNG XÃ HỘI THỰC TẾ: 
-         - Cộc lốc, ngắn gọn, đi thẳng vấn đề. Không chào hỏi ("Chào mọi người", "Hello các bạn").
-         - Viết tắt, teencode nhẹ (vd: dc, ko, hong, rùi, chời, mng, pass, slot).
-         - Không dùng hashtag (#) hay ngoặc kép (""). Không viết hoa đầu câu chuẩn mực.
+      ĐIỀU KHOẢN RÀNG BUỘC (TUÂN THỦ 100%):
+      1. TÍNH CHÂN THỰC: Không bao giờ nói xin chào, không dùng hashtag (#), không dùng ngoặc kép (""). Cộc lốc, ngắn gọn. Dùng teencode (vcl, khum, hong, dc, ko, zị, cx). Viết hoa viết thường lộn xộn.
+      2. TÊN RIÊNG: Chỉ nhắc tên môn học hoặc tên Thầy/Cô khi nội dung là Học Tập/Xin Tài Liệu/Review. Cấm bịa tên thầy cô vào các giao dịch mua bán, pass đồ.
 
       TRẢ VỀ DUY NHẤT MỘT KHỐI JSON HỢP LỆ (KHÔNG KÈM TEXT HAY MARKDOWN):
       {
-        ${isNewUser ? '"name": "Tên tự nghĩ",\n"bio": "Bio ngắn",\n' : ''}"content": "Nội dung status tự nhiên nhất"
+        ${isNewUser ? '"name": "Tên tự nghĩ",\n' : ''}"content": "Nội dung status tự nhiên nhất"
       }
     `;
 
@@ -347,23 +294,24 @@ export const generateRoleplayPost = internalAction({
       const response = await model.generateContent(prompt);
       const rawText = response.response.text().trim();
       
-      // Xử lý chuỗi JSON an toàn, đề phòng AI sinh ra định dạng markdown
       const cleanJsonStr = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleanJsonStr);
 
       const botName = isNewUser ? (parsed.name || "Kẻ Ẩn Danh") : target.botUser.first_name;
-      const botMajor = isNewUser ? (parsed.bio || "") : target.botUser.bio;
       let content = parsed.content || rawText;
       content = content.replace(/\*\*/g, "").replace(/#/g, ""); 
 
-      // Gọi mutation lưu tin nhắn vào db
+      // Gọi mutation lưu tin nhắn vào db (Đã bỏ Argument botMajor)
       await ctx.runMutation((internal as any).ai_bot.saveAiPost, {
         userId: target.botUser?._id, 
-        botName, botMajor, content,
-        channelId: target.channelId, universityId: target.uniId, channelName: target.channelName
+        botName, 
+        content,
+        channelId: target.channelId, 
+        universityId: target.uniId, 
+        channelName: target.channelName
       });
 
-      return `SYS_SUCCESS | Kịch bản [${currentPersona.type}] | ${botName} đăng: "${pickedTopic.substring(0, 30)}..."`;
+      return `SYS_SUCCESS | Kịch bản [${currentPersona.type}] | ${botName} đăng: "${content.substring(0, 30)}..."`;
     } catch (error: any) {
       console.error("Lỗi tạo bài đăng AI:", error);
       return `SYS_ERR: ${error.message}`;

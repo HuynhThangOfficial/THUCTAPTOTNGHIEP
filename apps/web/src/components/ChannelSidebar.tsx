@@ -7,7 +7,8 @@ import { Id } from '../../../../convex/_generated/dataModel';
 import { useApp } from '../context/AppContext';
 import { useUser } from '@clerk/nextjs';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, Settings, LogOut, TrendingUp, Pin, Flag, List, X, AlertCircle } from 'lucide-react';
+// 👇 ĐÃ THÊM ICON GLOBE VÀO ĐÂY 👇
+import { ChevronDown, Settings, LogOut, TrendingUp, Pin, Flag, List, X, AlertCircle, Globe } from 'lucide-react';
 
 import SettingsModal from './SettingsModal';
 import UserProfileModal from './UserProfileModal';
@@ -25,8 +26,11 @@ const LEVEL_REQUIREMENTS = [
 ];
 
 export default function ChannelSidebar() {
-  const { t } = useTranslation();
-  const { activeServerId, activeUniversityId, activeChannelId, setActiveChannelId, setActiveChannelName, pinnedServers, togglePinServer } = useApp() as any;
+  // 👇 LẤY THÊM i18n ĐỂ CHUYỂN NGÔN NGỮ 👇
+  const { t, i18n } = useTranslation();
+  
+  // 👇 LẤY THÊM setShowAuthModal ĐỂ MỞ BẢNG ĐĂNG NHẬP 👇
+  const { activeServerId, activeUniversityId, activeChannelId, setActiveChannelId, setActiveChannelName, pinnedServers, togglePinServer, setShowAuthModal } = useApp() as any;
 
   const { user, isLoaded } = useUser();
   const isLoggedIn = isLoaded && user;
@@ -44,7 +48,9 @@ export default function ChannelSidebar() {
   const [createType, setCreateType] = useState<'channel' | 'category'>('channel');
   const [createParentId, setCreateParentId] = useState<string | undefined>(undefined);
 
-  // 👇 STATE BÁO CÁO MÁY CHỦ 👇
+  // 👇 STATE MENU NGÔN NGỮ KHI CHƯA ĐĂNG NHẬP 👇
+  const [showLangMenu, setShowLangMenu] = useState(false);
+
   const [showReportServerModal, setShowReportServerModal] = useState(false);
   const [reportStep, setReportStep] = useState(1);
   const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
@@ -58,7 +64,6 @@ export default function ChannelSidebar() {
   const leaveServer = useMutation(api.university.leaveServer);
   const deleteChannel = useMutation(api.university.deleteChannel);
 
-  // API Gửi báo cáo Server
   const reportServerToAdmin = useMutation((api as any).messages.reportServerToAdmin);
 
   const channelsData = useQuery(api.university.getChannels, {
@@ -286,35 +291,68 @@ export default function ChannelSidebar() {
         })}
       </div>
 
-      {isLoggedIn && (
-        <div className="h-[60px] bg-[#ebecee] flex items-center justify-between px-2 py-1 shrink-0 border-t border-gray-200">
-          <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 flex-1 hover:bg-gray-300/50 p-1.5 rounded-md transition-colors min-w-0 text-left">
-            <div className="relative shrink-0">
-              <img loading="lazy"src={user?.imageUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-gray-300" />
-              <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#ebecee]"></div>
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-[13px] font-bold text-gray-900 truncate">{currentUser?.first_name || user?.username || t('settings.default_user')}</span>
-              <span className="text-[11px] text-gray-500 truncate">@{user?.username}</span>
-            </div>
-          </button>
+      {/* =====================================================================
+          FOOTER: ĐÃ ĐƯỢC THIẾT KẾ LẠI CHO CẢ 2 TRẠNG THÁI (LOGIN / LOGOUT)
+          ===================================================================== */}
+      <div className="h-[60px] bg-[#ebecee] flex items-center justify-between px-3 py-1 shrink-0 border-t border-gray-200 relative">
+        {isLoggedIn ? (
+          <>
+            {/* TRẠNG THÁI ĐÃ ĐĂNG NHẬP: HIỆN HỒ SƠ & CÀI ĐẶT */}
+            <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 flex-1 hover:bg-gray-300/50 p-1.5 rounded-md transition-colors min-w-0 text-left">
+              <div className="relative shrink-0">
+                <img loading="lazy" src={user?.imageUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-gray-300" />
+                <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#ebecee]"></div>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[13px] font-bold text-gray-900 truncate">{currentUser?.first_name || user?.username || t('settings.default_user')}</span>
+                <span className="text-[11px] text-gray-500 truncate">@{user?.username}</span>
+              </div>
+            </button>
 
-          <button onClick={() => setShowSettings(true)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-300/50 hover:text-gray-900 rounded-md transition-colors shrink-0 ml-1" title={t('settings.title')}>
-            <Settings className="w-5 h-5" />
-          </button>
-        </div>
-      )}
+            <button onClick={() => setShowSettings(true)} className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-300/50 hover:text-gray-900 rounded-md transition-colors shrink-0 ml-1" title={t('settings.title')}>
+              <Settings className="w-5 h-5" />
+            </button>
+          </>
+        ) : (
+          <>
+            {/* TRẠNG THÁI CHƯA ĐĂNG NHẬP: HIỆN NÚT LOGIN XANH LÁ & CHỌN NGÔN NGỮ */}
+            <button onClick={() => setShowAuthModal(true)} className="flex-1 bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold text-[14px] py-2 px-3 rounded-lg transition-colors text-center shadow-sm">
+              Đăng nhập
+            </button>
+
+            <div className="relative shrink-0 ml-2">
+              <button onClick={() => setShowLangMenu(!showLangMenu)} className="w-9 h-9 flex items-center justify-center text-gray-600 hover:bg-gray-300/50 hover:text-gray-900 rounded-lg transition-colors">
+                <Globe className="w-5 h-5" />
+              </button>
+
+              {showLangMenu && (
+                <>
+                  <div className="fixed inset-0 z-[40]" onClick={() => setShowLangMenu(false)}></div>
+                  <div className="absolute bottom-full right-0 mb-2 w-36 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-[50] animate-in fade-in zoom-in-95">
+                    <button onClick={() => { i18n.changeLanguage('vi'); setShowLangMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors">Tiếng Việt 🇻🇳</button>
+                    <button onClick={() => { i18n.changeLanguage('en'); setShowLangMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors">English 🇺🇸</button>
+                    <button onClick={() => { i18n.changeLanguage('zh'); setShowLangMenu(false); }} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors">中文 🇨🇳</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
 
       {/* MODALS */}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      
+      {/* 👇 MODAL USER PROFILE SẼ BẬT LÊN Ở ĐÂY NẾU showProfile LÀ TRUE 👇 */}
       {showProfile && currentUser && <UserProfileModal onClose={() => setShowProfile(false)} targetUserId={currentUser._id} />}
+      
       {showServerSettings && currentWorkspace && <ServerSettingsModal onClose={() => setShowServerSettings(false)} workspace={currentWorkspace} />}
       {showModeration && currentWorkspace && <ModerationModal serverId={currentWorkspace._id} onClose={() => setShowModeration(false)} />}
       {activeServerId && <CreateChannelModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} serverId={activeServerId} type={createType} parentId={createParentId} />}
       {showUpgradeModal && currentWorkspace && <UpgradeServerModal channelCount={currentChannelsCount} workspace={currentWorkspace} onClose={() => setShowUpgradeModal(false)} />}
       {showBrowseModal && currentWorkspace && <BrowseChannelsModal serverId={currentWorkspace._id} channels={channels} groups={groups} onClose={() => setShowBrowseModal(false)} />}
 
-      {/* 👇 MODAL 2 BƯỚC BÁO CÁO MÁY CHỦ 👇 */}
+      {/* MODAL 2 BƯỚC BÁO CÁO MÁY CHỦ */}
       {showReportServerModal && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => { setShowReportServerModal(false); setReportStep(1); }}>
           <div className="bg-white rounded-2xl w-full max-w-[450px] p-6 shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
