@@ -7,7 +7,9 @@ import { Doc, Id } from './_generated/dataModel';
 // =====================================================
 export const getUniversities = query({
   handler: async (ctx) => {
-    return await ctx.db.query('universities').order('asc').collect();
+    const unis = await ctx.db.query('universities').collect();
+    // Sắp xếp ưu tiên Cộng Đồng (1) lên trước VAA (2)
+    return unis.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   },
 });
 
@@ -54,8 +56,7 @@ export const getChannels = query({
 
 export const seedAndMigrate = mutation({
   handler: async (ctx) => {
-    
-    // --- HÀM HỖ TRỢ TẠO DANH MỤC VÀ KÊNH (Đã nâng cấp để cập nhật thứ tự) ---
+    // --- HÀM HỖ TRỢ TẠO DANH MỤC VÀ KÊNH ---
     const ensureCategoryWithChannels = async (
       workspaceId: Id<'universities'>,
       catName: string,
@@ -99,10 +100,9 @@ export const seedAndMigrate = mutation({
             universityId: workspaceId,
             parentId: catId,
             sortOrder: i,
-            isAnonymous: subData.isAnonymous || false, // Gắn cờ ẩn danh nếu có
+            isAnonymous: subData.isAnonymous || false,
           });
         } else {
-          // Cập nhật lại vị trí (sortOrder) và trạng thái ẩn danh nếu kênh đã tồn tại
           await ctx.db.patch(existing._id, {
             sortOrder: i,
             isAnonymous: subData.isAnonymous || false,
@@ -112,60 +112,7 @@ export const seedAndMigrate = mutation({
     };
 
     // =========================================================
-    // 1. MÁY CHỦ: HỌC VIỆN HÀNG KHÔNG (VAA)
-    // =========================================================
-    let vaa = await ctx.db
-      .query('universities')
-      .filter((q) => q.eq(q.field('slug'), 'vaa'))
-      .first();
-
-    if (!vaa) {
-      const vaaId = await ctx.db.insert('universities', {
-        name: 'Học viện Hàng không',
-        slug: 'vaa',
-        icon: 'local:login',
-        sortOrder: 1,
-      });
-      vaa = await ctx.db.get(vaaId);
-    }
-
-    const uniId = vaa!._id;
-
-    let generalChannelVAA = await ctx.db
-      .query('channels')
-      .withIndex('by_university', (q) => q.eq('universityId', uniId))
-      .filter((q) => q.eq(q.field('name'), 'đại-sảnh'))
-      .first();
-
-    if (!generalChannelVAA) {
-      await ctx.db.insert('channels', { name: 'đại-sảnh', type: 'channel', universityId: uniId, sortOrder: 0 });
-    }
-
-    // Cập nhật cấu trúc kênh Cộng Đồng cho VAA
-    await ensureCategoryWithChannels(uniId, 'CỘNG ĐỒNG', 1, [
-      { name: 'làm-quen-kết-nối' },
-      { name: 'phòng-trọ' },
-      { name: 'chia-sẻ-tài-liệu' },
-      { name: 'mua-bán' },
-      { name: 'đồ-thất-lạc' },
-      { name: 'confession', isAnonymous: true }, 
-      { name: 'tổng-hợp-sự-kiện' },
-      { name: 'đăng-ký-học-phần' },
-      { name: 'review-giảng-viên' },
-      { name: 'việc-làm' },
-      { name: 'quân-sự' },
-      { name: 'kí-túc-xá' } 
-    ]);
-    await ensureCategoryWithChannels(uniId, 'KHOÁ', 2, ['k17', 'k18', 'k19', 'k20'].map(name => ({ name })));
-    await ensureCategoryWithChannels(uniId, 'KHOA', 3, [
-      'khoa-công-nghệ-thông-tin', 'khoa-kinh-tế-hàng-không', 'khoa-cơ-bản', 'khoa-quản-trị-kinh-doanh', 'khoa-xây-dựng', 'khoa-khai-khác-hàng-không', 'khoa-kỹ-thuật-hàng-không', 'khoa-điện-điện-tử', 'khoa-du-lịch-và-dịch-vụ-hàng-không', 'khoa-ngoại-ngữ',
-    ].map(name => ({ name })));
-    await ensureCategoryWithChannels(uniId, 'CLB', 4, ['clb-bóng-chuyền', 'clb-tổ-chức-sự-kiện', 'clb-khoa-học-trẻ'].map(name => ({ name })));
-    await ensureCategoryWithChannels(uniId, 'CƠ SỞ', 5, ['cơ-sở-1', 'cơ-sở-2'].map(name => ({ name })));
-
-
-    // =========================================================
-    // 2. MÁY CHỦ: CỘNG ĐỒNG (MỚI THÊM)
+    // 1. MÁY CHỦ: CỘNG ĐỒNG (ÉP LÊN TOP 1)
     // =========================================================
     let congdong = await ctx.db
       .query('universities')
@@ -177,9 +124,12 @@ export const seedAndMigrate = mutation({
         name: 'Cộng Đồng',
         slug: 'cong-dong',
         icon: 'local:community',
-        sortOrder: 2,
+        sortOrder: 1, // Đẩy lên số 1
       });
       congdong = await ctx.db.get(cdId);
+    } else {
+      // Vá lại cho các bản build cũ
+      await ctx.db.patch(congdong._id, { sortOrder: 1 });
     }
 
     const cdId = congdong!._id;
@@ -194,52 +144,70 @@ export const seedAndMigrate = mutation({
       await ctx.db.insert('channels', { name: 'đại-sảnh', type: 'channel', universityId: cdId, sortOrder: 0 });
     }
 
-    // TẦNG 1: THẢO LUẬN CHUNG
     await ensureCategoryWithChannels(cdId, 'THẢO LUẬN CHUNG', 1, [
-      { name: 'tin-tức' },
-      { name: 'confession', isAnonymous: true },
-      { name: 'tình-yêu' },
-      { name: 'trò-chuyện' },
+      { name: 'tin-tức' }, { name: 'confession', isAnonymous: true }, { name: 'tình-yêu' }, { name: 'trò-chuyện' },
     ]);
-
-    // TẦNG 2: GIẢI TRÍ & SỞ THÍCH
     await ensureCategoryWithChannels(cdId, 'GIẢI TRÍ & SỞ THÍCH', 2, [
-      { name: 'phim-ảnh' },
-      { name: 'âm-nhạc' },
-      { name: 'trò-chơi' },
-      { name: 'thể-thao' },
-      { name: 'thú-cưng' },
-      { name: 'nghệ-thuật' },
+      { name: 'phim-ảnh' }, { name: 'âm-nhạc' }, { name: 'trò-chơi' }, { name: 'thể-thao' }, { name: 'thú-cưng' }, { name: 'nghệ-thuật' },
     ]);
-
-    // TẦNG 3: ĐỜI SỐNG
     await ensureCategoryWithChannels(cdId, 'ĐỜI SỐNG', 3, [
-      { name: 'ẩm-thực' },
-      { name: 'du-lịch' },
-      { name: 'thời-trang' },
-      { name: 'sức-khỏe' },
+      { name: 'ẩm-thực' }, { name: 'du-lịch' }, { name: 'thời-trang' }, { name: 'sức-khỏe' },
     ]);
-
-    // TẦNG 4: KIẾN THỨC & SỰ NGHIỆP
     await ensureCategoryWithChannels(cdId, 'KIẾN THỨC & SỰ NGHIỆP', 4, [
-      { name: 'công-nghệ' },
-      { name: 'tài-chính' },
-      { name: 'ngoại-ngữ' },
-      { name: 'việc-làm' },
-      { name: 'sách' },
+      { name: 'công-nghệ' }, { name: 'tài-chính' }, { name: 'ngoại-ngữ' }, { name: 'việc-làm' }, { name: 'sách' },
     ]);
-
-    // TẦNG 5: TIỆN ÍCH
     await ensureCategoryWithChannels(cdId, 'TIỆN ÍCH', 5, [
-      { name: 'mua-bán' },
-      { name: 'hỏi-đáp' },
+      { name: 'mua-bán' }, { name: 'hỏi-đáp' },
     ]);
 
-    // Dọn dẹp tin nhắn mồ côi (không thuộc kênh nào) đưa về đại sảnh của VAA
+    // =========================================================
+    // 2. MÁY CHỦ: HỌC VIỆN HÀNG KHÔNG VIỆT NAM (XUỐNG TOP 2)
+    // =========================================================
+    let vaa = await ctx.db
+      .query('universities')
+      .filter((q) => q.eq(q.field('slug'), 'vaa'))
+      .first();
+
+    if (!vaa) {
+      const vaaId = await ctx.db.insert('universities', {
+        name: 'Học viện Hàng không Việt Nam', // Thêm chữ Việt Nam
+        slug: 'vaa',
+        icon: 'local:login',
+        sortOrder: 2, // Đẩy xuống số 2
+      });
+      vaa = await ctx.db.get(vaaId);
+    } else {
+      // Vá lại cho các bản build cũ
+      await ctx.db.patch(vaa._id, { name: 'Học viện Hàng không Việt Nam', sortOrder: 2 });
+    }
+
+    const uniId = vaa!._id;
+
+    let generalChannelVAA = await ctx.db
+      .query('channels')
+      .withIndex('by_university', (q) => q.eq('universityId', uniId))
+      .filter((q) => q.eq(q.field('name'), 'đại-sảnh'))
+      .first();
+
+    if (!generalChannelVAA) {
+      await ctx.db.insert('channels', { name: 'đại-sảnh', type: 'channel', universityId: uniId, sortOrder: 0 });
+    }
+
+    await ensureCategoryWithChannels(uniId, 'CỘNG ĐỒNG', 1, [
+      { name: 'làm-quen-kết-nối' }, { name: 'phòng-trọ' }, { name: 'chia-sẻ-tài-liệu' }, { name: 'mua-bán' }, { name: 'đồ-thất-lạc' }, { name: 'confession', isAnonymous: true }, { name: 'tổng-hợp-sự-kiện' }, { name: 'đăng-ký-học-phần' }, { name: 'review-giảng-viên' }, { name: 'việc-làm' }, { name: 'quân-sự' }, { name: 'kí-túc-xá' } 
+    ]);
+    await ensureCategoryWithChannels(uniId, 'KHOÁ', 2, ['k17', 'k18', 'k19', 'k20'].map(name => ({ name })));
+    await ensureCategoryWithChannels(uniId, 'KHOA', 3, [
+      'khoa-công-nghệ-thông-tin', 'khoa-kinh-tế-hàng-không', 'khoa-cơ-bản', 'khoa-quản-trị-kinh-doanh', 'khoa-xây-dựng', 'khoa-khai-khác-hàng-không', 'khoa-kỹ-thuật-hàng-không', 'khoa-điện-điện-tử', 'khoa-du-lịch-và-dịch-vụ-hàng-không', 'khoa-ngoại-ngữ',
+    ].map(name => ({ name })));
+    await ensureCategoryWithChannels(uniId, 'CLB', 4, ['clb-bóng-chuyền', 'clb-tổ-chức-sự-kiện', 'clb-khoa-học-trẻ'].map(name => ({ name })));
+    await ensureCategoryWithChannels(uniId, 'CƠ SỞ', 5, ['cơ-sở-1', 'cơ-sở-2'].map(name => ({ name })));
+
+    // Dọn dẹp tin nhắn mồ côi
     const allMessages = await ctx.db.query('messages').collect();
     for (const msg of allMessages) {
-      if (!msg.channelId && generalChannelVAA) {
-        await ctx.db.patch(msg._id, { channelId: generalChannelVAA._id });
+      if (!msg.channelId && generalChannelCD) {
+        await ctx.db.patch(msg._id, { channelId: generalChannelCD._id });
       }
     }
 
