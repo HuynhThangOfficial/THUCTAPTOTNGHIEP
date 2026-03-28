@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom'; // 👈 IMPORT CHIÊU PORTAL VÀO ĐÂY
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
@@ -26,14 +27,16 @@ const LEVEL_REQUIREMENTS = [
 ];
 
 export default function ChannelSidebar() {
-  // 👇 LẤY THÊM i18n ĐỂ CHUYỂN NGÔN NGỮ 👇
   const { t, i18n } = useTranslation();
   
-  // 👇 LẤY THÊM setShowAuthModal ĐỂ MỞ BẢNG ĐĂNG NHẬP 👇
   const { activeServerId, activeUniversityId, activeChannelId, setActiveChannelId, setActiveChannelName, pinnedServers, togglePinServer, setShowAuthModal } = useApp() as any;
 
   const { user, isLoaded } = useUser();
   const isLoggedIn = isLoaded && user;
+
+  // 👇 STATE CHỐNG CHỚP LỖI SSR CHO CÁI PORTAL 👇
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
@@ -48,7 +51,6 @@ export default function ChannelSidebar() {
   const [createType, setCreateType] = useState<'channel' | 'category'>('channel');
   const [createParentId, setCreateParentId] = useState<string | undefined>(undefined);
 
-  // 👇 STATE MENU NGÔN NGỮ KHI CHƯA ĐĂNG NHẬP 👇
   const [showLangMenu, setShowLangMenu] = useState(false);
 
   const [showReportServerModal, setShowReportServerModal] = useState(false);
@@ -291,13 +293,9 @@ export default function ChannelSidebar() {
         })}
       </div>
 
-      {/* =====================================================================
-          FOOTER: ĐÃ ĐƯỢC THIẾT KẾ LẠI CHO CẢ 2 TRẠNG THÁI (LOGIN / LOGOUT)
-          ===================================================================== */}
       <div className="h-[60px] bg-[#ebecee] flex items-center justify-between px-3 py-1 shrink-0 border-t border-gray-200 relative">
         {isLoggedIn ? (
           <>
-            {/* TRẠNG THÁI ĐÃ ĐĂNG NHẬP: HIỆN HỒ SƠ & CÀI ĐẶT */}
             <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 flex-1 hover:bg-gray-300/50 p-1.5 rounded-md transition-colors min-w-0 text-left">
               <div className="relative shrink-0">
                 <img loading="lazy" src={user?.imageUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-gray-300" />
@@ -315,7 +313,6 @@ export default function ChannelSidebar() {
           </>
         ) : (
           <>
-            {/* TRẠNG THÁI CHƯA ĐĂNG NHẬP: HIỆN NÚT LOGIN XANH LÁ & CHỌN NGÔN NGỮ */}
             <button onClick={() => setShowAuthModal(true)} className="flex-1 bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold text-[14px] py-2 px-3 rounded-lg transition-colors text-center shadow-sm">
               Đăng nhập
             </button>
@@ -340,20 +337,16 @@ export default function ChannelSidebar() {
         )}
       </div>
 
-      {/* MODALS */}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
-      
-      {/* 👇 MODAL USER PROFILE SẼ BẬT LÊN Ở ĐÂY NẾU showProfile LÀ TRUE 👇 */}
       {showProfile && currentUser && <UserProfileModal onClose={() => setShowProfile(false)} targetUserId={currentUser._id} />}
-      
       {showServerSettings && currentWorkspace && <ServerSettingsModal onClose={() => setShowServerSettings(false)} workspace={currentWorkspace} />}
       {showModeration && currentWorkspace && <ModerationModal serverId={currentWorkspace._id} onClose={() => setShowModeration(false)} />}
       {activeServerId && <CreateChannelModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} serverId={activeServerId} type={createType} parentId={createParentId} />}
       {showUpgradeModal && currentWorkspace && <UpgradeServerModal channelCount={currentChannelsCount} workspace={currentWorkspace} onClose={() => setShowUpgradeModal(false)} />}
       {showBrowseModal && currentWorkspace && <BrowseChannelsModal serverId={currentWorkspace._id} channels={channels} groups={groups} onClose={() => setShowBrowseModal(false)} />}
 
-      {/* MODAL 2 BƯỚC BÁO CÁO MÁY CHỦ */}
-      {showReportServerModal && (
+      {/* 👇 ĐÃ BỌC PORTAL CHO MODAL BÁO CÁO MÁY CHỦ 👇 */}
+      {mounted && showReportServerModal && createPortal(
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => { setShowReportServerModal(false); setReportStep(1); }}>
           <div className="bg-white rounded-2xl w-full max-w-[450px] p-6 shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-2">
@@ -408,7 +401,8 @@ export default function ChannelSidebar() {
                </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </aside>
   );

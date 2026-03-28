@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // 👈 Thêm useEffect
+import { createPortal } from 'react-dom'; // 👈 IMPORT PORTAL
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
@@ -30,6 +31,11 @@ const LEVEL_REQUIREMENTS = [
 
 export default function UpgradeServerModal({ workspace, channelCount, onClose }: Props) {
   const { t } = useTranslation();
+  
+  // 👇 STATE CHỐNG CHỚP LỖI SSR KHI DÙNG PORTAL 👇
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
 
@@ -39,7 +45,8 @@ export default function UpgradeServerModal({ workspace, channelCount, onClose }:
   const boostServer = useMutation(api.boosts.boostServer);
   const buyStones = useMutation(api.boosts.buyStones);
 
-  if (!workspace || !currentUser) return null;
+  // Đợi render xong client mới nhả Portal ra
+  if (!workspace || !currentUser || !mounted) return null;
 
   const stones = workspace.totalStones || 0;
   let currentInfo = LEVEL_REQUIREMENTS[0];
@@ -85,7 +92,8 @@ export default function UpgradeServerModal({ workspace, channelCount, onClose }:
     }
   };
 
-  return (
+  // 👇 GÓI VÀO BIẾN ĐỂ BẮN PORTAL 👇
+  const modalContent = (
     <>
       <div className="fixed inset-0 z-[99998] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={onClose}>
         <div className="bg-[#f2f3f5] w-full max-w-[450px] h-[90vh] max-h-[800px] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
@@ -184,4 +192,7 @@ export default function UpgradeServerModal({ workspace, channelCount, onClose }:
       />
     </>
   );
+
+  // 👇 RA LỆNH BẮN PORTAL 👇
+  return createPortal(modalContent, document.body);
 }

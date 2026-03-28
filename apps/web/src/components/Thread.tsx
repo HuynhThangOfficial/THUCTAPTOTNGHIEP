@@ -58,7 +58,6 @@ export default function Thread({ thread, isNested = false, isDetailView = false,
   const likeThread = useMutation(api.messages.likeThread);
   const toggleRepost = useMutation(api.messages.toggleRepost);
   const deleteMessage = useMutation((api as any).messages.deleteThread);
-  // 👇 Đã chuẩn hóa tên biến ở đây 👇
   const createReport = useMutation((api as any).messages.reportMessage);
   const updateThread = useMutation((api as any).messages.updateThread);
   const addThread = useMutation(api.messages.addThread);
@@ -106,12 +105,10 @@ export default function Thread({ thread, isNested = false, isDetailView = false,
     setIsReporting(true);
     const finalReason = reportReason === 'reason_other' ? customReason : reportReason;
     try {
-      // 👇 Gọi đúng tên hàm createReport 👇
       await createReport({ messageId: thread._id, reason: finalReason, serverId: activeServerId });
       alert(t('report.success'));
       setShowReportModal(false);
     } catch (error: any) {
-      // 👇 BẮT LỖI THÔNG MINH: Lỗi nào ra lỗi đó 👇
       if (error.message && error.message.includes("ALREADY_REPORTED")) {
         alert(t('report.already_reported'));
       } else {
@@ -199,8 +196,24 @@ export default function Thread({ thread, isNested = false, isDetailView = false,
         ) : (
           <p className={`text-gray-800 whitespace-pre-wrap leading-relaxed ${isNested ? 'text-[14px]' : 'text-[15px]'}`}>{thread.content}</p>
         )}
+        
+        {/* 👇 HIỂN THỊ ẢNH ĐÃ ĐƯỢC CHỈNH LẠI CSS 👇 */}
         {thread.mediaFiles && thread.mediaFiles.length > 0 && (
-          <div className={`mt-3 grid gap-2 ${thread.mediaFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>{thread.mediaFiles.map((url: string, idx: number) => <img loading="lazy"key={idx} src={url} alt="Media" className="rounded-lg object-cover w-full h-auto max-h-80 border border-gray-100" />)}</div>
+          <div className={`mt-3 grid gap-2 ${thread.mediaFiles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            {thread.mediaFiles.map((url: string, idx: number) => (
+              <img 
+                loading="lazy"
+                key={idx} 
+                src={url} 
+                alt="Media" 
+                className={`rounded-xl border border-gray-100 ${
+                  thread.mediaFiles.length === 1 
+                  ? 'w-full max-h-[500px] object-contain bg-[#f8f9fa]' 
+                  : 'w-full h-56 object-cover'
+                }`} 
+              />
+            ))}
+          </div>
         )}
       </div>
 
