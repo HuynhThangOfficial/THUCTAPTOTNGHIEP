@@ -168,11 +168,11 @@ export default function ChannelSidebar() {
       <div className="relative flex items-center justify-between h-14 px-3 border-b border-gray-200 shadow-sm bg-white">
         {isUniversity ? (
           <div className="flex items-center gap-1.5 flex-1 min-w-0 font-bold text-[15px] py-1.5 px-2 text-left text-gray-800 cursor-default">
-            <span className="truncate">{currentWorkspace?.name || t('server.choose_workspace')}</span>
+            <span className="truncate">{currentWorkspace ? t(`fixed_servers.${currentWorkspace.name}`, { defaultValue: currentWorkspace.name }) : t('server.choose_workspace')}</span>
           </div>
         ) : (
           <button onClick={() => setShowServerMenu(!showServerMenu)} className="flex items-center gap-1.5 flex-1 min-w-0 font-bold text-[15px] hover:bg-gray-50 py-1.5 px-2 rounded-md transition-colors text-left">
-            <span className="truncate">{currentWorkspace?.name || t('server.choose_workspace')}</span>
+            <span className="truncate">{currentWorkspace ? t(`fixed_servers.${currentWorkspace.name}`, { defaultValue: currentWorkspace.name }) : t('server.choose_workspace')}</span>
             <ChevronDown className={`w-4 h-4 shrink-0 text-gray-500 transition-transform ${showServerMenu ? 'rotate-180' : ''}`} />
           </button>
         )}
@@ -238,7 +238,7 @@ export default function ChannelSidebar() {
             <div key={channel._id} className={`w-full flex items-center justify-between px-2 py-[6px] rounded-md transition-colors group/channel ${isActive ? 'bg-[#e3e5e8] text-gray-900' : 'hover:bg-[#e3e5e8]/50'}`}>
               <button onClick={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} className={`flex items-center flex-1 text-left min-w-0 ${isActive ? 'font-semibold' : 'text-gray-600 hover:text-gray-800'}`}>
                 <svg className="w-5 h-5 opacity-60 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
-                <span className="text-[15px] truncate flex-1">{channel.name}</span>
+                <span className="text-[15px] truncate flex-1">{t(`fixed_channels.${channel.name}`, { defaultValue: channel.name })}</span>
                 {(channel as any).isAnonymous && <span className="ml-1 text-xs shrink-0" title={t('common.anonymous')}>🎭</span>}
               </button>
               {isOwner && channel.name !== 'đại-sảnh' && (
@@ -260,7 +260,7 @@ export default function ChannelSidebar() {
               <div className="flex items-center justify-between px-1 mb-1 group/category">
                 <button onClick={() => toggleGroup(group._id)} className="flex items-center gap-1 text-xs font-bold text-gray-500 uppercase tracking-wider hover:text-gray-800 transition-colors flex-1 text-left min-w-0">
                   <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-                  <span className="truncate">{group.name}</span>
+                  <span className="truncate">{t(`fixed_channels.${group.name}`, { defaultValue: group.name })}</span>
                 </button>
                 {isOwner && (
                   <div className="opacity-0 group-hover/category:opacity-100 flex items-center transition-opacity shrink-0">
@@ -277,7 +277,7 @@ export default function ChannelSidebar() {
                       <div key={channel._id} className={`w-full flex items-center justify-between px-2 py-[6px] rounded-md transition-colors group/channel ${isActive ? 'bg-[#e3e5e8] text-gray-900' : 'hover:bg-[#e3e5e8]/50'}`}>
                         <button onClick={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} className={`flex items-center flex-1 text-left min-w-0 ${isActive ? 'font-semibold' : 'text-gray-600 hover:text-gray-800'}`}>
                           <svg className="w-5 h-5 opacity-60 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
-                          <span className="text-[15px] truncate flex-1">{channel.name}</span>
+                          <span className="text-[15px] truncate flex-1">{t(`fixed_channels.${channel.name}`, { defaultValue: channel.name })}</span>
                           {(channel as any).isAnonymous && <span className="ml-1 text-xs shrink-0" title={t('common.anonymous')}>🎭</span>}
                         </button>
                         {isOwner && (
