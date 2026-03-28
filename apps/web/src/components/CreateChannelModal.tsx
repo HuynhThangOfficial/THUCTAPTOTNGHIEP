@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom'; // 👈 1. IMPORT CHIÊU PORTAL
 import { useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
@@ -20,6 +21,10 @@ export default function CreateChannelModal({ isOpen, onClose, type, parentId }: 
   const { t } = useTranslation();
   const { activeServerId, activeUniversityId } = useApp() as any;
 
+  // 👇 2. STATE CHỐNG LỖI NEXT.JS KHI DÙNG PORTAL 👇
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const [name, setName] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -33,7 +38,8 @@ export default function CreateChannelModal({ isOpen, onClose, type, parentId }: 
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  // Đợi render xong client và Modal phải đang mở thì mới hiện
+  if (!mounted || !isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +62,6 @@ export default function CreateChannelModal({ isOpen, onClose, type, parentId }: 
       } else if (activeServerId) {
         payload.serverId = activeServerId as Id<"servers">;
       } else {
-        // 👇 Tận dụng key lỗi có sẵn trong JSON 👇
         alert(t('common.error') + ": " + t('server_errors.server_not_found'));
         setIsSubmitting(false);
         return;
@@ -88,7 +93,8 @@ export default function CreateChannelModal({ isOpen, onClose, type, parentId }: 
     ? t('channel.placeholder_category')
     : t('channel.placeholder_channel');
 
-  return (
+  // 👇 3. GÓI TOÀN BỘ UI VÀO BIẾN 👇
+  const modalContent = (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={onClose}>
       <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
 
@@ -104,7 +110,6 @@ export default function CreateChannelModal({ isOpen, onClose, type, parentId }: 
 
         <form onSubmit={handleSubmit} className="p-5 space-y-5">
           <div>
-            {/* 👇 Dùng thẳng tên Kênh/Danh mục, vừa gọn vừa chuẩn ngữ pháp đa ngôn ngữ 👇 */}
             <label className="block text-[12px] font-extrabold text-gray-500 uppercase tracking-wider mb-2">
               {type === 'category' ? t('common.category') : t('common.channel')}
             </label>
@@ -150,4 +155,7 @@ export default function CreateChannelModal({ isOpen, onClose, type, parentId }: 
       </div>
     </div>
   );
+
+  // 👇 4. RA LỆNH BẮN PORTAL 👇
+  return createPortal(modalContent, document.body);
 }

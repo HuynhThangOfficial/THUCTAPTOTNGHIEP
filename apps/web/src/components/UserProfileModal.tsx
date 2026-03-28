@@ -130,6 +130,7 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
     }
   };
 
+  // 👇 HÀM NÀY ĐÃ ĐƯỢC CẬP NHẬT ĐỂ BẮN PHÁO HIỆU MỞ DRAWER 👇
   const handleMessageClick = async () => {
     if (!isLoggedIn || !user) {
       onClose(); 
@@ -140,7 +141,8 @@ export default function UserProfileModal({ onClose, targetUserId }: Props) {
     try {
       const convId = await getOrCreateConversation({ otherUserId: targetUserId });
       onClose();
-      router.push(`/chat/${convId}`);
+      // Bắn sự kiện kèm ID phòng chat để Drawer nhận diện
+      window.dispatchEvent(new CustomEvent('openChatInDrawer', { detail: convId }));
     } catch (error: any) {
       console.error("Lỗi tạo cuộc trò chuyện:", error);
       if (error.data === "UNAUTHORIZED" || error.message?.includes("UNAUTHORIZED")) {
