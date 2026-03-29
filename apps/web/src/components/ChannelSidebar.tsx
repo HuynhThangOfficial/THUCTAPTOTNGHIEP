@@ -7,7 +7,6 @@ import { Id } from '../../../../convex/_generated/dataModel';
 import { useApp } from '../context/AppContext';
 import { useUser } from '@clerk/nextjs';
 import { useTranslation } from 'react-i18next';
-// 👇 ĐÃ THÊM ICON GLOBE VÀO ĐÂY 👇
 import { ChevronDown, Settings, LogOut, TrendingUp, Pin, Flag, List, X, AlertCircle, Globe } from 'lucide-react';
 
 import SettingsModal from './SettingsModal';
@@ -26,10 +25,8 @@ const LEVEL_REQUIREMENTS = [
 ];
 
 export default function ChannelSidebar() {
-  // 👇 LẤY THÊM i18n ĐỂ CHUYỂN NGÔN NGỮ 👇
   const { t, i18n } = useTranslation();
-  
-  // 👇 LẤY THÊM setShowAuthModal ĐỂ MỞ BẢNG ĐĂNG NHẬP 👇
+
   const { activeServerId, activeUniversityId, activeChannelId, setActiveChannelId, setActiveChannelName, pinnedServers, togglePinServer, setShowAuthModal } = useApp() as any;
 
   const { user, isLoaded } = useUser();
@@ -48,7 +45,6 @@ export default function ChannelSidebar() {
   const [createType, setCreateType] = useState<'channel' | 'category'>('channel');
   const [createParentId, setCreateParentId] = useState<string | undefined>(undefined);
 
-  // 👇 STATE MENU NGÔN NGỮ KHI CHƯA ĐĂNG NHẬP 👇
   const [showLangMenu, setShowLangMenu] = useState(false);
 
   const [showReportServerModal, setShowReportServerModal] = useState(false);
@@ -99,8 +95,8 @@ export default function ChannelSidebar() {
   const currentWorkspace = isUniversity ? universities?.find(u => u._id === activeUniversityId) : myServers?.find(s => s._id === activeServerId);
   const isOwner = activeServerId && currentWorkspace && ('creatorId' in currentWorkspace) && currentWorkspace.creatorId === currentUser?._id;
 
-  const stones = (currentWorkspace && 'totalStones' in currentWorkspace) 
-  ? (currentWorkspace.totalStones as number) 
+  const stones = (currentWorkspace && 'totalStones' in currentWorkspace)
+  ? (currentWorkspace.totalStones as number)
   : 0;
   let serverLevel = 0;
   for (let i = LEVEL_REQUIREMENTS.length - 1; i >= 0; i--) {
@@ -251,7 +247,9 @@ export default function ChannelSidebar() {
         {groups.map(group => {
           const isCollapsed = collapsedGroups[group._id];
           const childChannels = visibleChannels.filter((c: any) => c.parentId === group._id);
-          if (childChannels.length === 0) return null;
+
+          // 👇 ĐÃ XÓA DÒNG if (childChannels.length === 0) return null; Ở ĐÂY 👇
+          // Danh mục sẽ luôn được hiển thị dù chưa có kênh nào.
 
           return (
             <div key={group._id} className="pt-3">
@@ -342,8 +340,7 @@ export default function ChannelSidebar() {
 
       {/* MODALS */}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
-      
-      {/* 👇 MODAL USER PROFILE SẼ BẬT LÊN Ở ĐÂY NẾU showProfile LÀ TRUE 👇 */}
+
       {showProfile && currentUser && <UserProfileModal onClose={() => setShowProfile(false)} targetUserId={currentUser._id} />}
       
       {showServerSettings && currentWorkspace && <ServerSettingsModal onClose={() => setShowServerSettings(false)} workspace={currentWorkspace} />}
