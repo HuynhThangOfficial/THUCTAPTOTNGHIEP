@@ -253,7 +253,6 @@ export default function ChannelSidebar() {
         {groups.map(group => {
           const isCollapsed = collapsedGroups[group._id];
           const childChannels = visibleChannels.filter((c: any) => c.parentId === group._id);
-          if (childChannels.length === 0) return null;
 
           return (
             <div key={group._id} className="pt-3">
