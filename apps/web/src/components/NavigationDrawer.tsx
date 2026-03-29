@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, MessageSquare, Bell, Users } from 'lucide-react';
 import MembersSidebar from './MembersSidebar'; 
 import NotificationList from './NotificationList'; 
@@ -10,6 +10,17 @@ type ActivePanel = 'messages' | 'notifications' | 'members' | null;
 
 export default function NavigationDrawer() {
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
+
+  // 👇 THÊM ĐOẠN NÀY ĐỂ BẮT SỰ KIỆN MỞ DRAWER TỪ PROFILE MODAL 👇
+  useEffect(() => {
+    const handleOpenDrawer = () => {
+      setActivePanel('messages'); // Tự động kéo panel tin nhắn ra
+    };
+    
+    // Lắng nghe pháo hiệu có tên 'openChatInDrawer'
+    window.addEventListener('openChatInDrawer', handleOpenDrawer);
+    return () => window.removeEventListener('openChatInDrawer', handleOpenDrawer);
+  }, []);
 
   const togglePanel = (panel: ActivePanel) => {
     if (activePanel === panel) setActivePanel(null);

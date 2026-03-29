@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, useEffect } from 'react'; // 👈 Thêm
+import { createPortal } from 'react-dom'; // 👈 IMPORT PORTAL
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
@@ -16,6 +18,10 @@ interface Props {
 export default function BrowseChannelsModal({ serverId, channels, groups, onClose }: Props) {
   const { t } = useTranslation();
 
+  // 👇 STATE CHỐNG CHỚP LỖI SSR KHI DÙNG PORTAL 👇
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const hiddenChannels = useQuery((api as any).university.getHiddenChannelIds, { serverId: serverId as Id<"servers"> }) || [];
   const toggleVisibility = useMutation((api as any).university.toggleChannelVisibility);
 
@@ -27,7 +33,10 @@ export default function BrowseChannelsModal({ serverId, channels, groups, onClos
     }
   };
 
-  return (
+  if (!mounted) return null;
+
+  // 👇 GÓI VÀO BIẾN ĐỂ BẮN PORTAL 👇
+  const modalContent = (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={onClose}>
       <div className="bg-[#f2f3f5] w-full max-w-[400px] max-h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
 
@@ -46,7 +55,6 @@ export default function BrowseChannelsModal({ serverId, channels, groups, onClos
           {channels.filter(c => !c.parentId).length > 0 && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               {channels.filter(c => !c.parentId).map(channel => {
-                // 👇 ĐÃ GỠ BỎ KÊNH "chung" KHỎI DANH SÁCH BỊ KHÓA ẨN 👇
                 const isDefault = channel.name === 'đại-sảnh';
                 const isHidden = hiddenChannels.includes(channel._id);
                 const isChecked = isDefault || !isHidden;
@@ -106,4 +114,6 @@ export default function BrowseChannelsModal({ serverId, channels, groups, onClos
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }

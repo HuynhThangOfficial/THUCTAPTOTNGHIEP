@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { Search, MoreHorizontal, Trash2, Pin, BellOff, AlertTriangle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react"; // 👈 Thêm useEffect ở đây
 import { useTranslation } from "react-i18next";
 import ChatBox from "./ChatBox";
 
@@ -17,6 +17,20 @@ export default function DirectMessagesList() {
   
   // State quản lý mở menu 3 chấm
   const [menuConvId, setMenuConvId] = useState<string | null>(null);
+
+  // 👇 THÊM ĐOẠN NÀY ĐỂ BẮT SỰ KIỆN MỞ ĐÚNG NGƯỜI CHAT 👇
+  useEffect(() => {
+    const handleOpenSpecificChat = (event: any) => {
+      const convId = event.detail; // Lấy ID phòng chat từ cục pháo hiệu
+      if (convId) {
+        setActiveChatId(convId); // Nhảy thẳng vào khung chat của ID đó
+      }
+    };
+
+    window.addEventListener('openChatInDrawer', handleOpenSpecificChat);
+    return () => window.removeEventListener('openChatInDrawer', handleOpenSpecificChat);
+  }, []);
+  // 👆 KẾT THÚC ĐOẠN THÊM MỚI 👆
 
   if (conversations === undefined) {
     return <div className="p-4 text-center text-gray-400 text-sm">{t('chat.loading', {defaultValue: 'Đang tải...'})}</div>;

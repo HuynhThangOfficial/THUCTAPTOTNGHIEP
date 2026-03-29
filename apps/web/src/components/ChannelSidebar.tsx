@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom'; // 👈 IMPORT CHIÊU PORTAL VÀO ĐÂY
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { useApp } from '../context/AppContext';
 import { useUser } from '@clerk/nextjs';
 import { useTranslation } from 'react-i18next';
+// 👇 ĐÃ THÊM ICON GLOBE VÀO ĐÂY 👇
 import { ChevronDown, Settings, LogOut, TrendingUp, Pin, Flag, List, X, AlertCircle, Globe } from 'lucide-react';
 
 import SettingsModal from './SettingsModal';
@@ -26,11 +28,15 @@ const LEVEL_REQUIREMENTS = [
 
 export default function ChannelSidebar() {
   const { t, i18n } = useTranslation();
-
+  
   const { activeServerId, activeUniversityId, activeChannelId, setActiveChannelId, setActiveChannelName, pinnedServers, togglePinServer, setShowAuthModal } = useApp() as any;
 
   const { user, isLoaded } = useUser();
   const isLoggedIn = isLoaded && user;
+
+  // 👇 STATE CHỐNG CHỚP LỖI SSR CHO CÁI PORTAL 👇
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
@@ -95,8 +101,8 @@ export default function ChannelSidebar() {
   const currentWorkspace = isUniversity ? universities?.find(u => u._id === activeUniversityId) : myServers?.find(s => s._id === activeServerId);
   const isOwner = activeServerId && currentWorkspace && ('creatorId' in currentWorkspace) && currentWorkspace.creatorId === currentUser?._id;
 
-  const stones = (currentWorkspace && 'totalStones' in currentWorkspace)
-  ? (currentWorkspace.totalStones as number)
+  const stones = (currentWorkspace && 'totalStones' in currentWorkspace) 
+  ? (currentWorkspace.totalStones as number) 
   : 0;
   let serverLevel = 0;
   for (let i = LEVEL_REQUIREMENTS.length - 1; i >= 0; i--) {
@@ -162,11 +168,11 @@ export default function ChannelSidebar() {
       <div className="relative flex items-center justify-between h-14 px-3 border-b border-gray-200 shadow-sm bg-white">
         {isUniversity ? (
           <div className="flex items-center gap-1.5 flex-1 min-w-0 font-bold text-[15px] py-1.5 px-2 text-left text-gray-800 cursor-default">
-            <span className="truncate">{currentWorkspace?.name || t('server.choose_workspace')}</span>
+            <span className="truncate">{currentWorkspace ? t(`fixed_servers.${currentWorkspace.name}`, { defaultValue: currentWorkspace.name }) : t('server.choose_workspace')}</span>
           </div>
         ) : (
           <button onClick={() => setShowServerMenu(!showServerMenu)} className="flex items-center gap-1.5 flex-1 min-w-0 font-bold text-[15px] hover:bg-gray-50 py-1.5 px-2 rounded-md transition-colors text-left">
-            <span className="truncate">{currentWorkspace?.name || t('server.choose_workspace')}</span>
+            <span className="truncate">{currentWorkspace ? t(`fixed_servers.${currentWorkspace.name}`, { defaultValue: currentWorkspace.name }) : t('server.choose_workspace')}</span>
             <ChevronDown className={`w-4 h-4 shrink-0 text-gray-500 transition-transform ${showServerMenu ? 'rotate-180' : ''}`} />
           </button>
         )}
@@ -232,7 +238,7 @@ export default function ChannelSidebar() {
             <div key={channel._id} className={`w-full flex items-center justify-between px-2 py-[6px] rounded-md transition-colors group/channel ${isActive ? 'bg-[#e3e5e8] text-gray-900' : 'hover:bg-[#e3e5e8]/50'}`}>
               <button onClick={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} className={`flex items-center flex-1 text-left min-w-0 ${isActive ? 'font-semibold' : 'text-gray-600 hover:text-gray-800'}`}>
                 <svg className="w-5 h-5 opacity-60 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
-                <span className="text-[15px] truncate flex-1">{channel.name}</span>
+                <span className="text-[15px] truncate flex-1">{t(`fixed_channels.${channel.name}`, { defaultValue: channel.name })}</span>
                 {(channel as any).isAnonymous && <span className="ml-1 text-xs shrink-0" title={t('common.anonymous')}>🎭</span>}
               </button>
               {isOwner && channel.name !== 'đại-sảnh' && (
@@ -247,16 +253,14 @@ export default function ChannelSidebar() {
         {groups.map(group => {
           const isCollapsed = collapsedGroups[group._id];
           const childChannels = visibleChannels.filter((c: any) => c.parentId === group._id);
-
-          // 👇 ĐÃ XÓA DÒNG if (childChannels.length === 0) return null; Ở ĐÂY 👇
-          // Danh mục sẽ luôn được hiển thị dù chưa có kênh nào.
+          if (childChannels.length === 0) return null;
 
           return (
             <div key={group._id} className="pt-3">
               <div className="flex items-center justify-between px-1 mb-1 group/category">
                 <button onClick={() => toggleGroup(group._id)} className="flex items-center gap-1 text-xs font-bold text-gray-500 uppercase tracking-wider hover:text-gray-800 transition-colors flex-1 text-left min-w-0">
                   <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-                  <span className="truncate">{group.name}</span>
+                  <span className="truncate">{t(`fixed_channels.${group.name}`, { defaultValue: group.name })}</span>
                 </button>
                 {isOwner && (
                   <div className="opacity-0 group-hover/category:opacity-100 flex items-center transition-opacity shrink-0">
@@ -273,7 +277,7 @@ export default function ChannelSidebar() {
                       <div key={channel._id} className={`w-full flex items-center justify-between px-2 py-[6px] rounded-md transition-colors group/channel ${isActive ? 'bg-[#e3e5e8] text-gray-900' : 'hover:bg-[#e3e5e8]/50'}`}>
                         <button onClick={() => { setActiveChannelId(channel._id); setActiveChannelName(channel.name); }} className={`flex items-center flex-1 text-left min-w-0 ${isActive ? 'font-semibold' : 'text-gray-600 hover:text-gray-800'}`}>
                           <svg className="w-5 h-5 opacity-60 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
-                          <span className="text-[15px] truncate flex-1">{channel.name}</span>
+                          <span className="text-[15px] truncate flex-1">{t(`fixed_channels.${channel.name}`, { defaultValue: channel.name })}</span>
                           {(channel as any).isAnonymous && <span className="ml-1 text-xs shrink-0" title={t('common.anonymous')}>🎭</span>}
                         </button>
                         {isOwner && (
@@ -289,13 +293,9 @@ export default function ChannelSidebar() {
         })}
       </div>
 
-      {/* =====================================================================
-          FOOTER: ĐÃ ĐƯỢC THIẾT KẾ LẠI CHO CẢ 2 TRẠNG THÁI (LOGIN / LOGOUT)
-          ===================================================================== */}
       <div className="h-[60px] bg-[#ebecee] flex items-center justify-between px-3 py-1 shrink-0 border-t border-gray-200 relative">
         {isLoggedIn ? (
           <>
-            {/* TRẠNG THÁI ĐÃ ĐĂNG NHẬP: HIỆN HỒ SƠ & CÀI ĐẶT */}
             <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 flex-1 hover:bg-gray-300/50 p-1.5 rounded-md transition-colors min-w-0 text-left">
               <div className="relative shrink-0">
                 <img loading="lazy" src={user?.imageUrl} alt="Avatar" className="w-8 h-8 rounded-full object-cover border border-gray-300" />
@@ -313,7 +313,6 @@ export default function ChannelSidebar() {
           </>
         ) : (
           <>
-            {/* TRẠNG THÁI CHƯA ĐĂNG NHẬP: HIỆN NÚT LOGIN XANH LÁ & CHỌN NGÔN NGỮ */}
             <button onClick={() => setShowAuthModal(true)} className="flex-1 bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold text-[14px] py-2 px-3 rounded-lg transition-colors text-center shadow-sm">
               Đăng nhập
             </button>
@@ -338,19 +337,16 @@ export default function ChannelSidebar() {
         )}
       </div>
 
-      {/* MODALS */}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
-
       {showProfile && currentUser && <UserProfileModal onClose={() => setShowProfile(false)} targetUserId={currentUser._id} />}
-      
       {showServerSettings && currentWorkspace && <ServerSettingsModal onClose={() => setShowServerSettings(false)} workspace={currentWorkspace} />}
       {showModeration && currentWorkspace && <ModerationModal serverId={currentWorkspace._id} onClose={() => setShowModeration(false)} />}
       {activeServerId && <CreateChannelModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} serverId={activeServerId} type={createType} parentId={createParentId} />}
       {showUpgradeModal && currentWorkspace && <UpgradeServerModal channelCount={currentChannelsCount} workspace={currentWorkspace} onClose={() => setShowUpgradeModal(false)} />}
       {showBrowseModal && currentWorkspace && <BrowseChannelsModal serverId={currentWorkspace._id} channels={channels} groups={groups} onClose={() => setShowBrowseModal(false)} />}
 
-      {/* MODAL 2 BƯỚC BÁO CÁO MÁY CHỦ */}
-      {showReportServerModal && (
+      {/* 👇 ĐÃ BỌC PORTAL CHO MODAL BÁO CÁO MÁY CHỦ 👇 */}
+      {mounted && showReportServerModal && createPortal(
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => { setShowReportServerModal(false); setReportStep(1); }}>
           <div className="bg-white rounded-2xl w-full max-w-[450px] p-6 shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-2">
@@ -405,7 +401,8 @@ export default function ChannelSidebar() {
                </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </aside>
   );

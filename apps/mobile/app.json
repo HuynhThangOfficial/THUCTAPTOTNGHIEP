@@ -25,10 +25,12 @@
         "backgroundColor": "#ffffff"
       },
       "permissions": [
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO"
       ],
       "package": "com.huynhthang.konket",
-      "versionCode": 2
+      "versionCode": 3
     },
     "web": {
       "bundler": "metro",
@@ -46,7 +48,16 @@
           "cameraPermission": "The app accesses your camera to let you share them with your friends."
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 35
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

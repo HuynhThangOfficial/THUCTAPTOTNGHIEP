@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react'; // 👈 Thêm useEffect
+import { createPortal } from 'react-dom'; // 👈 IMPORT CHIÊU PORTAL
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { useApp } from '../context/AppContext';
 import { useTranslation } from 'react-i18next';
-// 👇 IMPORT THƯ VIỆN NÉN ẢNH 👇
 import imageCompression from 'browser-image-compression';
 
 interface Props {
@@ -14,8 +14,11 @@ interface Props {
 
 export default function CreateServerModal({ onClose }: Props) {
   const { t } = useTranslation();
-  // 👇 ĐÃ THÊM ĐẦY ĐỦ CÁC HÀM TỪ CONTEXT 👇
   const { setActiveServerId, setActiveUniversityId, setActiveChannelId } = useApp() as any;
+
+  // 👇 STATE CHỐNG LỖI NEXT.JS KHI DÙNG PORTAL 👇
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const currentUser = useQuery(api.users.current);
   const createServer = useMutation(api.university.createServer);
@@ -55,23 +58,19 @@ export default function CreateServerModal({ onClose }: Props) {
       let storageId = undefined;
       
       if (selectedImage) {
-        // 👇 1. CẤU HÌNH NÉN ẢNH AVATAR SERVER MỚI (Ép xuống 100KB) 👇
         const options = {
           maxSizeMB: 0.1, 
           maxWidthOrHeight: 512, 
           useWebWorker: true,
         };
 
-        // 👇 2. BẮT ĐẦU NÉN 👇
         let finalFileToUpload = selectedImage;
         try {
           finalFileToUpload = await imageCompression(selectedImage, options);
-          console.log(`Đã nén Avatar Server mới từ ${selectedImage.size / 1024} KB xuống ${finalFileToUpload.size / 1024} KB`);
         } catch (compressError) {
           console.error("Lỗi nén ảnh tạo Server:", compressError);
         }
 
-        // 👇 3. UPLOAD FILE ĐÃ NÉN LÊN CONVEX 👇
         const postUrl = await generateUploadUrl();
         const result = await fetch(postUrl, {
           method: 'POST',
@@ -89,7 +88,6 @@ export default function CreateServerModal({ onClose }: Props) {
       });
 
       if (result.success && result.serverId) {
-        // 👇 RESET ĐÚNG LOGIC ĐỂ TRÁNH LỖI 👇
         setActiveUniversityId('');
         setActiveChannelId('');
         setActiveServerId(result.serverId);
@@ -104,7 +102,11 @@ export default function CreateServerModal({ onClose }: Props) {
     }
   };
 
-  return (
+  // Đợi render xong client mới nhả Portal ra
+  if (!mounted) return null;
+
+  // 👇 GÓI TOÀN BỘ UI VÀO BIẾN ĐỂ BẮN PORTAL 👇
+  const modalContent = (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden">
         <div className="text-center pt-8 px-6 pb-4">
@@ -148,4 +150,7 @@ export default function CreateServerModal({ onClose }: Props) {
       </div>
     </div>
   );
+
+  // 👇 RA LỆNH BẮN PORTAL 👇
+  return createPortal(modalContent, document.body);
 }

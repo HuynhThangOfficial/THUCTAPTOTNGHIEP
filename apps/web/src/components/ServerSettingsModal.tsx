@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react'; // 👈 Thêm useEffect
+import { createPortal } from 'react-dom'; // 👈 IMPORT PORTAL
 import { useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import ModerationModal from './ModerationModal';
 import InviteFriendsModal from './InviteFriendsModal';
-// 👇 IMPORT THƯ VIỆN NÉN ẢNH 👇
 import imageCompression from 'browser-image-compression';
 
 interface Props {
@@ -19,14 +19,17 @@ export default function ServerSettingsModal({ onClose, workspace }: Props) {
   const { t } = useTranslation();
   const { setActiveServerId, setActiveUniversityId } = useApp() as any;
 
+  // 👇 STATE CHỐNG CHỚP LỖI SSR KHI DÙNG PORTAL 👇
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const [editName, setEditName] = useState(workspace?.name || '');
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [imagePreview, setImagePreview] = useState<string | null>(workspace?.icon || null);
-  const [isUploadingImage, setIsUploadingImage] = useState(false); // Thêm state loading cho ảnh
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
-  // STATE BẬT TẮT CÁC MODAL CON
   const [showModeration, setShowModeration] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
 
@@ -35,8 +38,6 @@ export default function ServerSettingsModal({ onClose, workspace }: Props) {
   const updateServer = useMutation(api.university.updateServer);
   const deleteServer = useMutation(api.university.deleteServer);
   const generateUploadUrl = useMutation(api.users.generateUploadUrl);
-
-  if (!workspace) return null;
 
   const handleSaveName = async () => {
     if (!editName.trim() || editName === workspace.name) return;
@@ -55,28 +56,23 @@ export default function ServerSettingsModal({ onClose, workspace }: Props) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setImagePreview(URL.createObjectURL(file)); // Hiển thị tạm ảnh gốc lên màn hình
+    setImagePreview(URL.createObjectURL(file)); 
     setIsUploadingImage(true);
 
     try {
-      // 👇 1. CẤU HÌNH NÉN AVATAR SERVER (Ép xuống dưới 100KB, kích thước 512px) 👇
       const options = {
         maxSizeMB: 0.1, 
         maxWidthOrHeight: 512, 
         useWebWorker: true,
       };
 
-      // 👇 2. BẮT ĐẦU NÉN 👇
       let finalFileToUpload = file;
       try {
         finalFileToUpload = await imageCompression(file, options);
-        console.log(`Đã nén Avatar Server từ ${file.size / 1024} KB xuống ${finalFileToUpload.size / 1024} KB`);
       } catch (compressError) {
         console.error("Lỗi nén ảnh Server:", compressError);
-        // Lỗi thì dùng file gốc
       }
 
-      // 👇 3. UPLOAD FILE ĐÃ NÉN 👇
       const postUrl = await generateUploadUrl();
       const result = await fetch(postUrl, { 
         method: "POST", 
@@ -109,7 +105,10 @@ export default function ServerSettingsModal({ onClose, workspace }: Props) {
     }
   };
 
-  return (
+  if (!workspace || !mounted) return null;
+
+  // 👇 GÓI VÀO BIẾN ĐỂ BẮN PORTAL 👇
+  const modalContent = (
     <>
       <div className="fixed inset-0 z-[99990] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
         <div className="bg-[#f2f2f7] w-full max-w-[420px] rounded-2xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden min-h-[550px]" onClick={(e) => e.stopPropagation()}>
@@ -130,7 +129,6 @@ export default function ServerSettingsModal({ onClose, workspace }: Props) {
                 ) : (
                   <span className="text-2xl font-bold text-white uppercase">{workspace.name.charAt(0)}</span>
                 )}
-                {/* Thêm biểu tượng quay quay lúc đang upload */}
                 {isUploadingImage && (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="animate-spin w-6 h-6 border-2 border-white border-t-transparent rounded-full"></div>
@@ -175,4 +173,6 @@ export default function ServerSettingsModal({ onClose, workspace }: Props) {
       {showInviteModal && <InviteFriendsModal serverId={workspace._id} onClose={() => setShowInviteModal(false)} />}
     </>
   );
+
+  return createPortal(modalContent, document.body);
 }
