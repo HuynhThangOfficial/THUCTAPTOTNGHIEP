@@ -157,7 +157,7 @@ export default function RegisterScreen() {
         {step === 1 && (
           <View style={styles.stepContainer}>
             <View style={styles.logoContainer}>
-              <Image source={require('@/assets/images/KonKet-logo.png')} style={{width: 160, height: 60}} resizeMode="contain" />
+              <Image source={require('@/assets/images/konket-logo.png')} style={{width: 160, height: 60}} resizeMode="contain" />
             </View>
             <Text style={styles.title}>{t('register.create_account')}</Text>
             <Text style={styles.subtitle}>{t('register.account_desc')}</Text>

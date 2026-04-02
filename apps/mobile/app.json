@@ -30,7 +30,7 @@
         "android.permission.READ_MEDIA_VIDEO"
       ],
       "package": "com.huynhthang.konket",
-      "versionCode": 3
+      "versionCode": 4
     },
     "web": {
       "bundler": "metro",
