@@ -399,6 +399,7 @@
     "shortcut_redo": "Đã làm lại (Redo)",
     "shortcut_select_all": "Đã chọn toàn bộ",
     "shortcut_del_word": "Đã xóa một từ",
+    "shortcut_find": "Đã mở ô tìm kiếm",
     "ctx_cut": "Cắt",
     "ctx_copy": "Sao chép",
     "ctx_paste": "Dán"

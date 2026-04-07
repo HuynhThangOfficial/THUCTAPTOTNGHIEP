@@ -399,6 +399,7 @@
     "shortcut_redo": "已重做",
     "shortcut_select_all": "已全选",
     "shortcut_del_word": "已删除前一个词",
+    "shortcut_find": "已打开搜索框",
     "ctx_cut": "剪切",
     "ctx_copy": "复制",
     "ctx_paste": "粘贴"

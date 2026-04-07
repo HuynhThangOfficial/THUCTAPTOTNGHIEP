@@ -289,11 +289,9 @@ const ChatRoom = () => {
     setLastCtrlPress(now);
   };
 
-  // 👇 BỘ QUẢN LÝ LỊCH SỬ ĐỒNG BỘ TRUNG TÂM (CENTRALIZED HISTORY MANAGER) 👇
   const saveToHistoryAndSetText = (newText: string) => {
     let newHistory = textHistory.slice(0, historyIndex + 1);
 
-    // Đảm bảo trạng thái chữ hiện tại cũng được lưu trước khi bị thay đổi bởi Cắt/Dán
     if (newHistory[newHistory.length - 1] !== text) {
        newHistory.push(text);
     }
@@ -335,7 +333,7 @@ const ChatRoom = () => {
          const newBefore = lastSpaceIndex === -1 ? '' : textBeforeCursor.substring(0, lastSpaceIndex + 1);
 
          updatedText = newBefore + textAfterCursor;
-         saveToHistoryAndSetText(updatedText); // GỌI HÀM LƯU LỊCH SỬ
+         saveToHistoryAndSetText(updatedText);
          Toast.show(t('chat.shortcut_del_word'));
       } else {
          const char = typedChar.charAt(0);
@@ -344,7 +342,7 @@ const ChatRoom = () => {
              const clipboardContent = await Clipboard.getStringAsync();
              if (clipboardContent) {
                 updatedText = text.substring(0, minPos) + clipboardContent + text.substring(maxPos);
-                saveToHistoryAndSetText(updatedText); // GỌI HÀM LƯU LỊCH SỬ
+                saveToHistoryAndSetText(updatedText);
                 Toast.show(t('chat.shortcut_pasted'));
              }
              break;
@@ -364,11 +362,11 @@ const ChatRoom = () => {
                    await Clipboard.setStringAsync(text);
                    updatedText = '';
                 }
-                saveToHistoryAndSetText(updatedText); // GỌI HÀM LƯU LỊCH SỬ
+                saveToHistoryAndSetText(updatedText);
                 Toast.show(t('chat.shortcut_cut'));
              }
              break;
-           case 'z': // UNDO KHÔNG LƯU VÀO HISTORY MỚI
+           case 'z':
              if (historyIndex > 0) {
                const newIndex = historyIndex - 1;
                setHistoryIndex(newIndex);
@@ -376,7 +374,7 @@ const ChatRoom = () => {
                Toast.show(t('chat.shortcut_undo'));
              }
              break;
-           case 'y': // REDO KHÔNG LƯU VÀO HISTORY MỚI
+           case 'y':
              if (historyIndex < textHistory.length - 1) {
                const newIndex = historyIndex + 1;
                setHistoryIndex(newIndex);
@@ -388,6 +386,12 @@ const ChatRoom = () => {
              setForceSelection({ start: 0, end: text.length });
              setTimeout(() => setForceSelection(undefined), 100);
              Toast.show(t('chat.shortcut_select_all'));
+             break;
+           case 'f':
+           case 'g':
+             setIsSearching(true);
+             setSearchQuery('');
+             Toast.show(t('chat.shortcut_find', {defaultValue: 'Đã mở ô tìm kiếm'}));
              break;
            default:
              if (char) Toast.show(`Ctrl + ${char.toUpperCase()} ` + t('chat.shortcut_unsupported'));
@@ -401,7 +405,6 @@ const ChatRoom = () => {
 
     setText(newText);
 
-    // Lưu lịch sử khi gõ phím cách hoặc dán một đoạn text dài
     if (Math.abs(newText.length - text.length) > 1 || newText.endsWith(' ') || newText.endsWith('\n')) {
        let newHistory = textHistory.slice(0, historyIndex + 1);
        if (newHistory[newHistory.length - 1] !== newText) {
@@ -422,7 +425,6 @@ const ChatRoom = () => {
 
     await send({ conversationId: id as Id<'conversations'>, content: text, replyToMessageId: replyingTo?._id });
 
-    // Gửi xong thì xóa sạch bộ nhớ gõ
     setText('');
     setTextHistory(['']);
     setHistoryIndex(0);
@@ -440,7 +442,7 @@ const ChatRoom = () => {
       case 'cut':
         await Clipboard.setStringAsync(selectedText);
         updatedText = text.substring(0, minPos) + text.substring(maxPos);
-        saveToHistoryAndSetText(updatedText); // GỌI HÀM LƯU LỊCH SỬ
+        saveToHistoryAndSetText(updatedText);
         Toast.show(t('chat.shortcut_cut'));
         setShowCtxMenu(false);
         break;
@@ -452,7 +454,7 @@ const ChatRoom = () => {
       case 'paste':
         const clip = await Clipboard.getStringAsync();
         updatedText = text.substring(0, minPos) + clip + text.substring(maxPos);
-        saveToHistoryAndSetText(updatedText); // GỌI HÀM LƯU LỊCH SỬ
+        saveToHistoryAndSetText(updatedText);
         Toast.show(t('chat.shortcut_pasted'));
         setShowCtxMenu(false);
         break;
@@ -756,7 +758,7 @@ const ChatRoom = () => {
               <TextInput
                 ref={inputRef}
                 style={styles.input}
-                placeholder={ctrlState !== 'off' ? "z, a, c, v, x..." : t('chat.input_placeholder')}
+                placeholder={ctrlState !== 'off' ? "z, a, c, v, x, f, g..." : t('chat.input_placeholder')}
                 value={text}
                 onChangeText={handleTextChange}
                 onFocus={() => setIsGalleryVisible(false)}

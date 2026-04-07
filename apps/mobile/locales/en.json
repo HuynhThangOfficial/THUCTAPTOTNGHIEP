@@ -399,6 +399,7 @@
     "shortcut_redo": "Redo applied",
     "shortcut_select_all": "Selected all",
     "shortcut_del_word": "Deleted previous word",
+    "shortcut_find": "Search opened",
     "ctx_cut": "Cut",
     "ctx_copy": "Copy",
     "ctx_paste": "Paste"
