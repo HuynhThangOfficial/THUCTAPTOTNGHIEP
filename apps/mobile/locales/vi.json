@@ -388,7 +388,20 @@
     "sys_media_added": "Đã thêm {{count}} ảnh",
     "sys_media_removed": "Đã xóa {{count}} ảnh",
     "sys_media_changed": "Đã thay đổi {{count}} ảnh",
-    "sys_media_updated": "Đã cập nhật danh sách ảnh"
+    "sys_media_updated": "Đã cập nhật danh sách ảnh",
+    "sys_pinned": "{{name}} đã ghim một tin nhắn",
+    "sys_unpinned": "{{name}} đã bỏ ghim một tin nhắn",
+    "shortcut_pasted": "Đã dán nội dung",
+    "shortcut_copied": "Đã sao chép",
+    "shortcut_cut": "Đã cắt nội dung",
+    "shortcut_undo": "Đã hoàn tác (Undo)",
+    "shortcut_unsupported": "Chưa hỗ trợ phím tắt này",
+    "shortcut_redo": "Đã làm lại (Redo)",
+    "shortcut_select_all": "Đã chọn toàn bộ",
+    "shortcut_del_word": "Đã xóa một từ",
+    "ctx_cut": "Cắt",
+    "ctx_copy": "Sao chép",
+    "ctx_paste": "Dán"
   },
   "notifications": {
     "title": "Thông báo",

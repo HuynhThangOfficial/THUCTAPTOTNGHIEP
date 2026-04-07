@@ -388,7 +388,20 @@
     "sys_media_added": "Added {{count}} photos",
     "sys_media_removed": "Removed {{count}} photos",
     "sys_media_changed": "Changed {{count}} photos",
-    "sys_media_updated": "Updated media list"
+    "sys_media_updated": "Updated media list",
+    "sys_pinned": "{{name}} pinned a message",
+    "sys_unpinned": "{{name}} unpinned a message",
+    "shortcut_pasted": "Pasted",
+    "shortcut_copied": "Copied to clipboard",
+    "shortcut_cut": "Cut to clipboard",
+    "shortcut_undo": "Undo applied",
+    "shortcut_unsupported": "Shortcut not supported yet",
+    "shortcut_redo": "Redo applied",
+    "shortcut_select_all": "Selected all",
+    "shortcut_del_word": "Deleted previous word",
+    "ctx_cut": "Cut",
+    "ctx_copy": "Copy",
+    "ctx_paste": "Paste"
   },
   "notifications": {
     "title": "Notifications",

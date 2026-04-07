@@ -218,7 +218,9 @@ const MessagesScreen = () => {
             <TouchableOpacity style={styles.chatRow} onPress={() => router.push(`/(auth)/chat/${item._id}` as any)}>
               <Image source={{ uri: getValidAvatar(otherUser?.imageUrl) }} style={styles.chatAvatar} />
               <View style={styles.chatInfo}>
-                <Text style={styles.chatName}>{otherUser ? `${otherUser.first_name} ${otherUser.last_name}` : 'User'}</Text>
+                <Text style={styles.chatName}>
+                  {otherUser ? [otherUser.first_name, otherUser.last_name].filter(Boolean).join(' ') : 'User'}
+                </Text>
                 <View style={styles.messageRow}>
                   <Text style={styles.lastMessage} numberOfLines={1}>{item.lastMessageText || t('messages.sent_a_message')}</Text>
                   <Text style={styles.dot}> · </Text>

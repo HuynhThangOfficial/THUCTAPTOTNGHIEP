@@ -4,7 +4,18 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="50063076-d264-4a4c-99c2-3364cbb125af" name="Changes" comment="fix lỗi" />
+    <list default="true" id="50063076-d264-4a4c-99c2-3364cbb125af" name="Changes" comment="fix lỗi">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/mobile/app/(auth)/(tabs)/messages.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/apps/mobile/app/(auth)/(tabs)/messages.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/mobile/app/(auth)/chat/[id].tsx" beforeDir="false" afterPath="$PROJECT_DIR$/apps/mobile/app/(auth)/chat/[id].tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/mobile/app/(public)/register.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/apps/mobile/app/(public)/register.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/mobile/locales/en.json" beforeDir="false" afterPath="$PROJECT_DIR$/apps/mobile/locales/en.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/mobile/locales/vi.json" beforeDir="false" afterPath="$PROJECT_DIR$/apps/mobile/locales/vi.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/mobile/locales/zh.json" beforeDir="false" afterPath="$PROJECT_DIR$/apps/mobile/locales/zh.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apps/mobile/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/apps/mobile/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/convex/auth.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/convex/auth.config.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/convex/schema.ts" beforeDir="false" afterPath="$PROJECT_DIR$/convex/schema.ts" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -75,7 +86,15 @@
       <option name="project" value="LOCAL" />
       <updated>1774757787855</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="fix lỗi">
+      <option name="closed" value="true" />
+      <created>1774758143061</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1774758143061</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">

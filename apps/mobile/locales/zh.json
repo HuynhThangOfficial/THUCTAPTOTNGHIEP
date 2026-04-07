@@ -388,7 +388,20 @@
     "sys_media_added": "已添加 {{count}} 张照片",
     "sys_media_removed": "已删除 {{count}} 张照片",
     "sys_media_changed": "已更改 {{count}} 张照片",
-    "sys_media_updated": "已更新媒体列表"
+    "sys_media_updated": "已更新媒体列表",
+    "sys_pinned": "{{name}} 置顶了一条消息",
+    "sys_unpinned": "{{name}} 取消了置顶消息",
+    "shortcut_pasted": "已粘贴",
+    "shortcut_copied": "已复制",
+    "shortcut_cut": "已剪切",
+    "shortcut_undo": "已撤销",
+    "shortcut_unsupported": "暂不支持此快捷键",
+    "shortcut_redo": "已重做",
+    "shortcut_select_all": "已全选",
+    "shortcut_del_word": "已删除前一个词",
+    "ctx_cut": "剪切",
+    "ctx_copy": "复制",
+    "ctx_paste": "粘贴"
   },
   "notifications": {
     "title": "通知",

@@ -14,7 +14,6 @@ import Toast from 'react-native-root-toast';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { useTranslation } from 'react-i18next';
-// 👇 THÊM BỘ NÉN ẢNH CỦA EXPO 👇
 import * as ImageManipulator from 'expo-image-manipulator';
 
 // --- CÁC HÀM TIỆN ÍCH ---
@@ -38,7 +37,7 @@ const formatTimeDivider = (timestamp: number, t: any) => {
   const timeStr = `${hours}:${minutes}`;
 
   if (date.toDateString() === now.toDateString()) return timeStr;
-  
+
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
   if (date.toDateString() === yesterday.toDateString()) return t('chat.yesterday_time', { time: timeStr });
@@ -106,27 +105,25 @@ const SharedPostPreview = ({ postId }: { postId: string }) => {
         <Text style={styles.sharedPostUsername}>{displayName}</Text>
         <Text style={styles.sharedPostTime}>• {formatTimeAgo(thread._creationTime, t)}</Text>
       </View>
-      
-      <Text style={styles.sharedPostContent} numberOfLines={3}>
-        {thread.content}
-      </Text>
-      
+
+      <Text style={styles.sharedPostContent} numberOfLines={3}>{thread.content}</Text>
+
       <View style={styles.sharedPostStats}>
         <View style={styles.sharedStatItem}>
           <Ionicons name={thread.isLiked ? "heart" : "heart-outline"} size={15} color={thread.isLiked ? "red" : "gray"} />
           <Text style={[styles.sharedStatText, thread.isLiked && { color: "red" }]}>{thread.likeCount || 0}</Text>
         </View>
-        
+
         <View style={styles.sharedStatItem}>
           <Ionicons name="chatbubble-outline" size={15} color="gray" />
           <Text style={styles.sharedStatText}>{thread.commentCount || 0}</Text>
         </View>
-        
+
         <View style={styles.sharedStatItem}>
           <Ionicons name={thread.isReposted ? "repeat" : "repeat-outline"} size={17} color={thread.isReposted ? "#00BA7C" : "gray"} />
           <Text style={[styles.sharedStatText, thread.isReposted && { color: "#00BA7C" }]}>{thread.retweetCount || 0}</Text>
         </View>
-        
+
         <View style={styles.sharedStatItem}>
           <Feather name="send" size={14} color="gray" />
           <Text style={styles.sharedStatText}>{thread.shareCount || 0}</Text>
@@ -137,20 +134,20 @@ const SharedPostPreview = ({ postId }: { postId: string }) => {
 };
 
 const ChatRoom = () => {
-  const { id } = useLocalSearchParams(); 
+  const { id } = useLocalSearchParams();
   const { userProfile } = useUserProfile();
   const router = useRouter();
   const { top, bottom } = useSafeAreaInsets();
   const { t } = useTranslation();
-  
+
   const [text, setText] = useState('');
   const [replyingTo, setReplyingTo] = useState<any>(null);
-  
+
   const [activeMessage, setActiveMessage] = useState<any>(null);
   const [isMeActive, setIsMeActive] = useState(false);
   const [menuStep, setMenuStep] = useState<'main' | 'delete' | null>(null);
   const [isPinnedExpanded, setIsPinnedExpanded] = useState(false);
-  
+
   const [viewerImage, setViewerImage] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -158,13 +155,28 @@ const ChatRoom = () => {
   const [recentPhotos, setRecentPhotos] = useState<MediaLibrary.Asset[]>([]);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
 
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const [ctrlState, setCtrlState] = useState<'off' | 'active' | 'locked'>('off');
+  const [lastCtrlPress, setLastCtrlPress] = useState(0);
+  const [textHistory, setTextHistory] = useState<string[]>(['']);
+  const [historyIndex, setHistoryIndex] = useState(0);
+
+  const [inputSelection, setInputSelection] = useState({ start: 0, end: 0 });
+  const [forceSelection, setForceSelection] = useState<{start: number, end: number} | undefined>(undefined);
+
+  const [showCtxMenu, setShowCtxMenu] = useState(false);
+  const [hasClipboardText, setHasClipboardText] = useState(false);
+
   const flatListRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
 
   const messages = useQuery(api.chat.getMessages, { conversationId: id as Id<'conversations'> });
   const otherUser = useQuery(api.chat.getConversationInfo, { conversationId: id as Id<'conversations'> });
   // @ts-ignore
   const rawConvo = useQuery(api.chat.getRawConversation, { conversationId: id as Id<'conversations'> });
-  
+
   const send = useMutation(api.chat.sendMessage);
   const unsend = useMutation(api.chat.unsendMessage);
   const toggleReaction = useMutation(api.chat.toggleReaction);
@@ -172,11 +184,21 @@ const ChatRoom = () => {
   const updateTyping = useMutation(api.chat.setTypingStatus);
   const togglePin = useMutation(api.chat.togglePinMessage);
   const deleteForSelfApi = useMutation(api.chat.deleteForSelf);
-  const generateUploadUrl = useMutation(api.chat.generateUploadUrl); 
+  const generateUploadUrl = useMutation(api.chat.generateUploadUrl);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const filteredMessages = messages?.filter(m => !m.deletedBy?.includes(userProfile?._id as Id<"users">)) || [];
-  const reversedMessages = [...filteredMessages].reverse(); 
+  const reversedMessages = [...filteredMessages].reverse();
+
+  let displayMessages = reversedMessages;
+  if (isSearching && searchQuery.trim()) {
+    displayMessages = reversedMessages.filter(m =>
+      !m.imageUrl &&
+      !m.isSystem &&
+      !m.isDeleted &&
+      m.content.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }
 
   const pinnedMessages = filteredMessages.filter(m => m.isPinned && !m.isDeleted && !m.isSystem);
 
@@ -185,6 +207,20 @@ const ChatRoom = () => {
       markConvAsRead({ conversationId: id as Id<'conversations'> });
     }
   }, [messages?.length, id]);
+
+  useEffect(() => {
+    const checkClipboard = async () => {
+      const clipboardString = await Clipboard.getStringAsync();
+      setHasClipboardText(!!clipboardString);
+    };
+
+    if (inputSelection.start !== inputSelection.end) {
+      checkClipboard();
+      setShowCtxMenu(true);
+    } else {
+      setShowCtxMenu(false);
+    }
+  }, [inputSelection]);
 
   const loadPhotos = async () => {
     const { status } = await MediaLibrary.requestPermissionsAsync();
@@ -204,14 +240,12 @@ const ChatRoom = () => {
     else setSelectedPhotos([...selectedPhotos, uri]);
   };
 
-  // 👇 ĐÃ THÊM LOGIC NÉN ẢNH BẰNG EXPO-IMAGE-MANIPULATOR 👇
   const uploadSingleImage = async (uri: string) => {
     const compressedImage = await ImageManipulator.manipulateAsync(
       uri,
       [{ resize: { width: 1080 } }],
       { compress: 0.4, format: ImageManipulator.SaveFormat.JPEG }
     );
-
     const postUrl = await generateUploadUrl();
     const response = await fetch(compressedImage.uri);
     const blob = await response.blob();
@@ -221,7 +255,6 @@ const ChatRoom = () => {
   };
 
   const handleTakeAndSendPhoto = async () => {
-    // 👇 CHỈNH LẠI CHẤT LƯỢNG CAMERA CÒN 0.4 👇
     const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.4 });
     if (!result.canceled) {
       setIsGalleryVisible(false); setIsUploading(true);
@@ -236,7 +269,7 @@ const ChatRoom = () => {
   const handleSendSelectedImages = async () => {
     if (selectedPhotos.length === 0) return;
     setIsGalleryVisible(false); setIsUploading(true);
-    const photosToSend = [...selectedPhotos]; setSelectedPhotos([]); 
+    const photosToSend = [...selectedPhotos]; setSelectedPhotos([]);
     try {
       for (const uri of photosToSend) {
         const storageId = await uploadSingleImage(uri);
@@ -246,8 +279,139 @@ const ChatRoom = () => {
     } catch (error) {} finally { setIsUploading(false); }
   };
 
-  const handleTextChange = (newText: string) => {
+  const handleCtrlPress = () => {
+    const now = Date.now();
+    if (now - lastCtrlPress < 300) {
+      setCtrlState('locked');
+    } else {
+      setCtrlState(prev => prev === 'off' ? 'active' : 'off');
+    }
+    setLastCtrlPress(now);
+  };
+
+  // 👇 BỘ QUẢN LÝ LỊCH SỬ ĐỒNG BỘ TRUNG TÂM (CENTRALIZED HISTORY MANAGER) 👇
+  const saveToHistoryAndSetText = (newText: string) => {
+    let newHistory = textHistory.slice(0, historyIndex + 1);
+
+    // Đảm bảo trạng thái chữ hiện tại cũng được lưu trước khi bị thay đổi bởi Cắt/Dán
+    if (newHistory[newHistory.length - 1] !== text) {
+       newHistory.push(text);
+    }
+
+    if (newHistory[newHistory.length - 1] !== newText) {
+       newHistory.push(newText);
+    }
+
+    if (newHistory.length > 30) newHistory = newHistory.slice(newHistory.length - 30);
+
+    setTextHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
     setText(newText);
+  };
+
+  const handleTextChange = async (newText: string) => {
+    if (ctrlState !== 'off') {
+      const { start, end } = inputSelection;
+      const minPos = Math.min(start, end);
+      const maxPos = Math.max(start, end);
+
+      let typedChar = '';
+
+      if (newText.length < text.length && minPos === maxPos) {
+         typedChar = 'backspace';
+      } else if (newText.length === text.length - (maxPos - minPos)) {
+         typedChar = 'backspace';
+      } else {
+         const addedLength = newText.length - text.length + (maxPos - minPos);
+         typedChar = newText.slice(minPos, minPos + addedLength).toLowerCase();
+      }
+
+      let updatedText = text;
+
+      if (typedChar === 'backspace') {
+         const textBeforeCursor = text.substring(0, minPos);
+         const textAfterCursor = text.substring(maxPos);
+         const lastSpaceIndex = textBeforeCursor.trimEnd().lastIndexOf(' ');
+         const newBefore = lastSpaceIndex === -1 ? '' : textBeforeCursor.substring(0, lastSpaceIndex + 1);
+
+         updatedText = newBefore + textAfterCursor;
+         saveToHistoryAndSetText(updatedText); // GỌI HÀM LƯU LỊCH SỬ
+         Toast.show(t('chat.shortcut_del_word'));
+      } else {
+         const char = typedChar.charAt(0);
+         switch (char) {
+           case 'v':
+             const clipboardContent = await Clipboard.getStringAsync();
+             if (clipboardContent) {
+                updatedText = text.substring(0, minPos) + clipboardContent + text.substring(maxPos);
+                saveToHistoryAndSetText(updatedText); // GỌI HÀM LƯU LỊCH SỬ
+                Toast.show(t('chat.shortcut_pasted'));
+             }
+             break;
+           case 'c':
+             if (text) {
+                const copyText = minPos !== maxPos ? text.substring(minPos, maxPos) : text;
+                await Clipboard.setStringAsync(copyText);
+                Toast.show(t('chat.shortcut_copied'));
+             }
+             break;
+           case 'x':
+             if (text) {
+                if (minPos !== maxPos) {
+                   await Clipboard.setStringAsync(text.substring(minPos, maxPos));
+                   updatedText = text.substring(0, minPos) + text.substring(maxPos);
+                } else {
+                   await Clipboard.setStringAsync(text);
+                   updatedText = '';
+                }
+                saveToHistoryAndSetText(updatedText); // GỌI HÀM LƯU LỊCH SỬ
+                Toast.show(t('chat.shortcut_cut'));
+             }
+             break;
+           case 'z': // UNDO KHÔNG LƯU VÀO HISTORY MỚI
+             if (historyIndex > 0) {
+               const newIndex = historyIndex - 1;
+               setHistoryIndex(newIndex);
+               setText(textHistory[newIndex]);
+               Toast.show(t('chat.shortcut_undo'));
+             }
+             break;
+           case 'y': // REDO KHÔNG LƯU VÀO HISTORY MỚI
+             if (historyIndex < textHistory.length - 1) {
+               const newIndex = historyIndex + 1;
+               setHistoryIndex(newIndex);
+               setText(textHistory[newIndex]);
+               Toast.show(t('chat.shortcut_redo'));
+             }
+             break;
+           case 'a':
+             setForceSelection({ start: 0, end: text.length });
+             setTimeout(() => setForceSelection(undefined), 100);
+             Toast.show(t('chat.shortcut_select_all'));
+             break;
+           default:
+             if (char) Toast.show(`Ctrl + ${char.toUpperCase()} ` + t('chat.shortcut_unsupported'));
+             break;
+         }
+      }
+
+      if (ctrlState === 'active') setCtrlState('off');
+      return;
+    }
+
+    setText(newText);
+
+    // Lưu lịch sử khi gõ phím cách hoặc dán một đoạn text dài
+    if (Math.abs(newText.length - text.length) > 1 || newText.endsWith(' ') || newText.endsWith('\n')) {
+       let newHistory = textHistory.slice(0, historyIndex + 1);
+       if (newHistory[newHistory.length - 1] !== newText) {
+          newHistory.push(newText);
+          if (newHistory.length > 30) newHistory = newHistory.slice(newHistory.length - 30);
+          setTextHistory(newHistory);
+          setHistoryIndex(newHistory.length - 1);
+       }
+    }
+
     updateTyping({ conversationId: id as Id<'conversations'>, isTyping: true });
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => { updateTyping({ conversationId: id as Id<'conversations'>, isTyping: false }); }, 2000);
@@ -255,12 +419,48 @@ const ChatRoom = () => {
 
   const handleSend = async () => {
     if (!text.trim()) return;
+
     await send({ conversationId: id as Id<'conversations'>, content: text, replyToMessageId: replyingTo?._id });
-    setText(''); setReplyingTo(null); updateTyping({ conversationId: id as Id<'conversations'>, isTyping: false });
+
+    // Gửi xong thì xóa sạch bộ nhớ gõ
+    setText('');
+    setTextHistory(['']);
+    setHistoryIndex(0);
+    setReplyingTo(null);
+    updateTyping({ conversationId: id as Id<'conversations'>, isTyping: false });
+  };
+
+  const handleCtxAction = async (action: string) => {
+    const minPos = Math.min(inputSelection.start, inputSelection.end);
+    const maxPos = Math.max(inputSelection.start, inputSelection.end);
+    const selectedText = text.substring(minPos, maxPos);
+    let updatedText = text;
+
+    switch (action) {
+      case 'cut':
+        await Clipboard.setStringAsync(selectedText);
+        updatedText = text.substring(0, minPos) + text.substring(maxPos);
+        saveToHistoryAndSetText(updatedText); // GỌI HÀM LƯU LỊCH SỬ
+        Toast.show(t('chat.shortcut_cut'));
+        setShowCtxMenu(false);
+        break;
+      case 'copy':
+        await Clipboard.setStringAsync(selectedText);
+        Toast.show(t('chat.shortcut_copied'));
+        setShowCtxMenu(false);
+        break;
+      case 'paste':
+        const clip = await Clipboard.getStringAsync();
+        updatedText = text.substring(0, minPos) + clip + text.substring(maxPos);
+        saveToHistoryAndSetText(updatedText); // GỌI HÀM LƯU LỊCH SỬ
+        Toast.show(t('chat.shortcut_pasted'));
+        setShowCtxMenu(false);
+        break;
+    }
   };
 
   const openActionMenu = (item: any, isMe: boolean) => {
-    if (item.isDeleted || item.isSystem) return; 
+    if (item.isDeleted || item.isSystem) return;
     setActiveMessage(item); setIsMeActive(isMe); setMenuStep('main');
   };
 
@@ -282,7 +482,7 @@ const ChatRoom = () => {
   const handleSelectEmoji = async (emoji: string) => { if (!activeMessage) return; await toggleReaction({ messageId: activeMessage._id, emoji }); closeActionMenu(); };
 
   const scrollToMessage = (messageId: string) => {
-    const index = reversedMessages.findIndex(m => m._id === messageId);
+    const index = displayMessages.findIndex(m => m._id === messageId);
     if (index !== -1) { flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 }); setIsPinnedExpanded(false); }
   };
 
@@ -292,23 +492,58 @@ const ChatRoom = () => {
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
       <Stack.Screen options={{ headerShown: false }} />
-      
+
       <View style={[styles.header, { paddingTop: top + 10 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={{top:10, bottom:10, left:10, right:10}}>
+        <TouchableOpacity
+          onPress={() => {
+            if (isSearching) {
+              setIsSearching(false);
+              setSearchQuery('');
+            } else {
+              router.back();
+            }
+          }}
+          style={styles.backBtn}
+          hitSlop={{top:10, bottom:10, left:10, right:10}}
+        >
           <Ionicons name="chevron-back" size={28} color="#000" />
         </TouchableOpacity>
-        {otherUser ? (
-          <View style={styles.headerUserInfo}>
-            <Image source={{ uri: getValidAvatar(otherUser.imageUrl) }} style={styles.headerAvatar} />
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.headerName}>{otherUser.first_name} {otherUser.last_name}</Text>
-              {/* 👇 ĐÃ XÓA TRẠNG THÁI ONLINE VÀ THAY BẰNG @USERNAME 👇 */}
-              {otherUser.username && (
-                <Text style={styles.statusText}>@{otherUser.username}</Text>
-              )}
-            </View>
-          </View>
-        ) : <Text style={styles.headerName}>{t('chat.loading')}</Text>}
+
+        <View style={[styles.headerUserInfo, { flex: 1 }]}>
+          {isSearching ? (
+             <TextInput
+               style={{ flex: 1, backgroundColor: '#f0f0f0', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 20, marginRight: 10, fontSize: 15 }}
+               placeholder={t('messages.search_placeholder', {defaultValue: 'Tìm kiếm tin nhắn...'})}
+               value={searchQuery}
+               onChangeText={setSearchQuery}
+               autoFocus
+             />
+          ) : (
+            otherUser ? (
+              <>
+                <Image source={{ uri: getValidAvatar(otherUser.imageUrl) }} style={styles.headerAvatar} />
+                <View style={styles.headerTextContainer}>
+                  <Text style={styles.headerName}>
+                    {[otherUser.first_name, otherUser.last_name].filter(Boolean).join(' ')}
+                  </Text>
+                  {otherUser.username && (
+                    <Text style={styles.statusText}>@{otherUser.username}</Text>
+                  )}
+                </View>
+              </>
+            ) : <Text style={styles.headerName}>{t('chat.loading')}</Text>
+          )}
+        </View>
+
+        <TouchableOpacity
+          style={{ padding: 5, marginRight: 5 }}
+          onPress={() => {
+            if (isSearching) setSearchQuery('');
+            setIsSearching(!isSearching);
+          }}
+        >
+           <Ionicons name={isSearching ? "close" : "search"} size={24} color="#000" />
+        </TouchableOpacity>
       </View>
 
       {pinnedMessages.length > 0 && (
@@ -324,7 +559,7 @@ const ChatRoom = () => {
               {pinnedMessages.slice().reverse().map(pm => (
                 <TouchableOpacity key={pm._id} onPress={() => scrollToMessage(pm._id)} style={styles.expandedPinnedItem}>
                   <Ionicons name="pin" size={16} color="#888" style={{ marginRight: 10 }} />
-                  <Text numberOfLines={1} style={styles.expandedPinnedContent}>{pm.imageUrl ? t('chat.image_bracket') : pm.content}</Text>
+                  <Text style={styles.expandedPinnedContent} numberOfLines={1}>{pm.imageUrl ? t('chat.image_bracket') : pm.content}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -343,7 +578,7 @@ const ChatRoom = () => {
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#fff' }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <FlatList
           ref={flatListRef}
-          data={reversedMessages}
+          data={displayMessages}
           inverted={true}
           keyExtractor={(item) => item._id}
           contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
@@ -352,8 +587,8 @@ const ChatRoom = () => {
             wait.then(() => { flatListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.5 }); });
           }}
           renderItem={({ item, index }) => {
-            const olderItem = index < reversedMessages.length - 1 ? reversedMessages[index + 1] : null;
-            const newerItem = index > 0 ? reversedMessages[index - 1] : null;
+            const olderItem = index < displayMessages.length - 1 ? displayMessages[index + 1] : null;
+            const newerItem = index > 0 ? displayMessages[index - 1] : null;
 
             const showTimeDivider = !olderItem || (item._creationTime - olderItem._creationTime > 3600000);
             const isFirstInGroup = !olderItem || olderItem.senderId !== item.senderId || (item._creationTime - olderItem._creationTime > 120000) || showTimeDivider;
@@ -362,7 +597,6 @@ const ChatRoom = () => {
             const isSharedPost = item.content && item.content.trim().startsWith('https://konket.app/feed/');
             const postId = isSharedPost ? item.content.trim().split('/').pop() : null;
 
-            // 👇 LOGIC DỊCH TIN NHẮN HỆ THỐNG TỪ BACKEND
             if (item.isSystem) {
               let sysText = item.content;
               if (item.content.startsWith('SYS_PINNED|')) {
@@ -388,7 +622,7 @@ const ChatRoom = () => {
             const isMe = item.senderId === userProfile?._id;
             const repliedMsg = item.replyToMessageId ? messages?.find(m => m._id === item.replyToMessageId) : null;
             const uniqueEmojis = item.reactions ? [...new Set(item.reactions.map((r: any) => r.emoji))] : [];
-            const isLastOverallMessage = index === 0; 
+            const isLastOverallMessage = index === 0;
             const hasReactions = uniqueEmojis.length > 0 && !item.isDeleted;
 
             return (
@@ -400,12 +634,12 @@ const ChatRoom = () => {
                 )}
 
                 <View style={[
-                  styles.bubbleWrapper, 
+                  styles.bubbleWrapper,
                   isMe ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' },
                   { marginBottom: isLastInGroup ? 8 : 2 },
                   hasReactions && { marginBottom: 20 }
                 ]}>
-                  
+
                   {item.isPinned && !item.isDeleted && (
                     <View style={[styles.pinnedBubbleIndicator, isMe ? { marginRight: 5 } : { marginLeft: 5 }]}>
                       <Text style={styles.pinnedBubbleText}>{t('chat.pinned_badge')}</Text>
@@ -414,11 +648,11 @@ const ChatRoom = () => {
                   )}
 
                   <View style={styles.bubbleContainer}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       activeOpacity={0.7}
                       onLongPress={() => openActionMenu(item, isMe)}
                       style={[
-                        styles.bubble, 
+                        styles.bubble,
                         isMe ? styles.myBubble : styles.theirBubble,
                         item.isDeleted && styles.deletedBubble,
                         item.imageUrl && !item.isDeleted && { padding: 4, backgroundColor: isMe ? '#007aff' : '#f0f0f0', borderWidth: 0 },
@@ -443,7 +677,7 @@ const ChatRoom = () => {
                         </TouchableOpacity>
                       ) : (
                         <Text style={{ color: item.isDeleted ? '#888' : (isMe ? '#fff' : '#000'), fontSize: 15, fontStyle: item.isDeleted ? 'italic' : 'normal' }}>
-                          {item.content}
+                           {item.content}
                         </Text>
                       )}
                     </TouchableOpacity>
@@ -484,10 +718,55 @@ const ChatRoom = () => {
         )}
 
         {!isGalleryVisible && (
-          <View style={styles.inputContainer}>
-            <TouchableOpacity style={styles.attachBtn} onPress={toggleGallery}><Ionicons name="image-outline" size={28} color="#007aff" /></TouchableOpacity>
-            <TextInput style={styles.input} placeholder={t('chat.input_placeholder')} value={text} onChangeText={handleTextChange} onFocus={() => setIsGalleryVisible(false)} multiline />
-            <TouchableOpacity style={styles.sendBtn} onPress={handleSend}><Ionicons name="send" size={18} color="#fff" style={{ marginLeft: 2 }} /></TouchableOpacity>
+          <View style={styles.inputContainerWrapper}>
+            {showCtxMenu && (
+              <View style={styles.customContextMenu}>
+                <TouchableOpacity onPress={() => handleCtxAction('cut')} style={styles.ctxBtn}><Text style={styles.ctxText}>{t('chat.ctx_cut', {defaultValue: 'Cắt'})}</Text></TouchableOpacity>
+                <View style={styles.ctxDivider} />
+                <TouchableOpacity onPress={() => handleCtxAction('copy')} style={styles.ctxBtn}><Text style={styles.ctxText}>{t('chat.ctx_copy', {defaultValue: 'Sao chép'})}</Text></TouchableOpacity>
+                {hasClipboardText && (
+                  <>
+                    <View style={styles.ctxDivider} />
+                    <TouchableOpacity onPress={() => handleCtxAction('paste')} style={styles.ctxBtn}><Text style={styles.ctxText}>{t('chat.ctx_paste', {defaultValue: 'Dán'})}</Text></TouchableOpacity>
+                  </>
+                )}
+                <View style={styles.ctxTriangle} />
+              </View>
+            )}
+
+            <View style={styles.inputContainer}>
+              <TouchableOpacity
+                onPress={handleCtrlPress}
+                activeOpacity={0.7}
+                style={[
+                  styles.ctrlBtn,
+                  ctrlState === 'active' && styles.ctrlActive,
+                  ctrlState === 'locked' && styles.ctrlLocked
+                ]}
+              >
+                <Text style={[styles.ctrlBtnText, ctrlState !== 'off' && styles.ctrlTextActive]}>
+                  {ctrlState === 'locked' ? 'CTRL🔒' : 'CTRL'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.attachBtn} onPress={toggleGallery}>
+                  <Ionicons name="image-outline" size={28} color="#007aff" />
+              </TouchableOpacity>
+
+              <TextInput
+                ref={inputRef}
+                style={styles.input}
+                placeholder={ctrlState !== 'off' ? "z, a, c, v, x..." : t('chat.input_placeholder')}
+                value={text}
+                onChangeText={handleTextChange}
+                onFocus={() => setIsGalleryVisible(false)}
+                multiline
+                contextMenuHidden={true}
+                selection={forceSelection}
+                onSelectionChange={(e) => setInputSelection(e.nativeEvent.selection)}
+              />
+              <TouchableOpacity style={styles.sendBtn} onPress={handleSend}><Ionicons name="send" size={18} color="#fff" style={{ marginLeft: 2 }} /></TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -588,7 +867,7 @@ const styles = StyleSheet.create({
   headerAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12 },
   headerTextContainer: { flexDirection: 'column', justifyContent: 'center' },
   headerName: { fontSize: 16, fontWeight: 'bold' },
-  statusText: { fontSize: 12, color: 'gray', marginTop: 2 }, 
+  statusText: { fontSize: 12, color: 'gray', marginTop: 2 },
   pinnedBannerWrapper: { backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#eee', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, elevation: 2, zIndex: 5 },
   pinnedBannerContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
   pinnedIconBg: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
@@ -605,16 +884,16 @@ const styles = StyleSheet.create({
   bubbleWrapper: { marginBottom: 8 },
   bubbleContainer: { position: 'relative', flexDirection: 'row', alignItems: 'center' },
   bubble: { padding: 12, borderRadius: 18, maxWidth: '75%', zIndex: 1 },
-  myBubble: { backgroundColor: '#007aff' }, 
+  myBubble: { backgroundColor: '#007aff' },
   theirBubble: { backgroundColor: '#f0f0f0', borderWidth: 0 },
-  deletedBubble: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#ccc', elevation: 0, shadowOpacity: 0 }, 
+  deletedBubble: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#ccc', elevation: 0, shadowOpacity: 0 },
   sharedPostPreviewCard: {
-    backgroundColor: '#fff', 
+    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 14,
     width: 280,
     borderWidth: 1,
-    borderColor: '#eee', 
+    borderColor: '#eee',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -650,7 +929,7 @@ const styles = StyleSheet.create({
   sharedPostStats: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between', // 👇 ĐÃ SỬA LỖI TẠI ĐÂY 👇
+    justifyContent: 'space-between',
     paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(0,0,0,0.1)'
@@ -673,9 +952,24 @@ const styles = StyleSheet.create({
   messageStatusText: { fontSize: 11, color: 'gray', alignSelf: 'flex-end', paddingRight: 4, marginTop: 2 },
   typingIndicatorContainer: { padding: 10, alignItems: 'flex-start' },
   typingText: { fontSize: 12, color: 'gray', fontStyle: 'italic' },
+
+  inputContainerWrapper: { position: 'relative' },
+  customContextMenu: { position: 'absolute', top: -55, left: '20%', backgroundColor: '#fff', borderRadius: 10, flexDirection: 'row', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 8, zIndex: 9999, paddingHorizontal: 4 },
+  ctxTriangle: { position: 'absolute', bottom: -8, left: '50%', transform: [{translateX: -8}], width: 0, height: 0, borderLeftWidth: 8, borderRightWidth: 8, borderTopWidth: 8, borderStyle: 'solid', backgroundColor: 'transparent', borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#fff' },
+  ctxBtn: { paddingHorizontal: 12, paddingVertical: 10, justifyContent: 'center', alignItems: 'center' },
+  ctxText: { fontSize: 14, color: '#000' },
+  ctxDivider: { width: 1, backgroundColor: '#eee', marginVertical: 6 },
+
   inputContainer: { flexDirection: 'row', padding: 10, paddingBottom: Platform.OS === 'ios' ? 20 : 10, backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#eee', alignItems: 'center' },
-  attachBtn: { marginRight: 10, padding: 4 }, 
+  attachBtn: { marginRight: 10, padding: 4 },
+
+  ctrlBtn: { backgroundColor: '#f0f0f0', paddingHorizontal: 12, height: 38, justifyContent: 'center', borderRadius: 12, marginRight: 8, borderWidth: 1, borderColor: 'transparent' },
+  ctrlActive: { backgroundColor: '#e0f0ff', borderColor: '#007aff' },
+  ctrlLocked: { backgroundColor: '#fff3e0', borderColor: '#ff9500' },
+  ctrlBtnText: { fontSize: 13, fontWeight: 'bold', color: '#555' },
+  ctrlTextActive: { color: '#007aff' },
   input: { flex: 1, backgroundColor: '#f0f0f0', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, marginRight: 10, fontSize: 15, maxHeight: 100 },
+
   sendBtn: { backgroundColor: '#007aff', width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   galleryContainer: { height: 350, backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#eee' },
   galleryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 10, borderBottomWidth: 1, borderColor: '#eee' },
