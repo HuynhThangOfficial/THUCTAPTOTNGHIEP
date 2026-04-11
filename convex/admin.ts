@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+import { mutation, query, internalMutation } from "./_generated/server";
 
 // =========================================================
 // 1. QUẢN LÝ NGƯỜI DÙNG (USERS)
@@ -454,5 +454,26 @@ export const adminGetReports = query({
     }
 
     return result.sort((a, b) => b.createdAt - a.createdAt);
+  }
+});
+// =========================================================
+// 8. TOOL TỐI ƯU HÓA HỆ THỐNG (CHẠY 1 LẦN)
+// =========================================================
+export const tagAllBots = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    // Kéo toàn bộ user về (lần cuối cùng phải làm chuyện cực nhọc này)
+    const allUsers = await ctx.db.query("users").collect();
+    
+    // Lọc ra mấy đứa là bot
+    const bots = allUsers.filter(u => u.clerkId.startsWith("bot_"));
+    
+    let count = 0;
+    for (const bot of bots) {
+      // Gắn cờ isBot: true cho nó
+      await ctx.db.patch(bot._id, { isBot: true });
+      count++;
+    }
+    return `Hoàn tất! Đã gắn tag isBot cho ${count} con bot. Từ giờ băng thông sẽ giảm mạnh.`;
   }
 });

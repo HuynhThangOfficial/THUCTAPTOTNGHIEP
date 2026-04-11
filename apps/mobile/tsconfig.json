@@ -3,10 +3,15 @@
   "compilerOptions": {
     "strict": true,
     "baseUrl": ".",
+    
+    /* 1. SỬA LỖI: Bỏ qua cảnh báo vàng "deprecated" của baseUrl và moduleResolution */
+    "ignoreDeprecations": "6.0",
+    
+    /* 2. SỬA LỖI: Giúp TypeScript nhận diện được chữ "NodeJS" trong file [id].tsx */
+    "types": ["node"],
+    
     "paths": {
       "@/*": ["./*"],
-      // Chỉ đường cho TOÀN BỘ những gì bắt đầu bằng @/convex/ 
-      // trỏ thẳng ra thư mục convex ở gốc dự án
       "@/convex/*": ["../../convex/*"] 
     },
     "jsx": "react-native"

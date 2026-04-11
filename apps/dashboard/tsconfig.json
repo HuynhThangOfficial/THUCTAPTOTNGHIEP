@@ -15,10 +15,9 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Path mapping */
-    "baseUrl": ".",
+    /* Path mapping (Đã cập nhật chuẩn mới) */
     "paths": {
-      "@/*": ["src/*"],
+      "@/*": ["./src/*"],
       "@convex/*": ["../../convex/*"]
     },
 

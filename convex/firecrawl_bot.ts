@@ -7,11 +7,13 @@ import FirecrawlApp from "@mendable/firecrawl-js";
 export const scrapeCommunityNews = internalAction({
   args: {},
   handler: async (ctx): Promise<string> => {
+    // 👇 TRẠM GÁC: Đặt lên dòng ĐẦU TIÊN. Chặn ngay từ cửa, không cho quét Database.
+    const apiKey = process.env.FIRECRAWL_API_KEY;
+    if (!apiKey) return "SYS_SKIP: Môi trường Dev không có API Key, bot Firecrawl đi ngủ.";
+
+    // Các bước gọi DB và xử lý bên dưới mới được phép chạy
     const target: any = await ctx.runQuery((internal as any).firecrawl_db.getCommunityScrapeTarget);
     if (!target) return "SYS_ERR: Không tìm thấy kênh Cộng đồng nào hợp lệ!";
-
-    const apiKey = process.env.FIRECRAWL_API_KEY;
-    if (!apiKey) throw new Error("Thiếu FIRECRAWL_API_KEY");
 
     const app = new FirecrawlApp({ apiKey });
     const cName = target.channelName.toLowerCase();
@@ -19,7 +21,6 @@ export const scrapeCommunityNews = internalAction({
     // Quay lại với Tuổi Trẻ cho nó nhiều tin hóng hớt bác nhé!
     let targetUrl = "https://tuoitre.vn/tin-moi-nhat.htm"; 
     
-    // ... Giữ nguyên logic chọn targetUrl theo channelName như cũ ...
     if (cName.includes("thể-thao")) targetUrl = "https://tuoitre.vn/the-thao.htm";
     else if (cName.includes("công-nghệ")) targetUrl = "https://tuoitre.vn/khoa-hoc.htm";
     else if (cName.includes("phim-ảnh") || cName.includes("âm-nhạc")) targetUrl = "https://tuoitre.vn/giai-tri.htm";
@@ -43,7 +44,7 @@ export const scrapeCommunityNews = internalAction({
         ]
       });
 
-      // 👇 FIX CHỐT HẠ: Kiểm tra dữ liệu thay vì kiểm tra trường .success 👇
+      // Kiểm tra dữ liệu an toàn
       const postContent = scrapeResult.json?.content || (scrapeResult.data && scrapeResult.data[0]?.content);
       
       if (!postContent) {

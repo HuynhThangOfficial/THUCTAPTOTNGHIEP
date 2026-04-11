@@ -4,46 +4,47 @@ import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
-// ☀️ Ban ngày: Cứ mỗi 7 phút, Cron sẽ đẩy 1 yêu cầu đăng bài vào Hàng chờ (Queue).
-// Khi vào hàng chờ, nó sẽ bị delay ngẫu nhiên từ 30s đến 15 phút mới được hiện lên Web.
+// ==========================================
+// 1. LỊCH ĐĂNG BÀI (AI ROLEPLAY)
+// ==========================================
+// ☀️ Ban ngày (0h-16h UTC): Chạy vào phút thứ 15 và 55 của mỗi giờ (Cách nhau khoảng 40 phút)
 crons.cron(
   "Post_BanNgay",
-  "*/9 0-16 * * *", 
-  (internal as any).ai_bot.scheduleRoleplayPost // <--- SỬA THÀNH SCHEDULE
+  "15,55 0-16 * * *", 
+  (internal as any).ai_bot.scheduleRoleplayPost
 );
 
-// 🌙 Cú đêm: Mỗi 23 phút mới đẩy 1 yêu cầu vào hàng chờ.
+// 🌙 Cú đêm (17h-23h UTC): Chỉ chạy 1 lần vào phút thứ 10 của các giờ chẵn (Cách nhau 2 tiếng)
 crons.cron(
   "Post_BanDem",
-  "*/32 17-23 * * *", 
-  (internal as any).ai_bot.scheduleRoleplayPost // <--- SỬA THÀNH SCHEDULE
+  "10 18,20,22 * * *", 
+  (internal as any).ai_bot.scheduleRoleplayPost
 );
 
 // ==========================================
 // 2. LỊCH BÌNH LUẬN DẠO (ENGAGEMENT BOT)
 // ==========================================
-// ☀️ Ban ngày: 4 phút quét 1 lần! Tốc độ bàn thờ để sinh viên đăng bài xong là thấy có tương tác nổ Noti liên tục.
+// ☀️ Ban ngày: Quét vào phút thứ 05 và 35 của mỗi giờ (Tuyệt đối lệch pha với lúc đăng bài)
 crons.cron(
   "Cmt_BanNgay",
-  "*/7 0-16 * * *", 
+  "5,35 0-16 * * *", 
   (internal as any).engagement_bot.runAutoEngagement
 );
 
-// 🌙 Ban đêm: 13 phút quét 1 lần. Đêm khuya vẫn có cú đêm đi hóng hớt cmt dạo.
+// 🌙 Ban đêm: Quét 1 lần vào phút thứ 40 của các giờ lẻ 
 crons.cron(
   "Cmt_BanDem",
-  "*/24 17-23 * * *", 
+  "40 17,19,21,23 * * *", 
   (internal as any).engagement_bot.runAutoEngagement
 );
 
 // ==========================================
 // 3. LỊCH HÓNG BIẾN (FIRECRAWL NEWS)
 // ==========================================
-// Cứ 120 phút (2 tiếng) đi cào báo 1 lần. 
-// 1 ngày xài 12 lượt Firecrawl. Bác có 1000 lượt thì xài liên tục gần 3 tháng mới hết! Đủ qua mùa bảo vệ đồ án!
+// Lệnh interval của Convex tính bằng phút, nên dùng 120 (2 tiếng) là hợp lệ.
 crons.interval(
   "Scrape_News_TuoiTre",
-  { minutes: 6000 },
+  { minutes: 10000 }, 
   (internal as any).firecrawl_bot.scrapeCommunityNews
 );
 

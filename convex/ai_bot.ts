@@ -23,7 +23,7 @@ interface BotPersona {
 }
 
 // ============================================================================
-// [PHẦN 2] LẤY NGỮ CẢNH KÊNH & KHỞI TẠO DANH TÍNH BOT (CÓ QUẢN LÝ TỈ LỆ)
+// [PHẦN 2] LẤY NGỮ CẢNH & KHỞI TẠO DANH TÍNH (TỐI ƯU INDEX)
 // ============================================================================
 export const getVAAContext = internalQuery({
   args: {}, 
@@ -31,7 +31,6 @@ export const getVAAContext = internalQuery({
     const vaa = await ctx.db.query("universities").filter(q => q.eq(q.field("slug"), "vaa")).first();
     if (!vaa) return null;
 
-    // Lọc các kênh hợp lệ, bỏ qua kênh hệ thống
     const channels = await ctx.db.query("channels")
       .withIndex("by_university", q => q.eq("universityId", vaa._id))
       .filter(q => q.and(
@@ -43,17 +42,20 @@ export const getVAAContext = internalQuery({
     if (channels.length === 0) return null;
     const randomChannel = channels[Math.floor(Math.random() * channels.length)];
 
-    // Lấy danh sách bot để tái sử dụng, tạo cảm giác cộng đồng có người thật
-    const allUsers = await ctx.db.query("users").collect();
-    const botUsers = allUsers.filter(u => u.clerkId.startsWith("bot_") && !u.clerkId.includes("news"));
+    // 👇 TỐI ƯU CỰC MẠNH: Dùng Index để chỉ lấy Bot, không collect toàn bộ User
+    const botUsers = await ctx.db.query("users")
+      .withIndex("by_bot_status", q => q.eq("isBot", true))
+      .collect();
+
+    // Lọc bỏ bot news (nếu cần) trên tập dữ liệu bot nhỏ gọn
+    const filteredBots = botUsers.filter(u => u.clerkId && !u.clerkId.includes("news"));
 
     let randomBot = null;
-    let reuseRate = 0.35; // 35% xác suất bot cũ quay lại chat tiếp
+    let reuseRate = 0.35; 
 
-    if (botUsers.length > 0 && Math.random() < reuseRate) {
+    if (filteredBots.length > 0 && Math.random() < reuseRate) {
       const weightedBots = [];
-      for (const b of botUsers) {
-        // Thuật toán tính độ "chăm chỉ" của bot dựa trên ID
+      for (const b of filteredBots) {
         const luckScore = b._id.charCodeAt(b._id.length - 1) % 10;
         let weight = luckScore < 3 ? 5 : (luckScore >= 8 ? 1 : 2); 
         for (let i = 0; i < weight; i++) weightedBots.push(b);
@@ -73,7 +75,7 @@ export const getVAAContext = internalQuery({
 });
 
 // ============================================================================
-// [PHẦN 3] MODULE LƯU TRỮ VÀ SINH USER ẢO VÀO DATABASE (CHÂN THỰC 100%)
+// [PHẦN 3] LƯU BÀI ĐĂNG & SINH EMAIL NHƯ NGƯỜI THẬT
 // ============================================================================
 export const saveAiPost = internalMutation({
   args: { 
@@ -87,23 +89,35 @@ export const saveAiPost = internalMutation({
   handler: async (ctx, args) => {
     let authorId = args.userId;
 
-    // Tự động sinh User Ảo nếu chưa có (Tên thật, Không Follow Ảo, Không Bio)
     if (!authorId) {
       const clerkId = `bot_${Date.now()}_${Math.floor(Math.random() * 999999)}`;
-      const safeUsername = "u_" + Math.random().toString(36).substring(2, 12); // Không dùng chữ vaa_ nữa
+      
+      // 👇 LÀM CHO USERNAME & EMAIL TRÔNG GIỐNG NGƯỜI THẬT
+      // Chuyển "Nguyễn Nam" thành "nguyennam", thêm số ngẫu nhiên
+      const cleanName = args.botName
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Bỏ dấu tiếng Việt
+        .toLowerCase()
+        .replace(/\s+/g, "");
+      
+      const randomSuffix = Math.floor(100 + Math.random() * 899);
+      const safeUsername = `${cleanName}${randomSuffix}`;
+      
+      // Các domain phổ biến để tạo cảm giác thật
+      const domains = ["gmail.com", "yahoo.com", "outlook.com.vn", "hotmail.com"];
+      const randomDomain = domains[Math.floor(Math.random() * domains.length)];
       
       authorId = await ctx.db.insert("users", {
         clerkId: clerkId,
-        email: `${safeUsername}@bot.local`,
+        email: `${safeUsername}@${randomDomain}`, // Email: nguyennam456@gmail.com
         first_name: args.botName,
         username: safeUsername,
-        followersCount: 0, // Đã bỏ follow ảo
+        followersCount: 0,
+        isBot: true, // Đánh dấu để Index by_bot_status hoạt động
       });
     }
 
     const isAnon = args.channelName.toLowerCase() === "confession";
 
-    // Insert tin nhắn vào cơ sở dữ liệu
     await ctx.db.insert("messages", {
       userId: authorId, 
       channelId: args.channelId,
@@ -144,16 +158,17 @@ export const scheduleRoleplayPost = internalMutation({
 export const generateRoleplayPost = internalAction({
   args: {}, 
   handler: async (ctx): Promise<string> => { 
+    // 👇 TRẠM GÁC: Chặn ngay từ cửa, không cho đụng vào Database
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return "SYS_SKIP: Môi trường Dev không có API Key, bot tự động đi ngủ.";
+
     const target: any = await ctx.runQuery((internal as any).ai_bot.getVAAContext);
     if (!target) return "SYS_ERR: Không tìm thấy kênh chỉ định!";
-
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("SYS_ERR: Missing GEMINI_API_KEY environment variable.");
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ 
       model: "gemini-3.1-flash-lite-preview", 
-      generationConfig: { responseMimeType: "application/json", temperature: 1.0 } // Đẩy nhiệt độ max để tăng độ sáng tạo
+      generationConfig: { responseMimeType: "application/json", temperature: 1.0 }
     });
 
     // ------------------------------------------------------------------------

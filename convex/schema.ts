@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+// Định nghĩa cấu trúc bảng User
 export const User = {
   email: v.string(),
   clerkId: v.string(),
@@ -17,11 +18,15 @@ export const User = {
   stones: v.optional(v.number()),
   language: v.optional(v.string()),
   role: v.optional(v.string()),
+  // 👇 TRƯỜNG MỚI: Đánh dấu Bot để lọc siêu tốc, giảm băng thông
+  isBot: v.optional(v.boolean()), 
 };
 
 export default defineSchema({
   users: defineTable(User)
     .index("byClerkId", ["clerkId"])
+    // 👇 INDEX MỚI: Giúp tìm bot mà không cần quét toàn bộ database (.collect())
+    .index("by_bot_status", ["isBot"]) 
     .searchIndex("searchUsers", { searchField: "username" }),
 
   follows: defineTable({
