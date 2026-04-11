@@ -33,13 +33,30 @@ const LoginPage = () => {
       });
 
       if (result.status === 'complete') {
-        // Đăng nhập thành công (Không bật 2FA)
         await setActive({ session: result.createdSessionId });
       } else if (result.status === 'needs_second_factor') {
-        // Tài khoản có bật 2FA -> Chuyển sang màn hình nhập OTP
+        
+        // 👇 KIỂM TRA PHƯƠNG THỨC 2FA VÀ KÍCH HOẠT GỬI MÃ 👇
+        const secondFactor = result.supportedSecondFactors?.[0];
+        
+        if (secondFactor?.strategy === 'email_code') {
+          // Bắt Clerk gửi mã về Email
+          await signIn.prepareSecondFactor({
+            strategy: 'email_code',
+            emailAddressId: secondFactor.emailAddressId,
+          });
+        } else if (secondFactor?.strategy === 'phone_code') {
+          // Bắt Clerk gửi SMS về Điện thoại
+          await signIn.prepareSecondFactor({
+            strategy: 'phone_code',
+            phoneNumberId: secondFactor.phoneNumberId,
+          });
+        }
+        // Nếu là TOTP (Authenticator App) thì không cần gọi prepare, cứ thế hiện form
+
         setIsVerifying2FA(true);
       } else {
-        console.log(result);
+        console.log("Trạng thái chưa xử lý:", result.status);
       }
     } catch (err: any) {
       setError(err.errors?.[0]?.message || 'Tài khoản hoặc mật khẩu không chính xác.');
